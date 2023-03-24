@@ -1,5 +1,5 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
-import FS from 'browserfs/dist/node/core/FS';
+
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 const builtInFunctionNames = [
