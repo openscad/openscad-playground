@@ -6,6 +6,8 @@ import reportWebVitals from './reportWebVitals';
 import { createEditorFS } from './filesystem';
 import { registerOpenSCADLanguage } from './language/openscad-register-language';
 import { zipArchives } from './zip-archives';
+import {readStateFromFragment} from './state'
+import { State } from './app-state';
 
 (async () => {
   
@@ -13,12 +15,18 @@ import { zipArchives } from './zip-archives';
   const fs = await createEditorFS(workingDir);
   await registerOpenSCADLanguage(fs, workingDir, zipArchives);
 
+  const initialState = readStateFromFragment() ?? {
+    source: {
+      content: 'cube(1);\ntranslate([0.5, 0.5, 0.5])\n\tcube(1);',
+    }
+  } as State;
+
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement
   );
   root.render(
     <React.StrictMode>
-      <App />
+      <App initialState={initialState} />
     </React.StrictMode>
   );
   

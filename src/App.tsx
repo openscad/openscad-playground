@@ -1,10 +1,23 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React from 'react';
-import SCADEditor from './Editor';
+import React, { useState } from 'react';
+import {State} from './app-state'
+import Editor from '@monaco-editor/react';
 import './App.css';
+import openscadEditorOptions from './language/openscad-editor-options';
+import { writeStateInFragment } from './state';
 
-export function App() {
+export function App({initialState}: {initialState: State}) {
+  const [state, rawSetState] = useState(initialState);
+
+  const setState = (state: State) => {
+    rawSetState(state);
+    writeStateInFragment(state);
+  };
+
+  const value = state.source.content;
+  const setValue = (content?: string) => setState({...state, source: {...state.source, content: content ?? ''}});
+
   return (
     <div className="App">
       <header className="App-header">
@@ -20,9 +33,14 @@ export function App() {
         >
           Learn OpenSCAD
         </a>
-        <SCADEditor height="50vh" value="if (true) sphere(10); else cube();"/>
-
-      </header>
+        <Editor
+            className="openscad-editor"
+            defaultLanguage="openscad"
+            value={value}
+            onChange={setValue}
+            options={openscadEditorOptions}
+            height="50vh"/>
+        </header>
     </div>
   );
 }
