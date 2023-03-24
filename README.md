@@ -3,3 +3,15 @@
 WIP revamp of https://github.com/ochafik/openscad-wasm/tree/editor-ochafik.com / https://ochafik.com/openscad.
 
 Licenses: see [LICENSES](./LICENSES).
+
+## Build
+
+Prerequisites:
+*   wget
+*   GNU make
+*   npm
+*   deno
+
+```bash
+make
+```
