@@ -1,5 +1,7 @@
+// Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
+
 import React from 'react';
-import logo from '../public/logo.png';
+import SCADEditor from './Editor';
 import './App.css';
 
 export function App() {
@@ -18,6 +20,8 @@ export function App() {
         >
           Learn OpenSCAD
         </a>
+        <SCADEditor height="50vh" value="if (true) sphere(10); else cube();"/>
+
       </header>
     </div>
   );
