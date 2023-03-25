@@ -1,23 +1,26 @@
 # OpenSCAD Playground
 
-WIP revamp of https://github.com/ochafik/openscad-wasm/tree/editor-ochafik.com / https://ochafik.com/openscad.
+[Open the Demo](https://ochafik.com/openscad2)
 
-Licenses: see [LICENSES](./LICENSES).
+This is a WIP revamp of https://ochafik.com/openscad.
 
-## Features
+Licenses: see [LICENSES](./LICENSE).
 
-- Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6)
+## Features & Roadmap
+
+Should work:
+
+- Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Currently using a trick to force $preview=true, it's not perfect.
 - Syntax highlighting
 - Ships with many standard SCAD libraries
 - Autocomplete of imports
 - Autocomplete of symbols / function calls (pseudo-parses file and its transitive imports)
-- 
 
-## TODO
+Planned:
 
-- Investigate https://www.npmjs.com/package/react-codemirror for mobile editor (Monaco on iOS is terribly broken)
-- Link to https://www.npmjs.com/package/monaco-languages MIT JS source for language 
-## Build
+- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD.
+- Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
+- Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
 
 Prerequisites:
 *   wget
