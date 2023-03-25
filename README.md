@@ -32,6 +32,10 @@ make public
 npm start
 # http://localhost:4000/
 ```
+
+Local prod (test both the different inlining and serving under a prefix):
+
+```bash
 make public
 npm run start:prod
 # http://localhost:3000/dist/

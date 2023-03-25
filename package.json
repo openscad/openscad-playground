@@ -18,8 +18,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-stl-viewer": "^2.2.5",
-    "react-widgets": "^5.8.4",
-    "web-vitals": "^2.1.4"
+    "react-widgets": "^5.8.4"
   },
   "scripts": {
     "start": "concurrently 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
@@ -47,6 +46,7 @@
   "devDependencies": {
     "@rollup/plugin-html": "^1.0.2",
     "@rollup/plugin-node-resolve": "^15.0.1",
+    "@rollup/plugin-replace": "^5.0.2",
     "@rollup/plugin-typescript": "^11.0.0",
     "@types/filesystem": "^0.0.32",
     "@types/node": "^18.15.6",
