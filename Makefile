@@ -9,6 +9,7 @@ all: build
 .PHONY: public
 public: \
 		public/openscad.js \
+		public/openscad-worker-inlined.js \
 		public/libraries/fonts.zip \
 		public/libraries/NopSCADlib.zip \
 		public/libraries/BOSL.zip \
@@ -25,17 +26,27 @@ public: \
 		public/libraries/UB.scad.zip
 
 clean:
-	rm -rf libs build
-	rm -rf public/libraries
+	rm -fR libs build
+	rm -fR public/openscad-worker-inlined.js
+	rm -fR public/openscad.{js,wasm}
+	rm -fR public/libraries
+	rm -fR src/wasm
 
 build: public
 	npm run build
 
-public/openscad.js:
+src/wasm/openscad.js:
 	wget ${WASM_BUILD_URL} -O OpenSCAD-WebAssembly.zip
-	( cd public && rm openscad.{js,wasm} && unzip ../OpenSCAD-WebAssembly.zip )
+	mkdir -p src/wasm
+	( cd src/wasm && rm -f openscad.{js,wasm} && unzip ../../OpenSCAD-WebAssembly.zip )
 	rm OpenSCAD-WebAssembly.zip
+
+public/openscad.js: src/wasm/openscad.js
+	cp src/wasm/openscad.{js,wasm} public
 	
+public/openscad-worker-inlined.js: src/openscad-worker.ts src/wasm/openscad.js
+	npx rollup -c
+
 public/libraries/fonts.zip: libs/liberation
 	mkdir -p public/libraries
 	cp fonts.conf libs/liberation

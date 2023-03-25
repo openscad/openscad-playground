@@ -1,3 +1,5 @@
+// Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
@@ -6,7 +8,7 @@ import reportWebVitals from './reportWebVitals';
 import { createEditorFS } from './filesystem';
 import { registerOpenSCADLanguage } from './language/openscad-register-language';
 import { zipArchives } from './zip-archives';
-import {readStateFromFragment} from './state'
+import {readStateFromFragment} from './fragment-state'
 import { State } from './app-state';
 
 (async () => {
@@ -16,8 +18,8 @@ import { State } from './app-state';
   await registerOpenSCADLanguage(fs, workingDir, zipArchives);
 
   const initialState = readStateFromFragment() ?? {
-    source: {
-      content: 'cube(1);\ntranslate([0.5, 0.5, 0.5])\n\tcube(1);',
+    params: {
+      source: 'cube(1);\ntranslate([0.5, 0.5, 0.5])\n\tcube(1);',
     }
   } as State;
 

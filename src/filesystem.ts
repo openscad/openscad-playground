@@ -1,11 +1,8 @@
-// import FS from "browserfs/dist/node/core/FS";
-import { BrowserFS } from "./BrowserFS";
+// Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
+
 import { zipArchives } from "./zip-archives";
 
-export interface FS {
-  readdir(path: string, cb: (err: any, files: string[]) => void): void;
-  symlink(target: string, source: string): void;
-}
+declare var BrowserFS: BrowserFSInterface
 
 export type FSMounts = {
   [n: string]: {fs: string, options: {zipData: Buffer}}
@@ -43,12 +40,12 @@ export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/
   };
 
   await Promise.all(archiveNames.map(n => (async () => {
-    if (!(n in zipArchives)) throw `Archive named ${n} invalid (valid ones: ${Object.keys(zipArchives).join(', ')})`;
+    if (!(n in zipArchives)) throw new Error(`Archive named ${n} invalid (valid ones: ${Object.keys(zipArchives).join(', ')})`);
     const {symlinks} = (zipArchives)[n];
     if (symlinks) {
       for (const from in symlinks) {
         const to = symlinks[from];
-        const target = to == '.' ? `${prefix}/${n}` : `${prefix}/${n}/${to}`;
+        const target = to === '.' ? `${prefix}/${n}` : `${prefix}/${n}/${to}`;
         const source = from.startsWith('/') ? from : `${cwd}/${from}`;
         await createSymlink(target, source);
       }
