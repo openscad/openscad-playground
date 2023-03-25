@@ -2,19 +2,22 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { spawnOpenSCAD } from "./openscad-runner";
-import { joinMergedOutputs, parseMergedOutputs } from "./output-parser";
+import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from './utils';
 
 const syntaxDelay = 300;
 
 type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[]};
-export const checkSyntax = (source: string, callback: (out: SyntaxCheckOutput) => void) => 
-  turnIntoDelayableExecution(syntaxDelay, () => {
-    // const timestamp = Date.now();
+export const checkSyntax =
+  turnIntoDelayableExecution(syntaxDelay, (source: string) => {
+    // const timestamp = Date.now(); 
+    
+    source = '$preview=true;\n' + source;
+    const sourceFile = 'input.scad';
 
     const job = spawnOpenSCAD({
-      inputs: [['input.scad', source + '\n']],
-      args: ["input.scad", "-o", "out.ast"],
+      inputs: [[sourceFile, source + '\n']],
+      args: [sourceFile, "-o", "out.ast"],
     });
 
     return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
@@ -22,9 +25,7 @@ export const checkSyntax = (source: string, callback: (out: SyntaxCheckOutput) =
         try {
           const result = await job;
           // console.log(result);
-          const logText = joinMergedOutputs(result.mergedOutputs);
-          const markers = parseMergedOutputs(result.mergedOutputs);
-          res({logText, markers});
+          res(processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {[sourceFile]: 1}}));
         } catch (e) {
           console.error(e);
           rej(e);
@@ -32,25 +33,34 @@ export const checkSyntax = (source: string, callback: (out: SyntaxCheckOutput) =
       })()
       return () => job.kill();
     });
-  }, callback);
-
-var sourceFileName;
-// var editor;
+  });
 
 var renderDelay = 1000;
-type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis?: number}
+export type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis?: number}
 
-export const render = (source: string, features: string[], callback: (result: RenderOutput) => void) =>
- turnIntoDelayableExecution(renderDelay, () => {
+export type RenderArgs = {
+  source: string,
+  features?: string[],
+  extraArgs?: string[],
+  isPreview?: boolean
+}
+export const render =
+ turnIntoDelayableExecution(renderDelay, (args: RenderArgs) => {
   
+    const prefixLines: string[] = [];
+    if (args.isPreview) prefixLines.push('$preview=false;');
+    const source = args.isPreview ? [...prefixLines, args.source].join('\n') : args.source
+    const inputFile = 'input.scad';
+    
     const job = spawnOpenSCAD({
       // wasmMemory,
       inputs: [['input.scad', source]],
       args: [
-        "input.scad",
+        inputFile,
         "-o", "out.stl",
         "--export-format=binstl",
-        ...features.map(f => `--enable=${f}`),
+        ...(args.features ?? []).map(f => `--enable=${f}`),
+        ...(args.extraArgs ?? [])
       ],
       outputPaths: ['out.stl']
     });
@@ -61,8 +71,9 @@ export const render = (source: string, features: string[], callback: (result: Re
           const result = await job;
           console.log(result);
 
-          const logText = joinMergedOutputs(result.mergedOutputs);
-          const markers = parseMergedOutputs(result.mergedOutputs);
+          const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
+            shiftSourceLines: {[inputFile]: prefixLines.length}
+          });
     
           if (result.error) {
             reject(result.error);
@@ -87,4 +98,4 @@ export const render = (source: string, features: string[], callback: (result: Re
 
       return () => job.kill()
     });
-  }, callback);
+  });

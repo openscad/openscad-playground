@@ -22,25 +22,27 @@ export function AbortablePromise<T>(f: (resolve: (result: T) => void, reject: (e
   return Object.assign(promise, {kill: kill!});
 }
 
-
-export function turnIntoDelayableExecution<T>(delay: number, job: () => AbortablePromise<T>, callback: (result: T) => void) {
+// <T extends any[]>(...args: T)
+export function turnIntoDelayableExecution<T extends any[], R>(
+    delay: number,
+    job: (...args: T) => AbortablePromise<R>) {
   let pendingId: number | null;
   let runningJobKillSignal: (() => void) | null;
 
-  const doExecute = async () => {
-    if (runningJobKillSignal) {
-      runningJobKillSignal();
-      runningJobKillSignal = null;
+  return (...args: T) => async ({now, callback}: {now: boolean, callback: (result: R) => void}) => {
+    const doExecute = async () => {
+      if (runningJobKillSignal) {
+        runningJobKillSignal();
+        runningJobKillSignal = null;
+      }
+      const abortablePromise = job(...args);
+      runningJobKillSignal = abortablePromise.kill;
+      try {
+        callback(await abortablePromise);
+      } finally {
+        runningJobKillSignal = null;
+      }
     }
-    const abortablePromise = job();
-    runningJobKillSignal = abortablePromise.kill;
-    try {
-      callback(await abortablePromise);
-    } finally {
-      runningJobKillSignal = null;
-    }
-  }
-  return async ({now}: {now: boolean}) => {
     if (pendingId) {
       clearTimeout(pendingId);
       pendingId = null;
@@ -54,7 +56,7 @@ export function turnIntoDelayableExecution<T>(delay: number, job: () => Abortabl
 }
 
 export const validateString = (s: string, orElse: () => string = () => '') => s != null && typeof s === 'string' ? s : orElse();
-export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orElse: () => T[]) => {
+export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orElse: () => T[] = () => []) => {
   if (!(a instanceof Array)) return orElse();
   return a.map(validateElement);
 }

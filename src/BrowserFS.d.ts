@@ -1,12 +1,15 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { FS } from "./filesystem";
+// import { FS } from "./filesystem";
 
-interface EmscriptenFS extends FS {
-  
-};
+declare interface FS {
+  readdir(path: string, cb: (err: any, files: string[]) => void): void;
+  symlink(target: string, source: string): void;
+}
 
-export let BrowserFS = (window as any)['BrowserFS'] as {
+declare interface EmscriptenFS extends FS {}
+
+declare type BrowserFSInterface = {
   BFSRequire: (name: string) => any,
 
   install: (windowOrSelf: Window) => void,

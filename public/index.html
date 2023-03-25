@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8" />
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js"></script>
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.js"></script> -->
-    
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js" defer></script> -->
+    <script src="browserfs.min.js"></script>
+
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
@@ -27,6 +27,17 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>OpenSCAD Playground</title>
+    <style>
+      #root,
+      body {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        margin: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run the OpenSCAD Playground.</noscript>

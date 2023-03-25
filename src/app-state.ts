@@ -8,23 +8,27 @@ import { Model } from "./model"
 export interface State {
   params: {
     source: string,
+    features: string[],
   },
-  checkerRun?: {
+  lastCheckerRun?: {
     logText: string,
     markers: monaco.editor.IMarkerData[]
   }
+  rendering?: boolean,
+  previewing?: boolean,
+  checkingSyntax?: boolean,
+
   output?: {
-    path: string,
-    timestamp: number,
-    sizeBytes: number,
-    formattedSize: string,
+    stlFile: File,
+    stlFileURL: string,
   },
 };
 
 export const ModelContext = createContext(new Model(
   {
     params: {
-      source: ''
+      source: '',
+      features: ['manifold', 'lazy-union'],
     }
   },
   () => { throw new Error('Not implemented'); }

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
 import {App} from './App';
 import reportWebVitals from './reportWebVitals';
 import { createEditorFS } from './filesystem';
@@ -10,6 +9,7 @@ import { registerOpenSCADLanguage } from './language/openscad-register-language'
 import { zipArchives } from './zip-archives';
 import {readStateFromFragment} from './fragment-state'
 import { State } from './app-state';
+import './index.css';
 
 (async () => {
   
@@ -22,6 +22,12 @@ import { State } from './app-state';
       source: 'cube(1);\ntranslate([0.5, 0.5, 0.5])\n\tcube(1);',
     }
   } as State;
+
+  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
+  defaultFeatures.forEach(f => {
+    if (initialState.params.features.indexOf(f) < 0)
+      initialState.params.features.push(f);
+  });
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

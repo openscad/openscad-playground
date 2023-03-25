@@ -1,16 +1,32 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { MergedOutputs } from "./openscad-worker";
 
-export function joinMergedOutputs(mergedOutputs: MergedOutputs) {
+const ignoredLogs = new Set([
+  'Could not initialize localization.'
+]);
+
+type MergedOutputsOptions = {
+  shiftSourceLines: {[path: string]: number}
+}
+export const processMergedOutputs = (outputs: MergedOutputs, opts: MergedOutputsOptions) => ({
+  logText: joinMergedOutputs(outputs, opts),
+  markers: parseMergedOutputs(outputs, opts)
+});
+
+export function joinMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOutputsOptions) {
   let allLines = [];
   for (const {stderr, stdout, error} of mergedOutputs){
-    allLines.push(stderr ?? stdout ?? `EXCEPTION: ${error}`);
+    const line = stderr ?? stdout ?? `EXCEPTION: ${error}`;
+    if (ignoredLogs.has(line)) {
+      continue;
+    }
+    allLines.push(line);
   }
 
   return allLines.join("\n");
 }
 
-export function parseMergedOutputs(mergedOutputs: MergedOutputs): monaco.editor.IMarkerData[] {
+export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOutputsOptions): monaco.editor.IMarkerData[] {
   let unmatchedLines = [];
 
   const markers = [];
@@ -25,6 +41,10 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs): monaco.editor.
       severity: monaco.MarkerSeverity.Error
     })
   }
+  const getLine = (path: string, lineStr: string) => {
+    const shift = opts.shiftSourceLines[path] ?? 0;
+    return Number(lineStr) - shift;
+  }
   for (const {stderr, stdout, error} of mergedOutputs){
     if (stderr) {
       if (stderr.startsWith('ERROR:')) errorCount++;
@@ -33,14 +53,14 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs): monaco.editor.
       let m = /^ERROR: Parser error in file "([^"]+)", line (\d+): (.*)$/.exec(stderr)
       if (m) {
         const [_, file, line, error] = m
-        addError(error, file, Number(line));
+        addError(error, file, getLine(file, line));
         continue;
       }
 
       m = /^ERROR: Parser error: (.*?) in file ([^",]+), line (\d+)$/.exec(stderr)
       if (m) {
         const [_, error, file, line] = m
-        addError(error, file, Number(line));
+        addError(error, file, getLine(file, line));
         continue;
       }
 
@@ -48,9 +68,9 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs): monaco.editor.
       if (m) {
         const [_, warning, file, line] = m
         markers.push({
-          startLineNumber: Number(line),
+          startLineNumber: getLine(file, line),
           startColumn: 1,
-          endLineNumber: Number(line),
+          endLineNumber: getLine(file, line),
           endColumn: 1000,
           message: warning,
           severity: monaco.MarkerSeverity.Warning
