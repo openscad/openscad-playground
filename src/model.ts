@@ -34,10 +34,6 @@ export class Model {
     return false;
   }
 
-  // get features() { return this.state_.params.features; }
-
-  // get source(): string { return this.state_.params.source; }
-
   set source(source: string) {
     if (this.mutate(s => { s.params.source = source; })) {
       this.processSource();
@@ -45,62 +41,48 @@ export class Model {
   }
 
   private processSource() {
-    this.mutate(s => {
-      s.previewing = true;
-      s.checkingSyntax = true;
-    });
+    this.checkSyntax();
+    this.render({isPreview: true});
+  }
+  checkSyntax() {
+    this.mutate(s => s.checkingSyntax = true);
     checkSyntax(this.state.params.source)({now: false, callback: checkerRun => this.mutate(s => {
       s.lastCheckerRun = checkerRun;
       s.checkingSyntax = false;
     })});
-    render({...this.renderArgs, isPreview: true})({now: false, callback: output => this.handleRenderOutput(output, s => {
-      s.previewing = false;
-    })});
   }
 
-  // checkSyntax() {
-  //   this.mutate(s => s.checkingSyntax = true);
-  //   checkSyntax(this.state.params.source)({now: false, callback: checkerRun => this.mutate(s => {
-  //     s.lastCheckerRun = checkerRun;
-  //     s.checkingSyntax = false;
-  //   })});
-  // }
-  // preview() {
-  //   this.mutate(s => s.previewing = true);
-  //   render({...this.renderArgs, isPreview: true})({now: false, callback: output => this.handleRenderOutput(output, s => {
-  //     s.previewing = false;
-  //   })});
-  // }
-
-  private handleRenderOutput(output: RenderOutput, extraMutations: (s: State) => void) {
-    this.mutate(s => {
-      s.lastCheckerRun = {
-        logText: output.logText,
-        markers: output.markers,
+  render({isPreview}: {isPreview: boolean}) {
+    const setRendering = (s: State, value: boolean) => {
+      if (isPreview) {
+        s.previewing = value;
+      } else {
+        s.rendering = value;
       }
-      if (s.output?.stlFileURL) {
-        URL.revokeObjectURL(s.output.stlFileURL);
-      }
-      s.output = {
-        stlFile: output.stlFile,
-        stlFileURL: URL.createObjectURL(output.stlFile),
-      };
-      extraMutations(s);
-    });
-  }
+    }
+    this.mutate(s => setRendering(s, true));
 
-  private get renderArgs(): RenderArgs {
     const source = this.state.params.source;
     const features = this.state.params.features;
-    return {source, features, extraArgs: ['-D$preview=true']};
-  }
+    const renderArgs = {source, features, extraArgs: ['-D$preview=true'], isPreview};
 
-  render() {
-    this.mutate(s => s.rendering = true);
-
-    render(this.renderArgs)({now: true, callback: output => this.handleRenderOutput(output, s => {
-      s.rendering = false;
-    })})
+    render(renderArgs)({now: !isPreview, callback: output => {
+      this.mutate(s => {
+        s.lastCheckerRun = {
+          logText: output.logText,
+          markers: output.markers,
+        }
+        if (s.output?.stlFileURL) {
+          URL.revokeObjectURL(s.output.stlFileURL);
+        }
+        s.output = {
+          isPreview: isPreview,
+          stlFile: output.stlFile,
+          stlFileURL: URL.createObjectURL(output.stlFile),
+        };
+        setRendering(s, false);
+      });
+    }})
   }
 
 }

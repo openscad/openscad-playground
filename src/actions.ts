@@ -42,7 +42,7 @@ export type RenderArgs = {
   source: string,
   features?: string[],
   extraArgs?: string[],
-  isPreview?: boolean
+  isPreview: boolean
 }
 export const render =
  turnIntoDelayableExecution(renderDelay, (args: RenderArgs) => {

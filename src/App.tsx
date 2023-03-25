@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {ModelContext, State} from './app-state'
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import './App.css';
@@ -72,6 +72,8 @@ export function App({initialState}: {initialState: State}) {
 
   const model = new Model(state, setState);
   useEffect(() => model.init());
+
+  const stlModelRef = useRef(null);
   
   return (
     <ModelContext.Provider value={model}>
@@ -85,9 +87,14 @@ export function App({initialState}: {initialState: State}) {
                 style={{
                   flex: 1
                 }}
+                ref={stlModelRef}
                 showAxes={true}
                 orbitControls
                 shadows
+                modelProps={{
+                  color: '#f9d72c',
+
+                }}
                 url={state.output?.stlFileURL ?? ''}
                 />
           }
@@ -97,6 +104,19 @@ export function App({initialState}: {initialState: State}) {
             {model.state.previewing && 'previewing... '}
             {model.state.rendering && 'rendering... '}
             {model.state.checkingSyntax && 'checking syntax... '}
+
+            <span style={{flex: 1}}></span>
+            
+            <a target="_blank" className="text-fragment" href="http://openscad.org/documentation.html">Docs</a> |
+            <a target="_blank" className="text-fragment" href="http://openscad.org/cheatsheet/">Cheatsheet</a> |
+            <a target="_blank" href="https://github.com/openscad/openscad-playground/blob/rewrite1/LICENSE.md">LICENSES</a>
+
+            {state.output?.stlFileURL && (
+              <a href={state.output?.stlFileURL}
+                title="STL Download">
+                  Download Model
+              </a>
+            )}
         </div>
       </div>
     </ModelContext.Provider>

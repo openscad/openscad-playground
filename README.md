@@ -13,5 +13,13 @@ Prerequisites:
 *   deno
 
 ```bash
+make clean
+
+# When doing local development, ensure the import.meta.url is replaced to localhost:
+# (otherwise will get cryptic `RangeError: WebAssembly.Table.get(): invalid index 999948 into function table`)
+dev=1 make public
+npm start
+
+# When building a release
 make
 ```

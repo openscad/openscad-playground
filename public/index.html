@@ -10,6 +10,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css" />
+
     <meta
       name="description"
       content="OpenSCAD Playground: edit .scad models and render them to STL from the browser (WebAssembly build OpenSCAD, with Monaco editor and STL Viewer)"
@@ -38,8 +40,17 @@
         height: 100vh;
       }
     </style>
+    <style>.github-fork-ribbon:before { background-color: #333; }</style>
+  
   </head>
   <body>
+    <a target="_blank" class="github-fork-ribbon"
+       href="https://github.com/openscad/openscad-playground/tree/rewrite1"
+       data-ribbon="Fork me on GitHub"
+       title="Fork me on GitHub">
+       Fork me on GitHub
+    </a>
+
     <noscript>You need to enable JavaScript to run the OpenSCAD Playground.</noscript>
     <div id="root"></div>
     <!--
