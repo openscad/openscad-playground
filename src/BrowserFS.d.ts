@@ -5,6 +5,7 @@
 declare interface FS {
   readdir(path: string, cb: (err: any, files: string[]) => void): void;
   symlink(target: string, source: string): void;
+  readFileSync(path: string): BufferSource;
 }
 
 declare interface EmscriptenFS extends FS {}

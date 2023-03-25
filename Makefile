@@ -4,12 +4,13 @@ SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
 SHALLOW=--depth 1
 
-all: build
+all: public
 
 .PHONY: public
 public: \
+		libs/openscad \
 		public/openscad.js \
-		public/openscad-worker-inlined.js \
+		public/openscad.wasm \
 		public/libraries/fonts.zip \
 		public/libraries/NopSCADlib.zip \
 		public/libraries/BOSL.zip \
@@ -27,25 +28,48 @@ public: \
 
 clean:
 	rm -fR libs build
-	rm -fR public/openscad-worker-inlined.js
 	rm -fR public/openscad.{js,wasm}
 	rm -fR public/libraries
 	rm -fR src/wasm
 
-build: public
-	npm run build
+dist/index.js: public
+	npm run build2
+	# mkdir -f build/libraries
+	# cp -f public/libraries/*.zip build/libraries
 
-src/wasm/openscad.js:
-	wget ${WASM_BUILD_URL} -O OpenSCAD-WebAssembly.zip
-	mkdir -p src/wasm
-	( cd src/wasm && rm -f openscad.{js,wasm} && unzip ../../OpenSCAD-WebAssembly.zip )
-	rm OpenSCAD-WebAssembly.zip
-
-public/openscad.js: src/wasm/openscad.js
-	cp src/wasm/openscad.{js,wasm} public
-	
-public/openscad-worker-inlined.js: src/openscad-worker.ts src/wasm/openscad.js
+dist/openscad-worker.js: src/openscad-worker.ts
 	npx rollup -c
+
+libs/openscad:
+	mkdir -p libs/openscad
+	wget ${WASM_BUILD_URL} -O libs/openscad.zip
+	( cd libs/openscad && unzip ../openscad.zip )
+	rm libs/openscad.zip
+	rm -f src/wasm
+	ln -sf $(shell pwd)/libs/openscad src/wasm
+	
+public/openscad.js: libs/openscad libs/openscad/openscad.js
+	cp libs/openscad/openscad.{js,wasm} public
+		
+public/openscad.wasm: libs/openscad libs/openscad/openscad.wasm
+	cp libs/openscad/openscad.wasm public
+	
+# public/openscad-worker-inlined.js: src/openscad-worker.ts src/wasm/openscad.js
+# 	npx rollup -c
+
+# js/src/openscad-worker.js: src/openscad-worker.ts
+# 	tsc
+
+# public/openscad-worker-inlined.js: inline-openscad-worker.ts js/src/openscad-worker.js public/openscad.js js/src/filesystem.js js/src/zip-archives.js
+# 	cp src/wasm/openscad.{js,wasm} public
+# npx webpack --config webpack.config.js
+# tsc src/BrowserFS.d.ts src/openscad-worker.ts --outFile public/openscad-worker-inlined.js --module amd --moduleResolution nodenext
+# deno run --allow-net --allow-read --allow-write inline-openscad-worker.ts \
+# 	js/src/openscad-worker.js \
+# 	public/openscad.js \
+# 	public/openscad-worker-inlined.js \
+# 	https://ochafik.com/openscad/openscad-worker-inlined.js
+# cp js/src/{filesystem,zip-archives}.js public
 
 public/libraries/fonts.zip: libs/liberation
 	mkdir -p public/libraries

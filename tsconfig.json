@@ -8,7 +8,7 @@
       "WebWorker",
     ],
     "rootDir": "src",
-    "outDir": "js",
+    // "outDir": "js",
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -20,11 +20,12 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": false,
+    // "noEmit": true,
     "jsx": "react-jsx"
   },
   "include": [
     "src/*.ts",
+    "src/*.tsx",
     // "public"
   ]
 }

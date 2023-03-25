@@ -10,6 +10,17 @@ import { zipArchives } from './zip-archives';
 import {readStateFromFragment} from './fragment-state'
 import { State } from './app-state';
 import './index.css';
+import defaultScad from './default-scad'
+
+import debug from 'debug';
+const log = debug('app:log');
+
+if (process.env.NODE_ENV !== 'production') {
+  debug.enable('*');
+  log('Logging is enabled!');
+} else {
+  debug.disable();
+}
 
 (async () => {
   
@@ -17,11 +28,12 @@ import './index.css';
   const fs = await createEditorFS(workingDir);
   await registerOpenSCADLanguage(fs, workingDir, zipArchives);
 
-  const initialState = readStateFromFragment() ?? {
+  const initialState: State = readStateFromFragment() ?? {
     params: {
-      source: 'cube(1);\ntranslate([0.5, 0.5, 0.5])\n\tcube(1);',
+      source: defaultScad,
+      features: [],
     }
-  } as State;
+  };
 
   const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
   defaultFeatures.forEach(f => {

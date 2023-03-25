@@ -47,7 +47,7 @@ const builtinCompletions = [
     insertText: `${v}`,
     insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
   })),
-  ...openscadLanguage.language.keywords.map(v => ({
+  ...openscadLanguage.language.keywords.map((v: string) => ({
     label: v,
     kind: monaco.languages.CompletionItemKind.Function,
     insertText: v,
@@ -92,7 +92,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
     path = toAbsolutePath(path);
     try {
       const bytes = await fs.readFileSync(path);
-      const src = new TextDecoder("utf-8").decode(bytes);
+      const src = new TextDecoder("utf-8").decode(bytes as any);
       return src;
     } catch (e) {
       throw e;

@@ -31,7 +31,13 @@ function EditorPanel() {
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
         monaco.KeyCode.F6,
       ],
-      run: () => model.render()
+      run: () => model.render({isPreview: false})
+    });
+    editor.addAction({
+      id: "openscad-preview",
+      label: "Preview OpenSCAD",
+      keybindings: [monaco.KeyCode.F5],
+      run: () => model.render({isPreview: false})
     });
     setEditor(editor)
   }
@@ -100,7 +106,7 @@ export function App({initialState}: {initialState: State}) {
           }
           </div>
         <div style={{display: 'flex', flexDirection: 'row'}}>
-            <button onClick={() => model.render()}>Render</button>
+            <button onClick={() => model.render({isPreview: false})}>Render</button>
             {model.state.previewing && 'previewing... '}
             {model.state.rendering && 'rendering... '}
             {model.state.checkingSyntax && 'checking syntax... '}

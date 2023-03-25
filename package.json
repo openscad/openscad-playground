@@ -2,28 +2,29 @@
   "name": "openscad-playground",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://ochafik.com/openscad2/",
   "dependencies": {
     "@monaco-editor/loader": "^1.3.2",
     "@monaco-editor/react": "^4.4.6",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@types/debug": "^4.1.7",
     "@types/jest": "^27.5.2",
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
+    "debug": "^4.3.4",
     "monaco-editor": "^0.36.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "^5.0.1",
     "react-stl-viewer": "^2.2.5",
+    "react-widgets": "^5.8.4",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "tsc": "tsc"
+    "start": "concurrently 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
+    "start:prod": "PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
+    "build": "NODE_ENV=production npx rollup --config openscad-worker.rollup.config.js && webpack --mode=production"
   },
   "eslintConfig": {
     "extends": [
@@ -44,12 +45,28 @@
     ]
   },
   "devDependencies": {
+    "@rollup/plugin-html": "^1.0.2",
+    "@rollup/plugin-node-resolve": "^15.0.1",
     "@rollup/plugin-typescript": "^11.0.0",
     "@types/filesystem": "^0.0.32",
     "@types/node": "^18.15.6",
+    "@web/rollup-plugin-html": "^1.11.0",
+    "concurrently": "^7.6.0",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.7.3",
+    "livereload": "^0.9.3",
     "rollup": "^2.79.1",
+    "rollup-plugin-babel": "^4.4.0",
+    "rollup-plugin-css": "^1.0.10",
+    "rollup-plugin-postcss": "^4.0.2",
+    "rollup-plugin-typescript": "^1.0.1",
+    "rollup-plugin-typescript2": "^0.34.1",
+    "rollup-watch": "^4.3.1",
+    "serve": "^14.2.0",
     "ts-loader": "^9.4.2",
     "tslib": "^2.5.0",
-    "webpack-cli": "^5.0.1"
+    "webpack": "^5.76.3",
+    "webpack-cli": "^5.0.1",
+    "webpack-dev-server": "^4.13.1"
   }
 }

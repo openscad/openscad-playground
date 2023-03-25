@@ -2,7 +2,7 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
-import { createContext } from "react"
+import React from 'react';
 import { Model } from "./model"
 
 export interface State {
@@ -19,12 +19,13 @@ export interface State {
   checkingSyntax?: boolean,
 
   output?: {
+    isPreview: boolean,
     stlFile: File,
     stlFileURL: string,
   },
 };
 
-export const ModelContext = createContext(new Model(
+export const ModelContext = React.createContext(new Model(
   {
     params: {
       source: '',
