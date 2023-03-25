@@ -13,5 +13,5 @@ translate([10, 10, 10])
 //
 // include <BOSL2/std.scad>
 // translate([-100, 0, 0])
-	spheroid(d=100, style="icosa", $fn=20);
+//   spheroid(d=100, style="icosa", $fn=20);
 `

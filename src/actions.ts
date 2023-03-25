@@ -36,7 +36,7 @@ export const checkSyntax =
   });
 
 var renderDelay = 1000;
-export type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis?: number}
+export type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis: number}
 
 export type RenderArgs = {
   source: string,
@@ -45,23 +45,26 @@ export type RenderArgs = {
   isPreview: boolean
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, (args: RenderArgs) => {
-  
-    const prefixLines: string[] = [];
-    if (args.isPreview) prefixLines.push('$preview=false;');
-    const source = args.isPreview ? [...prefixLines, args.source].join('\n') : args.source
+ turnIntoDelayableExecution(renderDelay, (params: RenderArgs) => {
     const inputFile = 'input.scad';
+    const args = [
+      inputFile,
+      "-o", "out.stl",
+      "--export-format=binstl",
+      ...(params.features ?? []).map(f => `--enable=${f}`),
+      ...(params.extraArgs ?? [])
+    ]
+
+    const prefixLines: string[] = [];
+    if (params.isPreview) {
+      prefixLines.push('$preview=true;');
+    }
+    const source = [...prefixLines, params.source].join('\n');
     
     const job = spawnOpenSCAD({
       // wasmMemory,
       inputs: [['input.scad', source]],
-      args: [
-        inputFile,
-        "-o", "out.stl",
-        "--export-format=binstl",
-        ...(args.features ?? []).map(f => `--enable=${f}`),
-        ...(args.extraArgs ?? [])
-      ],
+      args,
       outputPaths: ['out.stl']
     });
 

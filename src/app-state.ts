@@ -22,6 +22,9 @@ export interface State {
     isPreview: boolean,
     stlFile: File,
     stlFileURL: string,
+    elapsedMillis: number,
+    formattedElapsedMillis: string,
+    formattedStlFileSize: string,
   },
 };
 

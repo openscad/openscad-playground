@@ -27,7 +27,7 @@ export type OpenSCADInvocationResults = {
   error?: string,
   outputs?: [string, string][],
   mergedOutputs: MergedOutputs,
-  elapsedMillis?: number,
+  elapsedMillis: number,
 }
 
 export function spawnOpenSCAD({inputs, args, outputPaths}: OpenSCADInvocation): AbortablePromise<OpenSCADInvocationResults> {

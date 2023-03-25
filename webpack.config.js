@@ -15,9 +15,16 @@ module.exports = {
       {
         test: /\.css$/i,
         use: [
-         {loader: 'css-loader', options:{url: false}}
+         {
+          loader: 'css-loader',
+          options:{url: false},
+        }
         ]
-      }
+      },
+      {
+        test: /\.(png|gif|woff|woff2|eot|ttf|svg)$/,
+        loader: "url-loader?limit=100000"
+      },
     ],
   },
   resolve: {

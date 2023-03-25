@@ -42,7 +42,7 @@ export class Model {
 
   private processSource() {
     this.checkSyntax();
-    this.render({isPreview: true});
+    this.render({isPreview: true, now: false});
   }
   checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
@@ -52,7 +52,7 @@ export class Model {
     })});
   }
 
-  render({isPreview}: {isPreview: boolean}) {
+  render({isPreview, now}: {isPreview: boolean, now: boolean}) {
     const setRendering = (s: State, value: boolean) => {
       if (isPreview) {
         s.previewing = value;
@@ -64,9 +64,10 @@ export class Model {
 
     const source = this.state.params.source;
     const features = this.state.params.features;
-    const renderArgs = {source, features, extraArgs: ['-D$preview=true'], isPreview};
+    const renderArgs = {source, features, extraArgs: [], isPreview};
+    // console.log('renderArgs', renderArgs);
 
-    render(renderArgs)({now: !isPreview, callback: output => {
+    render(renderArgs)({now, callback: output => {
       this.mutate(s => {
         s.lastCheckerRun = {
           logText: output.logText,
@@ -75,14 +76,37 @@ export class Model {
         if (s.output?.stlFileURL) {
           URL.revokeObjectURL(s.output.stlFileURL);
         }
+
         s.output = {
           isPreview: isPreview,
           stlFile: output.stlFile,
           stlFileURL: URL.createObjectURL(output.stlFile),
+          elapsedMillis: output.elapsedMillis,
+          formattedElapsedMillis: formatMillis(output.elapsedMillis),
+          formattedStlFileSize: formatBytes(output.stlFile.size),
         };
         setRendering(s, false);
       });
     }})
   }
 
+}
+
+function formatBytes(n: number) {
+  if (n < 1024) {
+    return `${Math.floor(n)} bytes`;
+  }
+  n /= 1024;
+  if (n < 1024) {
+    return `${Math.floor(n * 10) / 10} kB`;
+  }
+  n /= 1024;
+  return `${Math.floor(n * 10) / 10} MB`;
+}
+
+function formatMillis(n: number) {
+  if (n < 1000)
+    return `${Math.floor(n)} millis`;
+
+  return `${Math.floor(n / 100) / 10} sec`;
 }
