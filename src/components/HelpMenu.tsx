@@ -1,10 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { useContext, useRef } from 'react';
+import { useRef } from 'react';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
-import { ModelContext } from './contexts';
 
 export default function HelpMenu() {
   const menuRef = useRef<Menu>(null);

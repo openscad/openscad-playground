@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
+import { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
 import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
 

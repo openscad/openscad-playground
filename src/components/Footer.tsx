@@ -6,7 +6,6 @@ import { ModelContext } from './contexts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
-import { MenuItem } from 'primereact/menuitem';
 import { Badge } from 'primereact/badge';
 import { Menu } from 'primereact/menu';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
