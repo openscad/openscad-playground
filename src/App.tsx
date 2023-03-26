@@ -1,11 +1,11 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import React, { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
-import {ModelContext, MultiLayoutComponentId, SingleLayoutComponentId, State} from './app-state'
+import {MultiLayoutComponentId, SingleLayoutComponentId, State} from './state/app-state'
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 // import './App.css';
 import openscadEditorOptions from './language/openscad-editor-options';
-import { Model } from './model';
+import { Model, ModelContext } from './state/model';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {StlViewer} from "react-stl-viewer";
 import { Button } from 'primereact/button';
@@ -18,11 +18,14 @@ import { Badge } from 'primereact/badge';
 import { Menu } from 'primereact/menu';
 import { ToggleButton } from 'primereact/togglebutton';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import { Toast } from 'primereact/toast';
 import { getParentDir } from './filesystem';
 import { BreadCrumb } from 'primereact/breadcrumb';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Splitter, SplitterPanel } from 'primereact/splitter';
 import { Toolbar } from 'primereact/toolbar';
+import { buildUrlForStateParams } from './state/fragment-state';
+import { blankProjectState } from './state/initial-state';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";

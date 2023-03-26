@@ -1,10 +1,16 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { State } from "./app-state";
-import { validateArray, validateBoolean, validateString, validateStringEnum } from "./utils";
+import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
 
+export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
+  return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
+}
 export function writeStateInFragment(state: State) {
-  window.location.hash = encodeURIComponent(JSON.stringify({
+  window.location.hash = encodeStateParamsAsFragment(state);
+}
+export function encodeStateParamsAsFragment(state: State) {
+  return encodeURIComponent(JSON.stringify({
     params: state.params,
     view: state.view
   }));

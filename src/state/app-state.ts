@@ -2,9 +2,6 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
-import React from 'react';
-import { Model } from "./model"
-
 export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
 
@@ -41,12 +38,11 @@ export interface State {
     elapsedMillis: number,
     formattedElapsedMillis: string,
     formattedStlFileSize: string,
+    // path: string,
+    // timestamp: number,
+    // sizeBytes: number,
+    // formattedSize: string,
   },
 };
 
-export const ModelContext = React.createContext<Model | null>(null);
-
-  },
-  () => { throw new Error('Not implemented'); }
-));
-
+export {}

@@ -6,11 +6,9 @@ import {App} from './App';
 import { createEditorFS } from './filesystem';
 import { registerOpenSCADLanguage } from './language/openscad-register-language';
 import { zipArchives } from './zip-archives';
-import {readStateFromFragment} from './fragment-state'
-import { State } from './app-state';
-import defaultScad from './default-scad'
+import {readStateFromFragment} from './state/fragment-state'
+import { createInitialState } from './state/initial-state';
 import './index.css';
-// import "react-widgets/styles.css";
 
 import debug from 'debug';
 const log = debug('app:log');
@@ -28,56 +26,11 @@ if (process.env.NODE_ENV !== 'production') {
   const fs = await createEditorFS(workingDir)!;
   await registerOpenSCADLanguage(fs, workingDir, zipArchives);
 
-  type Mode = State['view']['layout']['mode'];
-  const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
-    ? 'multi' : 'single';
+  // type Mode = State['view']['layout']['mode'];
+  // const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
+  //   ? 'multi' : 'single';
 
-  const defaultSourcePath = '/home/playground.scad';
-  const initialState: State = {
-    params: {
-      sourcePath: defaultSourcePath,
-      source: defaultScad,
-      features: [],
-    },
-    view: {
-      layout: {
-        mode: 'multi',
-        editor: true,
-        viewer: true,
-        customizer: false,
-      } as any
-    },
-    ...(readStateFromFragment() ?? {})
-  };
-
-  if (initialState.view.layout.mode != mode) {
-    if (mode === 'multi' && initialState.view.layout.mode === 'single') {
-      initialState.view.layout = {
-        mode,
-        editor: true,
-        viewer: true,
-        customizer: initialState.view.layout.focus == 'customizer'
-      }
-    } else if (mode === 'single' && initialState.view.layout.mode === 'multi') {
-      initialState.view.layout = {
-        mode,
-        focus: initialState.view.layout.viewer ? 'viewer'
-          : initialState.view.layout.customizer ? 'customizer'
-          : 'editor'
-      }
-    }
-  }
-
-  fs.writeFile(initialState.params.sourcePath, initialState.params.source);
-  if (initialState.params.sourcePath !== defaultSourcePath) {
-    fs.writeFile(defaultSourcePath, defaultScad);
-  }
-
-  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
-  defaultFeatures.forEach(f => {
-    if (initialState.params.features.indexOf(f) < 0)
-      initialState.params.features.push(f);
-  });
+  const initialState = createInitialState(fs, readStateFromFragment());
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

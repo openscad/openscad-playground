@@ -68,3 +68,22 @@ export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orEl
   if (!(a instanceof Array)) return orElse();
   return a.map(validateElement);
 }
+
+export function formatBytes(n: number) {
+  if (n < 1024) {
+    return `${Math.floor(n)} bytes`;
+  }
+  n /= 1024;
+  if (n < 1024) {
+    return `${Math.floor(n * 10) / 10} kB`;
+  }
+  n /= 1024;
+  return `${Math.floor(n * 10) / 10} MB`;
+}
+
+export function formatMillis(n: number) {
+  if (n < 1000)
+    return `${Math.floor(n)} millis`;
+
+  return `${Math.floor(n / 100) / 10} sec`;
+}

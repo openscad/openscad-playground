@@ -80,7 +80,7 @@ export async function createEditorFS(workingDir='/home'): Promise<FS> {
     allMounts[`${workingDir}/${n}`] = librariesMounts[n];
   }
 
-  await configureAndInstallFS(window, {
+  await configureAndInstallFS(typeof window === 'object' && window || self, {
     fs: "OverlayFS",
     options: {
       readable: {

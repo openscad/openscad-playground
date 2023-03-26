@@ -1,9 +1,11 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { checkSyntax, render, RenderArgs, RenderOutput } from "./actions";
+import React from "react"
+import { checkSyntax, render, RenderArgs, RenderOutput } from "../actions";
 import { MultiLayoutComponentId, SingleLayoutComponentId, State } from "./app-state";
-import { bubbleUpDeepMutations } from "./deep-mutate";
+import { bubbleUpDeepMutations } from "../deep-mutate";
 import { writeStateInFragment } from "./fragment-state";
+import { formatBytes, formatMillis } from '../utils'
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void) {
@@ -160,24 +162,7 @@ export class Model {
       });
     }})
   }
-
 }
 
-function formatBytes(n: number) {
-  if (n < 1024) {
-    return `${Math.floor(n)} bytes`;
-  }
-  n /= 1024;
-  if (n < 1024) {
-    return `${Math.floor(n * 10) / 10} kB`;
-  }
-  n /= 1024;
-  return `${Math.floor(n * 10) / 10} MB`;
-}
+export const ModelContext = React.createContext<Model | null>(null);
 
-function formatMillis(n: number) {
-  if (n < 1000)
-    return `${Math.floor(n)} millis`;
-
-  return `${Math.floor(n / 100) / 10} sec`;
-}
