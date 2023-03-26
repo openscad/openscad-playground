@@ -2,7 +2,7 @@
 
 import OpenSCAD from "./wasm/openscad.js";
 
-import { getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "./filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "./filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "./zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -26,41 +26,19 @@ addEventListener('message', async (e) => {
       buffer: wasmMemory && wasmMemory.buffer,
       noInitialRun: true,
       'print': (text: string) => {
-        // console.log('stdout: ' + text);
+        console.debug('stdout: ' + text);
         mergedOutputs.push({ stdout: text })
       },
       'printErr': (text: string) => {
-        // console.log('stderr: ' + text);
+        console.debug('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
       },
       ENV: {
-        OPENSCADPATH: '/libraries:/home'
+        OPENSCADPATH: '/home'
       }
     });
 
-    // console.error('INSTANCE')
-    // console.error(Object.keys(instance))
-
-    // await browserFSInit;
-    await new Promise(async (resolve, reject) => {
-      BrowserFS.install(self);
-      BrowserFS.configure({
-        fs: "MountableFileSystem",
-        options: {
-          ...await allZipMountsPromise,
-          // "/": { fs: "InMemory" },
-        }
-      }, function (e) { if (e) reject(e); else resolve(null); });
-    });
-
-    const archiveNames = allArchiveNames;
-
-    // instance.FS.mkdir('tmp'); 
-    // instance.FS.mkdir('/home');  
-    // instance.FS.mkdir('/tmp/run');    
-    instance.FS.mkdir('/libraries');
-
-    // await browserFSInit;
+    const fs = await createEditorFS('/home');
 
     // https://github.com/emscripten-core/emscripten/issues/10061
     const BFS = new BrowserFS.EmscriptenFS(
@@ -69,38 +47,38 @@ addEventListener('message', async (e) => {
         join2: (a: string, b: string) => `${a}/${b}`,
         join: (...args: string[]) => args.join('/'),
       }, instance.ERRNO_CODES ?? {});
-    instance.FS.mount(BFS, {root: '/'}, '/libraries');
+    instance.FS.mount(BFS, {root: '/home'}, '/home');
 
-    // await symlinkLibraries(archiveNames, instance.FS, '/libraries', '/tmp/run');
-    await symlinkLibraries(archiveNames, instance.FS, '/libraries', '/home');
-
-    // const 
-    // instance.FS.chdir('/tmp/run');
     instance.FS.chdir('/home');
-    // instance.FS.chdir(workingDir);
     
-    // console.log('.', instance.FS.readdir('.'));
-    // console.log('fonts', instance.FS.readdir('fonts'));
-    // console.log('BOSL2', instance.FS.readdir('BOSL2'));
-
     if (inputs) {
       for (const [path, content] of inputs) {
         try {
           // const parent = getParentDir(path);
-          instance.FS.writeFile(path, content);
+          // instance.FS.writeFile(path, content);
+          fs.writeFile(path, content);
         } catch (e) {
           console.error(`Error while trying to write ${path}`, e);
         }
       }
     }
     
-    console.error('Calling main ', args)
+    console.log('Calling main ', args)
     const start = performance.now();
     const exitCode = instance.callMain(args);
     const end = performance.now();
 
+    const outputs: [string, string][] = [];
+    for (const path of (outputPaths ?? [])) {
+      try {
+        const content = instance.FS.readFile(path);
+        outputs.push([path, content]);
+      } catch (e) {
+        console.trace(`Failed to read output file ${path}`, e);
+      }
+    }
     const result: OpenSCADInvocationResults = {
-      outputs: outputPaths && await Promise.all(outputPaths.map((path: string) => [path, instance.FS.readFile(path)])),
+      outputs,
       mergedOutputs,
       exitCode,
       elapsedMillis: end - start
