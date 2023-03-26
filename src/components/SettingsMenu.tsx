@@ -1,12 +1,12 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { useContext, useRef } from 'react';
+import { CSSProperties, useContext, useRef } from 'react';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { ModelContext } from './contexts';
 
-export default function SettingsMenu() {
+export default function SettingsMenu({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
@@ -39,7 +39,13 @@ export default function SettingsMenu() {
           command: () => model.mutate(s => s.view.showShadows = !s.view.showShadows)
         },
       ] as MenuItem[]} popup ref={settingsMenu} />
-      <Button title="Settings menu" rounded text icon="pi pi-cog" onClick={(e) => settingsMenu.current && settingsMenu.current.toggle(e)} />
+      <Button title="Settings menu"
+          style={style}
+          className={className}
+          rounded
+          text
+          icon="pi pi-cog"
+          onClick={(e) => settingsMenu.current && settingsMenu.current.toggle(e)} />
     </>
   );
 }

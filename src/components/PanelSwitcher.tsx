@@ -24,6 +24,7 @@ export default function PanelSwitcher() {
     <div className="">
       <div className='flex flex-row' style={{
         margin: '5px',
+        position: 'relative',
       }}>
 
         {state.view.layout.mode === 'multi'
@@ -61,7 +62,12 @@ export default function PanelSwitcher() {
                   ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
               </>
         }
-        <SettingsMenu />
+        <SettingsMenu style={{
+          position: 'absolute',
+          marginTop: '5px',
+          right: 0,
+          top: 0,
+        }} />
       </div>
     </div>
   );
