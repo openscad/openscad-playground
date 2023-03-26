@@ -49,7 +49,7 @@ addEventListener('message', async (e) => {
       }, instance.ERRNO_CODES ?? {});
     instance.FS.mount(BFS, {root: '/home'}, '/home');
 
-    await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
+    // await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
 
     instance.FS.chdir('/home');
     

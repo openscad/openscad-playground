@@ -2,13 +2,13 @@
 
 import React, { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
 import {MultiLayoutComponentId, SingleLayoutComponentId, State} from '../state/app-state'
-import { Model, ModelContext } from '../state/model';
+import { Model } from '../state/model';
 import { TabMenu } from 'primereact/tabmenu';
 import { ToggleButton } from 'primereact/togglebutton';
 import EditorPanel from './EditorPanel';
 import ViewerPanel from './ViewerPanel';
 import Footer from './Footer';
-import { FSContext } from '../fs/filesystem';
+import { ModelContext, FSContext } from './contexts';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";

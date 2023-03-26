@@ -3,16 +3,16 @@
 import React, { CSSProperties, useContext, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import openscadEditorOptions from '../language/openscad-editor-options';
-import { ModelContext } from '../state/model';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
 import { Menu } from 'primereact/menu';
-import { FSContext, getParentDir } from '../fs/filesystem';
+import { getParentDir } from '../fs/filesystem';
 import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState } from '../state/initial-state';
+import { ModelContext, FSContext } from './contexts';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";

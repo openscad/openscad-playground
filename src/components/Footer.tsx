@@ -2,7 +2,7 @@
 
 import { CSSProperties, useContext, useRef } from 'react';
 import { State } from '../state/app-state'
-import { ModelContext } from '../state/model';
+import { ModelContext } from './contexts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
