@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { readDirAsArray, Symlinks } from '../fs/filesystem';
+import { join, readDirAsArray, Symlinks } from '../fs/filesystem';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -124,16 +124,21 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
       const dir = (path.split('/').slice(0, -1).join('/') || '.') + '/';
 
       const handleInclude = async (isUse: boolean, otherPath: string) => {
-        for (const path of [`${dir}/${otherPath}`, otherPath]) {
+        let found = false;
+        for (const option of [`/libraries/${otherPath}`, `${dir}/${otherPath}`, otherPath]) {
           try {
-            const otherSrc = await readFile(otherPath);
+            const otherSrc = await readFile(option);
             const sub = await getParsed(otherPath, otherSrc, {skipPrivates: true, addBuiltins: false});
             mergeDefinitions(isUse, sub);
+            found = true;
+            break;
           } catch (e) {
-            // console.warn(path, e);
+            console.warn(`Failed to read file option ${option} for ${otherPath} ${isUse ? 'used' : 'included'} by ${path}`, e);
           }
         }
-        console.error('Failed to find ', otherPath, '(context imported in ', path, ')');
+        if (!found) {
+          console.error('Failed to find ', otherPath, '(context imported in ', path, ')');
+        }
       };
 
       if (addBuiltins && path != builtinsPath) {
@@ -180,54 +185,62 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
             folderPrefix = prefix.substring(0, i);
             filePrefix = prefix.substring(i + 1);
           }
-          folder = workingDir + (folderPrefix == '' ? '' : '/' + folderPrefix);
-          let files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
-          try {
-            files = [...(await readDirAsArray(fs, folder) ?? []), ...files];
-            // console.log('readDir', folder, files);
-          } catch (e) {
-            console.error(e);
+          const folderName = (folderPrefix == '' ? '' : '/' + folderPrefix);
+          let files: string[] | null = null
+          for (const folder of [join('/libraries', folderName), join(workingDir, folderName)]) {
+            files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
+            try {
+              files = [...(await readDirAsArray(fs, folder) ?? []), ...files];
+              // console.log('readDir', folder, files);
+              break;
+            } catch (e) {
+              //console.error(e);
+            }
           }
-
           const suggestions = [];
-          for (const file of files) {
-            if (filePrefix != '' && !file.startsWith(filePrefix)) {
-              continue;
-            }
-            if (/^(LICENSE.*|fonts)$/.test(file)) {
-              continue;
-            }
-            if (folderPrefix == '' && (file in zipArchives) && zipArchives[file].symlinks) {
-              continue;
-            }
-            const isFolder = !file.endsWith('.scad');
-            const completion = file + (isFolder ? '' : '>\n'); // don't append '/' as it's a useful trigger char
+          if (!files) {
+            console.warn('Failed to find folder named ' + folderName);
+          } else {
+            for (const file of files) {
+              if (filePrefix != '' && !file.startsWith(filePrefix)) {
+                continue;
+              }
+              if (/^(LICENSE.*|fonts)$/.test(file)) {
+                continue;
+              }
+              if (folderPrefix == '' && (file in zipArchives) && zipArchives[file].symlinks) {
+                continue;
+              }
+              const isFolder = !file.endsWith('.scad');
+              const completion = file + (isFolder ? '' : '>\n'); // don't append '/' as it's a useful trigger char
 
-            console.log(JSON.stringify({
-              prefix,
-              folder,
-              filePrefix,
-              folderPrefix,
-              // files,
-              completion,
-              file,
-            }, null, 2));
+              console.log(JSON.stringify({
+                prefix,
+                folder,
+                filePrefix,
+                folderPrefix,
+                // files,
+                completion,
+                file,
+              }, null, 2));
 
-            suggestions.push({
-              label: file,
-              kind: isFolder ? monaco.languages.CompletionItemKind.Folder : monaco.languages.CompletionItemKind.File,
-              insertText: completion
-            });
+              suggestions.push({
+                label: file,
+                kind: isFolder ? monaco.languages.CompletionItemKind.Folder : monaco.languages.CompletionItemKind.File,
+                insertText: completion
+              });
+            }
           }
           suggestions.sort();
 
           return { suggestions };
         }
 
-        const inputFile = workingDir + "/foo.scad";
+        const inputFile = join(workingDir, 'foo.scad');
         delete parsedFiles[inputFile];
-        const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: true});
-        // console.log("PARSED", JSON.stringify(parsed, null, 2));
+        // const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: true});
+        const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: false});
+        console.log("PARSED", JSON.stringify(parsed, null, 2));
         
         type CompletionItem = monaco.languages.CompletionItem & {
           range?: monaco.IRange
