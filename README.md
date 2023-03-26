@@ -17,6 +17,7 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Roadmap
 
+- Bundle some official demos!
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Proper PWA w/ File opening / association to *.scad files
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten.
