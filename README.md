@@ -2,7 +2,7 @@
 
 [Open the Demo](https://ochafik.com/openscad2)
 
-This is wrapping the headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)) into a lots of pretty React components, slapping in a Monaco editor (of VS Code fame), an STL viewer and a few tricks (of course, it's using the [experimental Manifold support](https://github.com/openscad/openscad/pull/4533) we've added recently, to make it super fast).
+This is wrapping the headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)) into a lots of pretty [PrimeReact](https://github.com/primefaces/primereact) components, slapping in a [React Monaco editor](https://github.com/react-monaco-editor/react-monaco-editor) (VS Codesque power!), a [React STL viewer](https://github.com/gabotechs/react-stl-viewer) and a few tricks (of course, it's using the [experimental Manifold support](https://github.com/openscad/openscad/pull/4533) we've added recently, to make it super fast).
 
 Enjoy!
 
