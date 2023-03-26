@@ -6,6 +6,7 @@ import TreeNode from 'primereact/treenode';
 import { ModelContext, FSContext } from './contexts';
 // import { isFileWritable } from '../state/model';
 import { join } from '../fs/filesystem';
+import { defaultSourcePath } from '../state/initial-state';
 
 function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
   const files: [string, string][] = []
@@ -37,7 +38,7 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
       nodes.push({
         // icon: path == '/home' ? 'pi-home' : ...
         // icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
-        icon: isDirectory ? 'pi pi-folder' : 'pi pi-file',
+        icon: isDirectory ? 'pi pi-folder' : path === defaultSourcePath ? 'pi pi-home' : 'pi pi-file',
         label: name,
         data: path,
         key: path,
@@ -56,24 +57,24 @@ export default function FilePicker({className, style}: {className?: string, styl
 
   const fs = useContext(FSContext);
 
-  const fsItems = fs && //listFilesAsNodes(fs, '/home')
-  [
-    {
-      icon: 'pi pi-home',
-      label: 'User files',
-      key: '/',
-      children: listFilesAsNodes(fs, '/'),//
-      // children: listFilesAsNodes(fs, '/', f => f != librariesFolder && !f.startsWith(`${librariesFolder}/`)),
-      selectable: false
-    },
-    {
-      icon: 'pi pi-database',
-      label: 'Builtin libraries',
-      key: '/libraries',
-      children: listFilesAsNodes(fs, '/libraries'),
-      selectable: false
-    },
-  ] || [];
+  const fsItems = fs && listFilesAsNodes(fs, '/')
+  // [
+  //   {
+  //     icon: 'pi pi-home',
+  //     label: 'User files',
+  //     key: '/',
+  //     children: listFilesAsNodes(fs, '/'),//
+  //     // children: listFilesAsNodes(fs, '/', f => f != librariesFolder && !f.startsWith(`${librariesFolder}/`)),
+  //     selectable: false
+  //   },
+  //   {
+  //     icon: 'pi pi-database',
+  //     label: 'Builtin libraries',
+  //     key: '/libraries',
+  //     children: listFilesAsNodes(fs, '/libraries'),
+  //     selectable: false
+  //   },
+  // ] || [];
 
   return (
       <TreeSelect 

@@ -8,7 +8,7 @@ import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { buildUrlForStateParams } from '../state/fragment-state';
-import { blankProjectState } from '../state/initial-state';
+import { blankProjectState, defaultSourcePath } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
 import FilePicker, {  } from './FilePicker';
 // import { isFileWritable } from '../state/model';
@@ -170,6 +170,13 @@ export default function EditorPanel({className, style}: {className?: string, sty
             style={{
               flex: 1,
             }}/>
+
+        {state.params.sourcePath !== defaultSourcePath && 
+          <Button icon="pi pi-chevron-left" 
+          text
+          onClick={() => model.openFile(defaultSourcePath)} 
+          title={`Go back to ${defaultSourcePath}`}/>}
+
       </div>
 
       
