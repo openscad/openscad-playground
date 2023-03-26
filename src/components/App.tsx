@@ -1,14 +1,13 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
-import {MultiLayoutComponentId, SingleLayoutComponentId, State} from '../state/app-state'
+import React, { CSSProperties, useEffect, useState } from 'react';
+import {MultiLayoutComponentId, State} from '../state/app-state'
 import { Model } from '../state/model';
-import { TabMenu } from 'primereact/tabmenu';
-import { ToggleButton } from 'primereact/togglebutton';
 import EditorPanel from './EditorPanel';
 import ViewerPanel from './ViewerPanel';
 import Footer from './Footer';
 import { ModelContext, FSContext } from './contexts';
+import PanelSwitcher from './PanelSwitcher';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";
@@ -20,14 +19,6 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
   const model = new Model(fs, state, setState);
   useEffect(() => model.init());
 
-  const singleTargets: {id: SingleLayoutComponentId, icon: string, label: string}[] = [
-    { id: 'editor', icon: 'pi pi-pencil', label: 'Edit' },
-    { id: 'viewer', icon: 'pi pi-box', label: 'View' },
-    { id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' },
-    // { id: 'customizer', icon: 'pi pi-cog', label: 'Customize' },
-  ];
-  const multiTargets = singleTargets;
-  
   const zIndexOfPanelsDependingOnFocus = {
     editor: {
       editor: 3,
@@ -63,7 +54,7 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
       }
     }
   }
-
+  
   // TODO: test this again:
   // body {
   //   min-height: 100vh;
@@ -75,6 +66,7 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
   //     height: -webkit-fill-available;
   // }
   const isIPhone = /iPhone/.test(navigator.userAgent)
+
   return (
     <ModelContext.Provider value={model}>
       <FSContext.Provider value={fs}>
@@ -84,46 +76,8 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
             height: isIPhone ? "calc(100vh - 80px - env(safe-area-inset-bottom) - env(safe-area-inset-top))" : '100vh'
           }}>
           {isIPhone && <Footer />}
-          <div className="">
-            <div className='flex flex-row' style={{
-              margin: '5px',
-            }}>
-
-              {state.view.layout.mode === 'multi'
-                ?   <div className='flex flex-row gap-1' style={{
-                  justifyContent: 'center',
-                  flex: 1,
-                  margin: '5px'
-                }}>
-                      {multiTargets.map(({icon, label, id}) => 
-                        // <Button
-                        <ToggleButton
-                          key={id}
-                          // raised={(state.view.layout as any)[id]}
-                          checked={(state.view.layout as any)[id]}
-                          // label={label}
-                          onLabel={label}
-                          offLabel={label}
-                          onIcon={icon}
-                          offIcon={icon}
-                          // icon={icon}
-                          disabled={id === 'customizer'}
-                          // onClick={() => model.changeMultiVisibility(id, !(state.view.layout as any)[id])}
-                          onChange={e => model.changeMultiVisibility(id, e.value)}
-                          />
-                        )}
-                    </div>
-                :   <TabMenu
-                        activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
-                        style={{
-                          flex: 1,
-                          // justifyContent: 'center'
-                        }}
-                        model={singleTargets.map(({icon, label, id}) => 
-                            ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
-              }
-            </div>
-          </div>
+          
+          <PanelSwitcher />
     
           <div className={mode === 'multi' ? 'flex flex-row' : 'flex flex-column'}
               style={mode === 'multi' ? {flex: 1} : {
