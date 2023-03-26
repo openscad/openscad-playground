@@ -78,6 +78,8 @@ function EditorPanel({className, style}: {className?: string, style?: CSSPropert
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
 
+  const menu = useRef<Menu>(null);
+
   const state = model.state;
 
   const fs = useContext(FSContext);
@@ -141,12 +143,120 @@ function EditorPanel({className, style}: {className?: string, style?: CSSPropert
       ...(style ?? {})
     }}>
       {/* <BreadCrumb model={breadCrumbsItems} home={breadCrumbsHome}/> */}
-      <TreeSelect 
-          title='OpenSCAD Playground Files'
-          value={state.params.sourcePath}
-          onChange={(e) => model.openFile(String(e.value))}
-          filter
-          options={fsItems} />
+      <div className='flex flex-row gap-2' style={{
+        margin: '5px',
+      }}>
+          
+        <Menu model={[
+          {
+            label: "New project",
+            icon: 'pi pi-plus-circle',
+            // disabled: true,
+            command: () => window.open(buildUrlForStateParams(blankProjectState), '_blank'),
+          },
+          {
+            // TODO: share text, title and rendering image
+            // https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share
+            label: 'Share project',
+            icon: 'pi pi-share-alt',
+            disabled: true,
+            command: () => window.open('http://openscad.org/cheatsheet/', '_blank'),
+          },
+          {
+            separator: true
+          },  
+          {
+            // TODO: popup to ask for file name
+            label: "New file",
+            icon: 'pi pi-plus',
+            disabled: true,
+            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
+          },
+          {
+            label: "Copy to new file",
+            icon: 'pi pi-clone',
+            disabled: true,
+            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
+          },
+          {
+            label: "Upload file(s)",
+            icon: 'pi pi-upload',
+            disabled: true,
+            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
+          },
+          {
+            label: 'Download sources',
+            icon: 'pi pi-download',
+            disabled: true,
+            command: () => window.open('https://github.com/revarbat/BOSL2/wiki/CheatSheet', '_blank'),
+          },
+          {
+            separator: true
+          },
+          // https://vscode-docs.readthedocs.io/en/stable/customization/keybindings/
+          // {
+          //   label: 'Undo',
+          //   icon: 'pi pi-undo',
+          //   // disabled: true,
+          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.undoAction', null),
+          // },
+          // {
+          //   label: 'Redo',
+          //   icon: 'pi pi-reply',
+          //   // disabled: true,
+          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.redoAction', null),
+          // },
+          {
+            separator: true
+          },
+          // {
+          //   label: 'Copy',
+          //   icon: 'pi pi-copy',
+          //   // disabled: true,
+          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCopyAction', null),
+          // },
+          // {
+            //   label: 'Cut',
+            //   icon: 'pi pi-eraser',
+            //   // disabled: true,
+            //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCutAction', null),
+            // },
+            // {
+              //   label: 'Paste',
+              //   icon: 'pi pi-images',
+              //   // disabled: true,
+              //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardPasteAction', null),
+              // },
+              {
+                label: 'Select All',
+                icon: 'pi pi-info-circle',
+                // disabled: true,
+                command: () => editor?.trigger(state.params.sourcePath, 'editor.action.selectAll', null),
+              },
+              {
+                separator: true
+              },
+              {
+                label: 'Find',
+                icon: 'pi pi-search',
+                // disabled: true,
+                command: () => editor?.trigger(state.params.sourcePath, 'actions.find', null),
+              },
+        ] as MenuItem[]} popup ref={menu} />
+        <Button title="Editor menu" rounded text icon="pi pi-ellipsis-h" onClick={(e) => menu.current && menu.current.toggle(e)} />
+        
+        <TreeSelect 
+            title='OpenSCAD Playground Files'
+            value={state.params.sourcePath}
+            onChange={(e) => model.openFile(String(e.value))}
+            // dropdownIcon="pi pi-folder-open"
+            filter
+            style={{
+              flex: 1,
+            }}
+            options={fsItems} />
+  
+      </div>
 
       {/* <SplitPane type="vertical"> */}
       {/* <div className='flex flex-column'> */}
@@ -279,6 +389,7 @@ function Footer({style}: {style?: CSSProperties}) {
   if (!model) throw new Error('No model');
   
   const menu = useRef<Menu>(null);
+  const toast = useRef<Toast>(null);
 
   const state = model.state;
   
@@ -321,6 +432,7 @@ function Footer({style}: {style?: CSSProperties}) {
       <Button onClick={() => model.render({isPreview: false, now: true})}
         loading={state.rendering}
         icon="pi pi-refresh"
+        title="Render the model (F6 / Ctrl+Enter). Models can test $preview to enable more detail in renders only."
         label="Render" />
       
       {/* {state.error != null &&
@@ -357,6 +469,8 @@ function Footer({style}: {style?: CSSProperties}) {
       <span style={{flex: 1}}></span>
 
       <ConfirmDialog />
+
+      <Toast ref={toast} />
 
       {state.output && (
         <Button icon='pi pi-download'
@@ -435,7 +549,8 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
   const singleTargets: {id: SingleLayoutComponentId, icon: string, label: string}[] = [
     { id: 'editor', icon: 'pi pi-pencil', label: 'Edit' },
     { id: 'viewer', icon: 'pi pi-box', label: 'View' },
-    { id: 'customizer', icon: 'pi pi-cog', label: 'Customize' },
+    { id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' },
+    // { id: 'customizer', icon: 'pi pi-cog', label: 'Customize' },
   ];
   const multiTargets = singleTargets;
   // const multiTargets: {id: MultiLayoutComponentId, icon: string, label: string}[] = [

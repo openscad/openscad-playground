@@ -53,7 +53,7 @@ export const render =
  turnIntoDelayableExecution(renderDelay, (params: RenderArgs) => {
     const args = [
       params.sourcePath,
-      "-o", "out.stl",
+      "-o", "/home/out.stl",
       "--export-format=binstl",
       ...(params.features ?? []).map(f => `--enable=${f}`),
       ...(params.extraArgs ?? [])
@@ -70,7 +70,7 @@ export const render =
       workingDir: getParentDir(params.sourcePath),
       inputs: [[params.sourcePath, source]],
       args,
-      outputPaths: ['out.stl']
+      outputPaths: ['/home/out.stl']
     });
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {
