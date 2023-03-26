@@ -21,8 +21,11 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Roadmap
 
+- Add tests!
+- Model /home fs in shared state. have two clear paths: /libraries for builtins, and /home for user data. State pointing to /libraries paths needs not store the data except if there's overrides (flagged as modifications in the file picker)
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples will run fine.
 - Bundle some official demos and more examples from each library!
+- Ask users to contribute recipes to include more libraries, and cool examples that work in the environment
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Proper PWA w/ File opening / association to *.scad files
 - Compress URL fragment
