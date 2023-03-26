@@ -22,7 +22,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 (async () => {
   
-  const fs = await createEditorFS('/libraries/');
+  const fs = await createEditorFS('/');
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 
   const initialState = createInitialState(fs, readStateFromFragment());
