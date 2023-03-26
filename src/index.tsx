@@ -22,13 +22,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 (async () => {
   
-  const workingDir = '/home';
-  const fs = await createEditorFS(workingDir)!;
-  await registerOpenSCADLanguage(fs, workingDir, zipArchives);
-
-  // type Mode = State['view']['layout']['mode'];
-  // const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
-  //   ? 'multi' : 'single';
+  const fs = await createEditorFS('/libraries/');
+  await registerOpenSCADLanguage(fs, '/', zipArchives);
 
   const initialState = createInitialState(fs, readStateFromFragment());
 

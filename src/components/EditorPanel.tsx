@@ -11,7 +11,7 @@ import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
 import FilePicker, {  } from './FilePicker';
-import { isFileWritable } from '../state/model';
+// import { isFileWritable } from '../state/model';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";
@@ -186,7 +186,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
           onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
           options={{
             ...openscadEditorOptions,
-            readOnly: !isFileWritable(state.params.sourcePath)
+            // readOnly: !isFileWritable(state.params.sourcePath)
           }}
           />
       </div>

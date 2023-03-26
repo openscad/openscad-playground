@@ -10,11 +10,20 @@ export type FSMounts = {
 
 export type Symlinks = {[alias: string]: string};
 
-export const getParentDir = (path: string) => path.split('/').slice(0, -1).join('/');
+export const getParentDir = (path: string) => {
+  let d = path.split('/').slice(0, -1).join('/');
+  return d === '' ? (path.startsWith('/') ? '/' : '.') : d;
+} 
 export const getFileName = (path: string) => path.split('/').splice(-1)[0];
 
 export function readDirAsArray(fs: FS, path: string): Promise<string[] | undefined> {
   return new Promise((res, rej) => fs.readdir(path, (err, files) => err ? rej(err) : res(files)));
+}
+
+export function join(a: string, b: string): string {
+  if (a === '.') return b;
+  if (a.endsWith('/')) return join(a.substring(0, a.length - 1), b);
+  return b === '.' ? a : `${a}/${b}`;
 }
 
 export async function getBrowserFSLibrariesMounts(archiveNames: string[]) {
@@ -38,7 +47,11 @@ export async function getBrowserFSLibrariesMounts(archiveNames: string[]) {
 export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/libraries', cwd='/tmp') {
   const createSymlink = async (target: string, source: string) => {
     // console.log('symlink', target, source);
-    await fs.symlink(target, source);
+    try {
+      await fs.symlink(target, source);
+    } catch (e) {
+      console.error(`symlink(${target}, ${source}) failed: `, e);
+    }
     // await symlink(target, source);
   };
 

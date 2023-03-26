@@ -8,8 +8,8 @@ import { formatBytes, formatMillis } from '../utils'
 import { getParentDir } from "../fs/filesystem";
 
 // export const isFileWritable = (path: string) => !path.startsWith('/');
-export const isFileWritable = (path: string) => getParentDir(path) === '/home';
-// export const isFileWritable = (path: string) => !path.startsWith(librariesFolder + '/');
+// export const isFileWritable = (path: string) => getParentDir(path) === '/home';
+// export const isFileWritable = (path: string) => !path.startsWith('/libraries/');
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void) {
@@ -96,7 +96,11 @@ export class Model {
     // alert(`TODO: open ${path}`);
     if (this.mutate(s => {
       s.params.source = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
-      s.params.sourcePath = path;
+      if (s.params.sourcePath != path) {
+        s.params.sourcePath = path;
+        s.lastCheckerRun = undefined;
+        s.output = undefined;
+      }
     })) {
       this.processSource();
     }
@@ -110,10 +114,10 @@ export class Model {
 
   private processSource() {
     const params = this.state.params;
-    if (isFileWritable(params.sourcePath)) {
-      const absolutePath = `/home/${params.sourcePath}`;
-      this.fs.writeFile(absolutePath, params.source);
-    }
+    // if (isFileWritable(params.sourcePath)) {
+      // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
+      this.fs.writeFile(params.sourcePath, params.source);
+    // }
     this.checkSyntax();
     this.render({isPreview: true, now: false});
   }

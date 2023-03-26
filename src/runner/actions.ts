@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getParentDir } from '../fs/filesystem';
+import { getFileName, getParentDir } from '../fs/filesystem';
 import { spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
@@ -14,10 +14,12 @@ export const checkSyntax =
     // const timestamp = Date.now(); 
     
     source = '$preview=true;\n' + source;
+    sourcePath = getFileName(sourcePath);
 
     const job = spawnOpenSCAD({
       inputs: [[sourcePath, source + '\n']],
       args: [sourcePath, "-o", "out.ast"],
+      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     });
 
     return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
@@ -49,26 +51,29 @@ export type RenderArgs = {
   isPreview: boolean
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, (params: RenderArgs) => {
-    const args = [
-      params.sourcePath,
-      "-o", "out.stl",
-      "--export-format=binstl",
-      ...(params.features ?? []).map(f => `--enable=${f}`),
-      ...(params.extraArgs ?? [])
-    ]
+ turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs}: RenderArgs) => {
 
     const prefixLines: string[] = [];
-    if (params.isPreview) {
+    if (isPreview) {
       prefixLines.push('$preview=true;');
     }
-    const source = [...prefixLines, params.source].join('\n');
+    source = [...prefixLines, source].join('\n');
+    sourcePath = getFileName(sourcePath);
+
+    const args = [
+      sourcePath,
+      "-o", "out.stl",
+      "--export-format=binstl",
+      ...(features ?? []).map(f => `--enable=${f}`),
+      ...(extraArgs ?? [])
+    ]
     
     const job = spawnOpenSCAD({
       // wasmMemory,
-      inputs: [[params.sourcePath, source]],
+      inputs: [[sourcePath, source]],
       args,
-      outputPaths: ['out.stl']
+      outputPaths: ['out.stl'],
+      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     });
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {
@@ -79,7 +84,7 @@ export const render =
 
           const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
             shiftSourceLines: {
-              sourcePath: params.sourcePath,
+              sourcePath: sourcePath,
               skipLines: prefixLines.length
             }
           });

@@ -2,7 +2,7 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -33,41 +33,43 @@ addEventListener('message', async (e) => {
         console.debug('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
       },
-      // ENV: {
-      //   OPENSCADPATH: '/home'
-      // }
     });
 
-    // const librariesFolder = '/home/.local/share/OpenSCAD/libraries'
-    const fs = await createEditorFS();
-    await symlinkLibraries(allArchiveNames, fs, librariesFolder, '/home');//'/home', '/home');
-
+    // This will mount lots of libraries' ZIP archives under /libraries/<name> -> <name>.zip
+    await createEditorFS('');
+    
+    instance.FS.mkdir('/libraries');
+    
     // https://github.com/emscripten-core/emscripten/issues/10061
     const BFS = new BrowserFS.EmscriptenFS(
       instance.FS,
       instance.PATH ?? {
         join2: (a: string, b: string) => `${a}/${b}`,
         join: (...args: string[]) => args.join('/'),
-      }, instance.ERRNO_CODES ?? {});
-    instance.FS.mount(BFS, {root: '/home'}, '/home');
+      },
+      instance.ERRNO_CODES ?? {}
+    );
+      
+    instance.FS.mount(BFS, {root: '/'}, '/libraries');
 
-    //await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
+    await symlinkLibraries(allArchiveNames, instance.FS, '/libraries', "/");
 
-    instance.FS.chdir('/home');
+    // Fonts are seemingly resolved from $(cwd)/fonts
+    instance.FS.chdir("/");
     
     if (inputs) {
       for (const [path, content] of inputs) {
         try {
           // const parent = getParentDir(path);
-          // instance.FS.writeFile(path, content);
-          fs.writeFile(path, content);
+          instance.FS.writeFile(path, content);
+          // fs.writeFile(path, content);
         } catch (e) {
           console.error(`Error while trying to write ${path}`, e);
         }
       }
     }
     
-    console.log('Invoking OpenSCAD from ', workingDir, args)
+    console.log('Invoking OpenSCAD with: ', args)
     const start = performance.now();
     const exitCode = instance.callMain(args);
     const end = performance.now();
