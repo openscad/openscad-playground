@@ -26,7 +26,10 @@ export const checkSyntax =
         try {
           const result = await job;
           // console.log(result);
-          res(processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {[sourcePath]: 1}}));
+          res(processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
+            [sourcePath]: 1,
+            [sourcePath.split('/').slice(-1)[0]]: 1
+          }}));
         } catch (e) {
           console.error(e);
           rej(e);
@@ -77,7 +80,10 @@ export const render =
           console.log(result);
 
           const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
-            shiftSourceLines: {[params.sourcePath]: prefixLines.length}
+            shiftSourceLines: {
+              [params.sourcePath]: prefixLines.length,
+              [params.sourcePath.split('/').slice(-1)[0]]: prefixLines.length
+            }
           });
     
           if (result.error) {
