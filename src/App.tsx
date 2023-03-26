@@ -17,6 +17,7 @@ import { TabMenu } from 'primereact/tabmenu';
 import { Badge } from 'primereact/badge';
 import { Menu } from 'primereact/menu';
 import { ToggleButton } from 'primereact/togglebutton';
+import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { getParentDir } from './filesystem';
 import { BreadCrumb } from 'primereact/breadcrumb';
 import { ScrollPanel } from 'primereact/scrollpanel';
@@ -242,12 +243,31 @@ export function ViewerPanel({className, style}: {className?: string, style?: CSS
 
 function downloadOutput(state: State) {
   if (!state.output) return;
-  const a = document.createElement('a')
-  a.href = state.output.stlFileURL
-  a.download = state.output.isPreview ? 'preview.stl' : 'render.stl';
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+
+  const fileName = state.output!.isPreview ? 'preview.stl' : 'render.stl';
+  const doDownload = () => {
+    const a = document.createElement('a')
+    a.href = state.output!.stlFileURL
+    a.download = fileName;
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  };
+
+  if (state.output.isPreview && state.params.source.indexOf('$preview') >= 0) {
+    confirmDialog({
+        message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
+        header: 'Preview vs. Render',
+        icon: 'pi pi-exclamation-triangle',
+        accept: () => doDownload, 
+        acceptLabel: `Download ${fileName}`,
+        rejectLabel: 'Cancel'
+        // reject: () => {}
+    });
+  } else {
+    doDownload();
+  }
+
 }
 
 
@@ -332,6 +352,8 @@ function Footer({style}: {style?: CSSProperties}) {
       {/* <span style={{flex: 1}}></span> */}
       
       <span style={{flex: 1}}></span>
+
+      <ConfirmDialog />
 
       {state.output && (
         <Button icon='pi pi-download'
@@ -503,13 +525,14 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
                           />
                         )}
                     </div>
-                :   <TabMenu 
-                style={{
-                  flex: 1,
-                  // justifyContent: 'center'
-                }}
-                model={singleTargets.map(({icon, label, id}) => 
-                ({icon, label, command: () => model.changeSingleVisibility(id)}))} />
+                :   <TabMenu
+                        activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
+                        style={{
+                          flex: 1,
+                          // justifyContent: 'center'
+                        }}
+                        model={singleTargets.map(({icon, label, id}) => 
+                            ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
               }
             </div>
           </div>
