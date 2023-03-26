@@ -1,4 +1,5 @@
-import typescript from 'rollup-plugin-typescript';
+// import typescript from 'rollup-plugin-typescript';
+import typescript from 'rollup-plugin-typescript2';
 import replace from '@rollup/plugin-replace';
 import packageConfig from './package.json'
 
@@ -7,7 +8,7 @@ const PUBLIC_URL = process.env.PUBLIC_URL ?? packageConfig.homepage;
 
 export default [
   {
-    input: 'src/openscad-worker.ts',
+    input: 'src/runner/openscad-worker.ts',
     output: {
       file: 'dist/openscad-worker.js',
       format: 'es'

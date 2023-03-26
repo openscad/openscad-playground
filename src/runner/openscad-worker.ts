@@ -2,7 +2,7 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -49,7 +49,7 @@ addEventListener('message', async (e) => {
       }, instance.ERRNO_CODES ?? {});
     instance.FS.mount(BFS, {root: '/home'}, '/home');
 
-    // await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
+    await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
 
     instance.FS.chdir('/home');
     

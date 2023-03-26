@@ -53,23 +53,6 @@ public/openscad.js: libs/openscad libs/openscad/openscad.js
 		
 public/openscad.wasm: libs/openscad libs/openscad/openscad.wasm
 	cp libs/openscad/openscad.wasm public
-	
-# public/openscad-worker-inlined.js: src/openscad-worker.ts src/wasm/openscad.js
-# 	npx rollup -c
-
-# js/src/openscad-worker.js: src/openscad-worker.ts
-# 	tsc
-
-# public/openscad-worker-inlined.js: inline-openscad-worker.ts js/src/openscad-worker.js public/openscad.js js/src/filesystem.js js/src/zip-archives.js
-# 	cp src/wasm/openscad.{js,wasm} public
-# npx webpack --config webpack.config.js
-# tsc src/BrowserFS.d.ts src/openscad-worker.ts --outFile public/openscad-worker-inlined.js --module amd --moduleResolution nodenext
-# deno run --allow-net --allow-read --allow-write inline-openscad-worker.ts \
-# 	js/src/openscad-worker.js \
-# 	public/openscad.js \
-# 	public/openscad-worker-inlined.js \
-# 	https://ochafik.com/openscad/openscad-worker-inlined.js
-# cp js/src/{filesystem,zip-archives}.js public
 
 public/libraries/fonts.zip: libs/liberation
 	mkdir -p public/libraries
