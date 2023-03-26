@@ -2,6 +2,8 @@
 
 import { zipArchives } from "./zip-archives";
 
+export const librariesFolder = '/libraries'
+
 declare var BrowserFS: BrowserFSInterface
 
 export type FSMounts = {

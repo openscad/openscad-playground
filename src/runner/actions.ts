@@ -16,7 +16,6 @@ export const checkSyntax =
     source = '$preview=true;\n' + source;
 
     const job = spawnOpenSCAD({
-      workingDir: getParentDir(sourcePath),
       inputs: [[sourcePath, source + '\n']],
       args: [sourcePath, "-o", "out.ast"],
     });
@@ -67,7 +66,6 @@ export const render =
     
     const job = spawnOpenSCAD({
       // wasmMemory,
-      workingDir: getParentDir(params.sourcePath),
       inputs: [[params.sourcePath, source]],
       args,
       outputPaths: ['/home/out.stl']

@@ -8,7 +8,9 @@ import { ModelContext, FSContext } from './contexts';
 
 export const isFileWritable = (path: string) => getParentDir(path) === '/home'
 
-function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
+// export const isFileWritable = (path: string) => !path.startsWith(librariesFolder + '/');
+
+function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
   const files: [string, string][] = []
   const dirs: [string, string][] = []
   for (const name of fs.readdirSync(path)) {
@@ -16,6 +18,9 @@ function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
       continue;
     }
     const childPath = `${path}/${name}`;
+    if (accept && !accept(childPath)) {
+      continue;
+    }
     const stat = fs.lstatSync(childPath);
     const isDirectory = stat.isDirectory();
     if (!isDirectory && !name.endsWith('.scad')) {
@@ -58,7 +63,8 @@ export default function FilePicker({className, style}: {className?: string, styl
       icon: 'pi pi-home',
       label: 'User files',
       key: '/home',
-      children: listFilesAsNodes(fs, '/home'),
+      children: listFilesAsNodes(fs, '/home'),//
+      // children: listFilesAsNodes(fs, '/', f => f != librariesFolder && !f.startsWith(`${librariesFolder}/`)),
       selectable: false
     },
     {
