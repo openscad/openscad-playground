@@ -2,7 +2,11 @@
 
 [Open the Demo](https://ochafik.com/openscad2)
 
-This is a WIP revamp of https://ochafik.com/openscad.
+This is wrapping the headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)) into a lots of pretty React components, slapping in a Monaco editor (of VS Code fame), an STL viewer and a few tricks (of course, it's using the [experimental Manifold support](https://github.com/openscad/openscad/pull/4533) we've added recently, to make it super fast).
+
+Enjoy!
+
+An [earlier iteration of this](https://ochafik.com/openscad) offered more control over the features that are enabled. This will come soon too.
 
 Licenses: see [LICENSES](./LICENSE).
 
