@@ -21,10 +21,11 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Roadmap
 
-- Bundle some official demos!
+- Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples will run fine.
+- Bundle some official demos and more examples from each library!
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Proper PWA w/ File opening / association to *.scad files
-- Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten.
+- Compress URL fragment
 - Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD.
 - Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
 - Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
