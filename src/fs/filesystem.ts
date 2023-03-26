@@ -2,8 +2,6 @@
 
 import { zipArchives } from "./zip-archives";
 
-export const librariesFolder = '/libraries'
-
 declare var BrowserFS: BrowserFSInterface
 
 export type FSMounts = {
@@ -13,6 +11,7 @@ export type FSMounts = {
 export type Symlinks = {[alias: string]: string};
 
 export const getParentDir = (path: string) => path.split('/').slice(0, -1).join('/');
+export const getFileName = (path: string) => path.split('/').splice(-1)[0];
 
 export function readDirAsArray(fs: FS, path: string): Promise<string[] | undefined> {
   return new Promise((res, rej) => fs.readdir(path, (err, files) => err ? rej(err) : res(files)));
@@ -74,12 +73,12 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS(workingDir='/home'): Promise<FS> {
+export async function createEditorFS(prefix: string): Promise<FS> {
   const archiveNames = Object.keys(zipArchives);
   const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
   const allMounts: FSMounts = {};
   for (const n in librariesMounts) {
-    allMounts[`${workingDir}/${n}`] = librariesMounts[n];
+    allMounts[`${prefix}${n}`] = librariesMounts[n];
   }
 
   await configureAndInstallFS(typeof window === 'object' && window || self, {

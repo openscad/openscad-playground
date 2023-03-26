@@ -6,14 +6,12 @@ import openscadEditorOptions from '../language/openscad-editor-options';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
-import { TreeSelect } from 'primereact/treeselect';
-import TreeNode from 'primereact/treenode';
 import { Menu } from 'primereact/menu';
-import { getParentDir, librariesFolder } from '../fs/filesystem';
 import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
-import FilePicker, { isFileWritable } from './FilePicker';
+import FilePicker, {  } from './FilePicker';
+import { isFileWritable } from '../state/model';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";
@@ -21,46 +19,6 @@ import FilePicker, { isFileWritable } from './FilePicker';
 
 let monacoInstance: Monaco
 loader.init().then(mi => monacoInstance = mi);
-
-// const isFileWritable = (path: string) => getParentDir(path) === '/home'
-
-// function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
-//   const files: [string, string][] = []
-//   const dirs: [string, string][] = []
-//   for (const name of fs.readdirSync(path)) {
-//     if (name.startsWith('.')) {
-//       continue;
-//     }
-//     const childPath = `${path}/${name}`;
-//     const stat = fs.lstatSync(childPath);
-//     const isDirectory = stat.isDirectory();
-//     if (!isDirectory && !name.endsWith('.scad')) {
-//       continue;
-//     }
-//     (isDirectory ? dirs : files).push([name, childPath]);
-//   }
-//   [files, dirs].forEach(arr => arr.sort(([a], [b]) => a.localeCompare(b)));
-
-//   const nodes: TreeNode[] = []
-//   for (const [arr, isDirectory] of [[files, false], [dirs, true]] as [[string, string][], boolean][]) {
-//     for (const [name, path] of arr) {
-//       const children = isDirectory ? listFilesAsNodes(fs, path) : undefined;
-//       if (isDirectory && children!.length == 0) {
-//         continue;
-//       }
-//       nodes.push({
-//         // icon: path == '/home' ? 'pi-home' : ...
-//         icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
-//         label: name,
-//         data: path,
-//         key: path,
-//         children,
-//         selectable: !isDirectory // && (name == 'LICENSE' || name.endsWith('.scad') || name.endsWith('.scad')
-//       });
-//     }
-//   }
-//   return nodes;
-// }
 
 export default function EditorPanel({className, style}: {className?: string, style?: CSSProperties}) {
 
@@ -71,9 +29,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
 
   const state = model.state;
 
-  // const fs = useContext(FSContext);
   const [editor, setEditor] = useState(null as monaco.editor.IStandaloneCodeEditor | null)
-  // const [modelFile, setModelFile] = useState(state.params.sourcePath);
 
   if (editor) {
     const checkerRun = state.lastCheckerRun;

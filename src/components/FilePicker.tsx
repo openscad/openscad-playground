@@ -3,12 +3,8 @@
 import { CSSProperties, useContext } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
-import { getParentDir, librariesFolder } from '../fs/filesystem';
 import { ModelContext, FSContext } from './contexts';
-
-export const isFileWritable = (path: string) => getParentDir(path) === '/home'
-
-// export const isFileWritable = (path: string) => !path.startsWith(librariesFolder + '/');
+import { isFileWritable } from '../state/model';
 
 function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
   const files: [string, string][] = []
@@ -58,23 +54,7 @@ export default function FilePicker({className, style}: {className?: string, styl
 
   const fs = useContext(FSContext);
 
-  const fsItems = fs && [
-    {
-      icon: 'pi pi-home',
-      label: 'User files',
-      key: '/home',
-      children: listFilesAsNodes(fs, '/home'),//
-      // children: listFilesAsNodes(fs, '/', f => f != librariesFolder && !f.startsWith(`${librariesFolder}/`)),
-      selectable: false
-    },
-    {
-      icon: 'pi pi-database',
-      label: 'Builtin libraries',
-      key: librariesFolder,
-      children: listFilesAsNodes(fs, librariesFolder),
-      selectable: false
-    },
-  ] || [];
+  const fsItems = fs && listFilesAsNodes(fs, '/home')
 
   return (
       <TreeSelect 

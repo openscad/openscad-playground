@@ -5,6 +5,7 @@ import { SingleLayoutComponentId } from '../state/app-state'
 import { TabMenu } from 'primereact/tabmenu';
 import { ToggleButton } from 'primereact/togglebutton';
 import { ModelContext, FSContext } from './contexts';
+import SettingsMenu from './SettingsMenu';
 
 export default function PanelSwitcher() {
   const model = useContext(ModelContext);
@@ -49,15 +50,18 @@ export default function PanelSwitcher() {
                     />
                   )}
               </div>
-          :   <TabMenu
+          :   <>
+                <TabMenu
                   activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
                   style={{
                     flex: 1,
                     // justifyContent: 'center'
                   }}
                   model={singleTargets.map(({icon, label, id}) => 
-                      ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
+                  ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
+              </>
         }
+        <SettingsMenu />
       </div>
     </div>
   );

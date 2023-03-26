@@ -3,7 +3,7 @@
 import defaultScad from './default-scad';
 import { State } from './app-state';
 
-export const defaultSourcePath = '/home/playground.scad';
+export const defaultSourcePath = 'playground.scad';
   
 export const blankProjectState: State = {
   params: {

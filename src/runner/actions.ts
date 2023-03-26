@@ -26,8 +26,8 @@ export const checkSyntax =
           const result = await job;
           // console.log(result);
           res(processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
-            [sourcePath]: 1,
-            [sourcePath.split('/').slice(-1)[0]]: 1
+            sourcePath,
+            skipLines: 1,
           }}));
         } catch (e) {
           console.error(e);
@@ -52,7 +52,7 @@ export const render =
  turnIntoDelayableExecution(renderDelay, (params: RenderArgs) => {
     const args = [
       params.sourcePath,
-      "-o", "/home/out.stl",
+      "-o", "out.stl",
       "--export-format=binstl",
       ...(params.features ?? []).map(f => `--enable=${f}`),
       ...(params.extraArgs ?? [])
@@ -68,7 +68,7 @@ export const render =
       // wasmMemory,
       inputs: [[params.sourcePath, source]],
       args,
-      outputPaths: ['/home/out.stl']
+      outputPaths: ['out.stl']
     });
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {
@@ -79,8 +79,8 @@ export const render =
 
           const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
             shiftSourceLines: {
-              [params.sourcePath]: prefixLines.length,
-              [params.sourcePath.split('/').slice(-1)[0]]: prefixLines.length
+              sourcePath: params.sourcePath,
+              skipLines: prefixLines.length
             }
           });
     

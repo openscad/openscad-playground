@@ -2,7 +2,7 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, librariesFolder, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -17,7 +17,7 @@ export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[]
 
 addEventListener('message', async (e) => {
 
-  const { inputs, args, outputPaths, wasmMemory, workingDir } = e.data as OpenSCADInvocation;
+  const { inputs, args, outputPaths, wasmMemory } = e.data as OpenSCADInvocation;
 
   const mergedOutputs: MergedOutputs = [];
   try {

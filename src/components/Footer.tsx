@@ -94,24 +94,32 @@ export default function Footer({style}: {style?: CSSProperties}) {
         title="Render the model (F6 / Ctrl+Enter). Models can test $preview to enable more detail in renders only."
         label="Render" />
       
-      {/* {state.error != null &&
-        <i className="pi pi-exclamation-circle" style={{color: 'red'}} title={state.error}></i>} */}
+      {(state.lastCheckerRun || state.output) &&
+        <Button type="button"
+            // label={state.view.logs ? "Hide logs" : "Show logs"}
+            label="Logs"
+            icon="pi pi-align-left"
+            text={!state.view.logs}
+            onClick={() => model.logsVisible = !state.view.logs}
+            // onLabel="Logs" offLabel="Logs" 
+            // onIcon="pi pi-align-left"
+            // offIcon="pi pi-align-left"
+            className={maxMarkerSeverity && `p-button-${severityByMarkerSeverity.get(maxMarkerSeverity) ?? 'success'}`}
+            >
+          {getBadge(monaco.MarkerSeverity.Error)}
+          {getBadge(monaco.MarkerSeverity.Warning)}
+          {getBadge(monaco.MarkerSeverity.Info)}
+        </Button>}
 
-      <Button type="button"
-          // label={state.view.logs ? "Hide logs" : "Show logs"}
-          label="Logs"
-          icon="pi pi-align-left"
-          text={!state.view.logs}
-          onClick={() => model.logsVisible = !state.view.logs}
-          // onLabel="Logs" offLabel="Logs" 
-          // onIcon="pi pi-align-left"
-          // offIcon="pi pi-align-left"
-          className={maxMarkerSeverity && `p-button-${severityByMarkerSeverity.get(maxMarkerSeverity) ?? 'success'}`}
-          >
-        {getBadge(monaco.MarkerSeverity.Error)}
-        {getBadge(monaco.MarkerSeverity.Warning)}
-        {getBadge(monaco.MarkerSeverity.Info)}
-      </Button>
+      {state.output && (
+        <Button icon='pi pi-download'
+          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})`}
+          severity="secondary"
+          text
+          // label={state.output.isPreview ? "preview.stl" : "render.stl"}
+          iconPos='right'
+          onClick={() => downloadOutput(state)} />
+      )}
 
       {/* {state.output &&
         <span style={{color: 'blue'}}>
@@ -130,24 +138,6 @@ export default function Footer({style}: {style?: CSSProperties}) {
       <ConfirmDialog />
 
       <Toast ref={toast} />
-
-      {state.output && (
-        <Button icon='pi pi-download'
-          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})`}
-          severity="secondary"
-          text
-          // label={state.output.isPreview ? "preview.stl" : "render.stl"}
-          iconPos='right'
-          onClick={() => downloadOutput(state)} />
-        // <a href={state.output.stlFileURL}
-        // target="_blank" 
-        // download={state.output.isPreview ? "preview.stl" : "render.stl"}
-        // title="STL Download">
-        //     {state.output.isPreview ? "preview.stl" : "render.stl"} ({state.output.formattedStlFileSize})
-        // </a>
-      )}
-
-      <SettingsMenu />
       
       <HelpMenu />
     </div>

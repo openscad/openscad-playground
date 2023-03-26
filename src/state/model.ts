@@ -5,6 +5,11 @@ import { MultiLayoutComponentId, SingleLayoutComponentId, State } from "./app-st
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { writeStateInFragment } from "./fragment-state";
 import { formatBytes, formatMillis } from '../utils'
+import { getParentDir } from "../fs/filesystem";
+
+// export const isFileWritable = (path: string) => !path.startsWith('/');
+export const isFileWritable = (path: string) => getParentDir(path) === '/home';
+// export const isFileWritable = (path: string) => !path.startsWith(librariesFolder + '/');
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void) {
@@ -105,7 +110,10 @@ export class Model {
 
   private processSource() {
     const params = this.state.params;
-    // this.fs.writeFile(params.sourcePath, params.source);
+    if (isFileWritable(params.sourcePath)) {
+      const absolutePath = `/home/${params.sourcePath}`;
+      this.fs.writeFile(absolutePath, params.source);
+    }
     this.checkSyntax();
     this.render({isPreview: true, now: false});
   }
