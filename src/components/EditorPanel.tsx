@@ -10,7 +10,7 @@ import { MenuItem } from 'primereact/menuitem';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
 import { Menu } from 'primereact/menu';
-import { getParentDir } from '../fs/filesystem';
+import { FSContext, getParentDir } from '../fs/filesystem';
 import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState } from '../state/initial-state';
 
@@ -22,8 +22,6 @@ let monacoInstance: Monaco
 loader.init().then(mi => monacoInstance = mi);
 
 const isFileWritable = (path: string) => getParentDir(path) === '/home'
-
-const FSContext = React.createContext<FS | undefined>(undefined);
 
 function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
   const files: [string, string][] = []
