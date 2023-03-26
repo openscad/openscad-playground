@@ -121,8 +121,8 @@ export default function EditorPanel({className, style}: {className?: string, sty
           {
             label: "New project",
             icon: 'pi pi-plus-circle',
-            // disabled: true,
-            command: () => window.open(buildUrlForStateParams(blankProjectState), '_blank'),
+            url: buildUrlForStateParams(blankProjectState),
+            target: '_blank',
           },
           {
             // TODO: share text, title and rendering image
@@ -130,7 +130,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
             label: 'Share project',
             icon: 'pi pi-share-alt',
             disabled: true,
-            command: () => window.open('http://openscad.org/cheatsheet/', '_blank'),
           },
           {
             separator: true
@@ -140,25 +139,21 @@ export default function EditorPanel({className, style}: {className?: string, sty
             label: "New file",
             icon: 'pi pi-plus',
             disabled: true,
-            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
           },
           {
             label: "Copy to new file",
             icon: 'pi pi-clone',
             disabled: true,
-            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
           },
           {
             label: "Upload file(s)",
             icon: 'pi pi-upload',
             disabled: true,
-            command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
           },
           {
             label: 'Download sources',
             icon: 'pi pi-download',
             disabled: true,
-            command: () => window.open('https://github.com/revarbat/BOSL2/wiki/CheatSheet', '_blank'),
           },
           {
             separator: true
