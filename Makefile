@@ -67,7 +67,7 @@ libs/BOSL2:
 
 public/libraries/BOSL2.zip: libs/BOSL2
 	mkdir -p public/libraries
-	( cd libs/BOSL2 ; zip -r ../../public/libraries/BOSL2.zip *.scad LICENSE )
+	( cd libs/BOSL2 ; zip -r ../../public/libraries/BOSL2.zip *.scad LICENSE examples )
 
 libs/BOSL: 
 	git clone --recurse https://github.com/revarbat/BOSL.git ${SHALLOW} ${SINGLE_BRANCH} $@
@@ -81,7 +81,7 @@ libs/NopSCADlib:
 
 public/libraries/NopSCADlib.zip: libs/NopSCADlib
 	mkdir -p public/libraries
-	( cd libs/NopSCADlib ; zip -r ../../public/libraries/NopSCADlib.zip `find . -name '*.scad' | grep -v tests | grep -v examples` COPYING )
+	( cd libs/NopSCADlib ; zip -r ../../public/libraries/NopSCADlib.zip `find . -name '*.scad' | grep -v tests` COPYING )
 
 libs/funcutils: 
 	git clone --recurse https://github.com/thehans/funcutils.git ${SHALLOW} ${SINGLE_BRANCH} $@
@@ -151,7 +151,7 @@ libs/UB.scad:
 
 public/libraries/UB.scad.zip: libs/UB.scad
 	mkdir -p public/libraries
-	( cd libs/UB.scad ; zip -r ../../public/libraries/UB.scad.zip libraries/*.scad LICENSE )
+	( cd libs/UB.scad ; zip -r ../../public/libraries/UB.scad.zip libraries/*.scad LICENSE examples/UBexamples )
 
 libs/openscad-tray: 
 	git clone --recurse https://github.com/sofian/openscad-tray.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@
