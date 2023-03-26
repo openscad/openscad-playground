@@ -2,10 +2,10 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {App} from './App';
-import { createEditorFS } from './filesystem';
+import {App} from './components/App';
+import { createEditorFS } from './fs/filesystem';
 import { registerOpenSCADLanguage } from './language/openscad-register-language';
-import { zipArchives } from './zip-archives';
+import { zipArchives } from './fs/zip-archives';
 import {readStateFromFragment} from './state/fragment-state'
 import { createInitialState } from './state/initial-state';
 import './index.css';

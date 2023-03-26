@@ -1,10 +1,10 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import OpenSCAD from "./wasm/openscad.js";
+import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "./filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
-import { zipArchives } from "./zip-archives";
+import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
 
 importScripts("browserfs.min.js");
@@ -48,6 +48,8 @@ addEventListener('message', async (e) => {
         join: (...args: string[]) => args.join('/'),
       }, instance.ERRNO_CODES ?? {});
     instance.FS.mount(BFS, {root: '/home'}, '/home');
+
+    // await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
 
     instance.FS.chdir('/home');
     

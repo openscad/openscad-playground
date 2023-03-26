@@ -1,10 +1,10 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getParentDir } from './filesystem';
+import { getParentDir } from '../fs/filesystem';
 import { spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
-import { AbortablePromise, turnIntoDelayableExecution } from './utils';
+import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 
 const syntaxDelay = 300;
 

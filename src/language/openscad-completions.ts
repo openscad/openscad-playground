@@ -1,11 +1,11 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { readDirAsArray, Symlinks } from '../filesystem';
+import { readDirAsArray, Symlinks } from '../fs/filesystem';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
-import { ZipArchives } from '../zip-archives';
+import { ZipArchives } from '../fs/zip-archives';
 import openscadLanguage from './openscad-language';
 
 function makeFunctionoidSuggestion(name: string, mod: ParsedFunctionoidDef) {

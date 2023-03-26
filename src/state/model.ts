@@ -1,9 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import React from "react"
-import { checkSyntax, render, RenderArgs, RenderOutput } from "../actions";
+import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
 import { MultiLayoutComponentId, SingleLayoutComponentId, State } from "./app-state";
-import { bubbleUpDeepMutations } from "../deep-mutate";
+import { bubbleUpDeepMutations } from "./deep-mutate";
 import { writeStateInFragment } from "./fragment-state";
 import { formatBytes, formatMillis } from '../utils'
 

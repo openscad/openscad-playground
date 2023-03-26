@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { MergedOutputs } from "./openscad-worker";
-import { AbortablePromise } from "./utils";
+import { AbortablePromise } from "../utils";
 
 export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegabytes: number, maximumBytes: number}) {
   const pageSize = 64 * 1024; // 64KB

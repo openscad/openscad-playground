@@ -1,8 +1,11 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+import React from "react";
 import { zipArchives } from "./zip-archives";
 
 declare var BrowserFS: BrowserFSInterface
+
+export const FSContext = React.createContext<FS | undefined>(undefined);
 
 export type FSMounts = {
   [n: string]: {fs: string, options: {zipData: Buffer}}
