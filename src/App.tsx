@@ -476,30 +476,20 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
     }
   }
 
+  const isIPhone = /iPhone/.test(navigator.userAgent)
   return (
     <ModelContext.Provider value={model}>
       <FSContext.Provider value={fs}>
-        <div className='flex flex-column' style={{height: '100vh'}}>
-          <div className=""
-              // style={{
-              //   backgroundImage: 'url("logo192.png")',
-              //   backgroundPositionX: 'left',
-              //   backgroundPositionY: 'top',
-              //   backgroundRepeat: 'no-repeat',
-              // }}
-              >
-
-            
-            {/* <h1>
-              OpenSCAD
-            </h1> */}
+        <div className='flex flex-column' style={{
+            // height: '100vh'
+            // maxHeight: '-webkit-fill-available',
+            height: isIPhone ? "calc(100vh - 80px - env(safe-area-inset-bottom) - env(safe-area-inset-top))" : '100vh'
+          }}>
+          {isIPhone && <Footer />}
+          <div className="">
             <div className='flex flex-row' style={{
-              // justifyContent: 'center',
               margin: '5px',
-              // marginTop: '70px',
             }}>
-                    
-              {/* <span style={{flex: 1}} /> */}
 
               {state.view.layout.mode === 'multi'
                 ?   <div className='flex flex-row gap-1' style={{
@@ -553,7 +543,7 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
             {/* <CustomizerPanel className={`${getPanelClasses('customizer')} absolute-fill`} style={getPanelStyle('customizer')} /> */}
           </div>
 
-          <Footer />
+          {!isIPhone && <Footer />}
         </div>
       </FSContext.Provider>
     </ModelContext.Provider>
