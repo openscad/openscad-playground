@@ -5,11 +5,26 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import React from 'react';
 import { Model } from "./model"
 
+export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
+export type SingleLayoutComponentId = MultiLayoutComponentId;
+
 export interface State {
   params: {
+    sourcePath: string,
     source: string,
     features: string[],
   },
+
+  view: {
+    logs?: boolean,
+    layout: {
+      mode: 'single',
+      focus: SingleLayoutComponentId,
+    } | ({
+      mode: 'multi',
+    } & { [K in MultiLayoutComponentId]: boolean })
+  }
+
   lastCheckerRun?: {
     logText: string,
     markers: monaco.editor.IMarkerData[]
@@ -18,6 +33,7 @@ export interface State {
   previewing?: boolean,
   checkingSyntax?: boolean,
 
+  error?: string,
   output?: {
     isPreview: boolean,
     stlFile: File,
@@ -28,12 +44,8 @@ export interface State {
   },
 };
 
-export const ModelContext = React.createContext(new Model(
-  {
-    params: {
-      source: '',
-      features: ['manifold', 'lazy-union'],
-    }
+export const ModelContext = React.createContext<Model | null>(null);
+
   },
   () => { throw new Error('Not implemented'); }
 ));

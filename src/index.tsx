@@ -10,6 +10,7 @@ import {readStateFromFragment} from './fragment-state'
 import { State } from './app-state';
 import defaultScad from './default-scad'
 import './index.css';
+// import "react-widgets/styles.css";
 
 import debug from 'debug';
 const log = debug('app:log');
@@ -24,15 +25,53 @@ if (process.env.NODE_ENV !== 'production') {
 (async () => {
   
   const workingDir = '/home';
-  const fs = await createEditorFS(workingDir);
+  const fs = await createEditorFS(workingDir)!;
   await registerOpenSCADLanguage(fs, workingDir, zipArchives);
 
-  const initialState: State = readStateFromFragment() ?? {
+  type Mode = State['view']['layout']['mode'];
+  const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
+    ? 'multi' : 'single';
+
+  const defaultSourcePath = '/home/playground.scad';
+  const initialState: State = {
     params: {
+      sourcePath: defaultSourcePath,
       source: defaultScad,
       features: [],
-    }
+    },
+    view: {
+      layout: {
+        mode: 'multi',
+        editor: true,
+        viewer: true,
+        customizer: false,
+      } as any
+    },
+    ...(readStateFromFragment() ?? {})
   };
+
+  if (initialState.view.layout.mode != mode) {
+    if (mode === 'multi' && initialState.view.layout.mode === 'single') {
+      initialState.view.layout = {
+        mode,
+        editor: true,
+        viewer: true,
+        customizer: initialState.view.layout.focus == 'customizer'
+      }
+    } else if (mode === 'single' && initialState.view.layout.mode === 'multi') {
+      initialState.view.layout = {
+        mode,
+        focus: initialState.view.layout.viewer ? 'viewer'
+          : initialState.view.layout.customizer ? 'customizer'
+          : 'editor'
+      }
+    }
+  }
+
+  fs.writeFile(initialState.params.sourcePath, initialState.params.source);
+  if (initialState.params.sourcePath !== defaultSourcePath) {
+    fs.writeFile(defaultSourcePath, defaultScad);
+  }
 
   const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
   defaultFeatures.forEach(f => {
@@ -45,7 +84,7 @@ if (process.env.NODE_ENV !== 'production') {
   );
   root.render(
     <React.StrictMode>
-      <App initialState={initialState} />
+      <App initialState={initialState} fs={fs} />
     </React.StrictMode>
   );
 })();

@@ -18,6 +18,7 @@ Should work:
 
 Planned:
 
+- Open any file in the VFS. Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH)
 - Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD.
 - Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
 - Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)

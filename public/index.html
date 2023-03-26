@@ -25,17 +25,10 @@
       content="OpenSCAD Playground: edit .scad models and render them to STL from the browser (WebAssembly build OpenSCAD, with Monaco editor and STL Viewer)"
     />
     <link rel="apple-touch-icon" href="logo192.png" />
+    
     <!-- https://developers.google.com/web/fundamentals/web-app-manifest/ -->
     <link rel="manifest" href="manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
     <title>OpenSCAD Playground</title>
     <style>
       #root,
@@ -47,6 +40,45 @@
         width: 100vw;
         height: 100vh;
       }
+
+      .p-tabmenu-nav {
+        justify-content: center;
+      }
+
+      .absolute-fill {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        bottom: 0;
+      }
+
+
+      .monaco-editor {
+        background-color: rgba(255,255,255,0.5) !important;
+      }
+      .overflow-guard,
+      .monaco-scrollable-element,
+      .monaco-editor-background {
+        background-color: transparent !important;
+      }
+
+      .opacity-animated {
+        transition: opacity 0.5s ease-in-out;
+      }
+      .opacity-0 {
+        opacity: 0;
+      }
+
+      @media only screen and (max-height: 600px),
+           only screen and (max-width: 600px),
+           only screen and (max-width: 767px),
+           only screen and (max-aspect-ratio: 1/2) {
+        .github-fork-ribbon {
+          display: none;
+        }
+      }
+      
     </style>
     <style>.github-fork-ribbon:before { background-color: #333; }</style>
   
@@ -61,15 +93,5 @@
 
     <noscript>You need to enable JavaScript to run the OpenSCAD Playground.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
   </body>
 </html>

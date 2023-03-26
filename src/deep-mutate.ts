@@ -36,6 +36,9 @@ function collectObjectEntriesDeeply(o: KVObject, out: KVEntriesMap = new Map()):
 }
 
 function bubbleChangesUp(o: KVObject, allOriginalEntries: KVEntriesMap) {
+  if (o == null || typeof o !== 'object') {
+    return o;
+  }
   const entries = Object.entries(o);
   const originalEntries = allOriginalEntries.get(o);
   if (!originalEntries) {

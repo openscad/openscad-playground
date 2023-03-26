@@ -4,7 +4,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 export default {
   lineNumbers: 'on',
-  automaticLayout: true,
+  // automaticLayout: true,
   scrollBeyondLastLine: false,
   fontSize: 12,
   language: 'openscad',

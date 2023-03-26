@@ -1,10 +1,6 @@
 node_modules
 libs
+dist
 public/libraries
-public/openscad-worker-inlined.js
-public/openscad.js
-public/openscad.wasm
-js
-src/*.js
-build
+src/wasm
 package-lock.json

@@ -1,12 +1,12 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "./actions";
-import { State } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, State } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { writeStateInFragment } from "./fragment-state";
 
 export class Model {
-  constructor(public state: State, private setStateCallback?: (state: State) => void) {
+  constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void) {
   }
   
   init() {
@@ -34,6 +34,55 @@ export class Model {
     return false;
   }
 
+  set logsVisible(value: boolean) {
+    this.mutate(s => s.view.logs = value);
+  }
+
+  changeLayout(mode: 'multi' | 'single') {
+    if (this.state.view.layout.mode === mode) return;
+    this.mutate(s => {
+      s.view.layout = s.view.layout.mode === 'multi'
+        ? {
+          mode: 'single',
+          focus: s.view.layout.editor ? 'editor' : s.view.layout.viewer ? 'viewer' : 'customizer'
+        }
+        : {
+          mode: 'multi',
+          editor: s.view.layout.focus === 'editor',
+          viewer: s.view.layout.focus === 'viewer',
+          customizer: s.view.layout.focus === 'customizer',
+        }
+    });
+  }
+  changeSingleVisibility(focus: SingleLayoutComponentId) {
+    this.mutate(s => {
+      if (s.view.layout.mode !== 'single') throw new Error('Wrong mode');
+      s.view.layout.focus = focus;
+    });
+  }
+
+  changeMultiVisibility(target: MultiLayoutComponentId, visible: boolean) {
+    this.mutate(s => {
+      if (s.view.layout.mode !== 'multi') throw new Error('Wrong mode');
+      s.view.layout[target] = visible
+      if ((s.view.layout.customizer ? 1 : 0) + (s.view.layout.editor ? 1 : 0) + (s.view.layout.viewer ? 1 : 0) == 0) {
+        // Select at least one panel
+        // s.view.layout.editor = true;
+        s.view.layout[target] = !visible;
+      }
+    })
+  }
+
+  openFile(path: string) {
+    // alert(`TODO: open ${path}`);
+    if (this.mutate(s => {
+      s.params.source = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
+      s.params.sourcePath = path;
+    })) {
+      this.processSource();
+    }
+  }
+
   set source(source: string) {
     if (this.mutate(s => { s.params.source = source; })) {
       this.processSource();
@@ -41,14 +90,20 @@ export class Model {
   }
 
   private processSource() {
+    const params = this.state.params;
+    // this.fs.writeFile(params.sourcePath, params.source);
     this.checkSyntax();
     this.render({isPreview: true, now: false});
   }
   checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
-    checkSyntax(this.state.params.source)({now: false, callback: checkerRun => this.mutate(s => {
-      s.lastCheckerRun = checkerRun;
-      s.checkingSyntax = false;
+    checkSyntax(this.state.params.source, this.state.params.sourcePath)({now: false, callback: (checkerRun, err) => this.mutate(s => {
+      if (err != null) {
+        console.error('Error while checking syntax:', err)
+      } else {
+        s.lastCheckerRun = checkerRun;
+        s.checkingSyntax = false;
+      }
     })});
   }
 
@@ -62,30 +117,33 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    const source = this.state.params.source;
-    const features = this.state.params.features;
-    const renderArgs = {source, features, extraArgs: [], isPreview};
-    // console.log('renderArgs', renderArgs);
-
-    render(renderArgs)({now, callback: output => {
+    const {source, sourcePath, features} = this.state.params;
+    
+    render({source, sourcePath, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
       this.mutate(s => {
-        s.lastCheckerRun = {
-          logText: output.logText,
-          markers: output.markers,
-        }
-        if (s.output?.stlFileURL) {
-          URL.revokeObjectURL(s.output.stlFileURL);
-        }
-
-        s.output = {
-          isPreview: isPreview,
-          stlFile: output.stlFile,
-          stlFileURL: URL.createObjectURL(output.stlFile),
-          elapsedMillis: output.elapsedMillis,
-          formattedElapsedMillis: formatMillis(output.elapsedMillis),
-          formattedStlFileSize: formatBytes(output.stlFile.size),
-        };
         setRendering(s, false);
+        if (err != null) {
+          console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
+          s.error = `${err}`;
+        } else if (output) {
+          s.error = undefined;
+          s.lastCheckerRun = {
+            logText: output.logText,
+            markers: output.markers,
+          }
+          if (s.output?.stlFileURL) {
+            URL.revokeObjectURL(s.output.stlFileURL);
+          }
+
+          s.output = {
+            isPreview: isPreview,
+            stlFile: output.stlFile,
+            stlFileURL: URL.createObjectURL(output.stlFile),
+            elapsedMillis: output.elapsedMillis,
+            formattedElapsedMillis: formatMillis(output.elapsedMillis),
+            formattedStlFileSize: formatBytes(output.stlFile.size),
+          };
+        }
       });
     }})
   }

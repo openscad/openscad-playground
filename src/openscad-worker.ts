@@ -2,13 +2,13 @@
 
 import OpenSCAD from "./wasm/openscad.js";
 
-import { getBrowserFSLibrariesMounts, symlinkLibraries } from "./filesystem";
+import { getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "./filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "./zip-archives";
 declare var BrowserFS: BrowserFSInterface
 
-// importScripts("browserfs.min.js");
-importScripts("https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js");
+importScripts("browserfs.min.js");
+// importScripts("https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js");
 
 const allArchiveNames = Object.keys(zipArchives)
 const allZipMountsPromise = getBrowserFSLibrariesMounts(allArchiveNames);
@@ -17,7 +17,7 @@ export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[]
 
 addEventListener('message', async (e) => {
 
-  const { inputs, args, outputPaths, wasmMemory } = e.data as OpenSCADInvocation;
+  const { inputs, args, outputPaths, wasmMemory, workingDir } = e.data as OpenSCADInvocation;
 
   const mergedOutputs: MergedOutputs = [];
   try {
@@ -33,8 +33,14 @@ addEventListener('message', async (e) => {
         // console.log('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
       },
+      ENV: {
+        OPENSCADPATH: '/libraries:/home'
+      }
     });
-    
+
+    // console.error('INSTANCE')
+    // console.error(Object.keys(instance))
+
     // await browserFSInit;
     await new Promise(async (resolve, reject) => {
       BrowserFS.install(self);
@@ -49,8 +55,9 @@ addEventListener('message', async (e) => {
 
     const archiveNames = allArchiveNames;
 
-    // instance.FS.mkdir('tmp');    
-    instance.FS.mkdir('/tmp/run');    
+    // instance.FS.mkdir('tmp'); 
+    // instance.FS.mkdir('/home');  
+    // instance.FS.mkdir('/tmp/run');    
     instance.FS.mkdir('/libraries');
 
     // await browserFSInit;
@@ -64,9 +71,13 @@ addEventListener('message', async (e) => {
       }, instance.ERRNO_CODES ?? {});
     instance.FS.mount(BFS, {root: '/'}, '/libraries');
 
-    await symlinkLibraries(archiveNames, instance.FS, '/libraries', '/tmp/run');
+    // await symlinkLibraries(archiveNames, instance.FS, '/libraries', '/tmp/run');
+    await symlinkLibraries(archiveNames, instance.FS, '/libraries', '/home');
 
-    instance.FS.chdir('/tmp/run');
+    // const 
+    // instance.FS.chdir('/tmp/run');
+    instance.FS.chdir('/home');
+    // instance.FS.chdir(workingDir);
     
     // console.log('.', instance.FS.readdir('.'));
     // console.log('fonts', instance.FS.readdir('fonts'));
@@ -74,11 +85,16 @@ addEventListener('message', async (e) => {
 
     if (inputs) {
       for (const [path, content] of inputs) {
-        instance.FS.writeFile(path, content);
+        try {
+          // const parent = getParentDir(path);
+          instance.FS.writeFile(path, content);
+        } catch (e) {
+          console.error(`Error while trying to write ${path}`, e);
+        }
       }
     }
     
-    console.debug('Calling main ', args)
+    console.error('Calling main ', args)
     const start = performance.now();
     const exitCode = instance.callMain(args);
     const end = performance.now();
@@ -93,9 +109,8 @@ addEventListener('message', async (e) => {
     console.debug(result);
 
     postMessage(result);
-  } catch (e) {
-
-    console.error(e);
+  } catch (e) { 
+    console.trace(e);//, e instanceof Error ? e.stack : '');
     const error = `${e}`;
     mergedOutputs.push({ error });
     postMessage({

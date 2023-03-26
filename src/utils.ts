@@ -29,7 +29,7 @@ export function turnIntoDelayableExecution<T extends any[], R>(
   let pendingId: number | null;
   let runningJobKillSignal: (() => void) | null;
 
-  return (...args: T) => async ({now, callback}: {now: boolean, callback: (result: R) => void}) => {
+  return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
     const doExecute = async () => {
       if (runningJobKillSignal) {
         runningJobKillSignal();
@@ -39,6 +39,8 @@ export function turnIntoDelayableExecution<T extends any[], R>(
       runningJobKillSignal = abortablePromise.kill;
       try {
         callback(await abortablePromise);
+      } catch (e) {
+        callback(undefined, e);
       } finally {
         runningJobKillSignal = null;
       }
@@ -55,6 +57,12 @@ export function turnIntoDelayableExecution<T extends any[], R>(
   };
 }
 
+export function validateStringEnum<T extends string>(
+    s: T, values: T[],
+    orElse: (s: string) => T = s => { throw new Error(`Unexpected value: ${s} (valid values: ${values.join(', ')})`); }): T {
+  return values.indexOf(s) < 0 ? orElse(s) : s;
+}
+export const validateBoolean = (s: boolean, orElse: () => boolean = () => false) => typeof s === 'boolean' ? s : orElse(); 
 export const validateString = (s: string, orElse: () => string = () => '') => s != null && typeof s === 'string' ? s : orElse();
 export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orElse: () => T[] = () => []) => {
   if (!(a instanceof Array)) return orElse();

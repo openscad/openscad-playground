@@ -10,6 +10,8 @@ export type FSMounts = {
 
 export type Symlinks = {[alias: string]: string};
 
+export const getParentDir = (path: string) => path.split('/').slice(0, -1).join('/');
+
 export function readDirAsArray(fs: FS, path: string): Promise<string[] | undefined> {
   return new Promise((res, rej) => fs.readdir(path, (err, files) => err ? rej(err) : res(files)));
 }
@@ -70,7 +72,7 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS(workingDir='/home') {
+export async function createEditorFS(workingDir='/home'): Promise<FS> {
   const archiveNames = Object.keys(zipArchives);
   const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
   const allMounts: FSMounts = {};

@@ -18,6 +18,7 @@ export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegab
 // Output is {outputs: [name, content][], mergedOutputs: [{(stderr|stdout|error)?: string}], exitCode: number}
 export type OpenSCADInvocation = {
   wasmMemory?: WebAssembly.Memory,
+  workingDir: string,
   inputs?: [string, string][],
   args: string[],
   outputPaths?: string[],
