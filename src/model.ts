@@ -35,6 +35,13 @@ export class Model {
   }
 
   set logsVisible(value: boolean) {
+    if (value) {
+      if (this.state.view.layout.mode === 'single') {
+        this.changeSingleVisibility('editor');
+      } else {
+        this.changeMultiVisibility('editor', true);  
+      }
+    }
     this.mutate(s => s.view.logs = value);
   }
 
@@ -58,6 +65,9 @@ export class Model {
     this.mutate(s => {
       if (s.view.layout.mode !== 'single') throw new Error('Wrong mode');
       s.view.layout.focus = focus;
+      if (focus !== 'editor') {
+        s.view.logs = false;
+      }
     });
   }
 
@@ -69,6 +79,9 @@ export class Model {
         // Select at least one panel
         // s.view.layout.editor = true;
         s.view.layout[target] = !visible;
+        if (target === 'editor' && !visible) {
+          s.view.logs = false;
+        }
       }
     })
   }
