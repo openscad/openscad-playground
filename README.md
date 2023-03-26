@@ -6,28 +6,30 @@ This is a WIP revamp of https://ochafik.com/openscad.
 
 Licenses: see [LICENSES](./LICENSE).
 
-## Features & Roadmap
+## Features
 
-Should work:
-
-- Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Currently using a trick to force $preview=true, it's not perfect.
+- Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Using a trick to force $preview=true.
 - Syntax highlighting
-- Ships with many standard SCAD libraries
+- Ships with many standard SCAD libraries (can browse through them in the UI)
 - Autocomplete of imports
 - Autocomplete of symbols / function calls (pseudo-parses file and its transitive imports)
+- Responsive layout (but editing on iOS is still a pain, will address that soon). On small screens editor and viewer are stacked onto each other, while on larger screens they can be side-by-side
 
-Planned:
+## Roadmap
 
-- Open any file in the VFS. Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH)
+- Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
+- Proper PWA w/ File opening / association to *.scad files
+- Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten.
 - Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD.
 - Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
-- Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
+- Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
+
+## Building
 
 Prerequisites:
 *   wget
 *   GNU make
 *   npm
-*   deno
 
 Local dev:
 
