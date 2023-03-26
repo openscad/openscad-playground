@@ -9,9 +9,10 @@ import { ProgressBar } from 'primereact/progressbar';
 import { MenuItem } from 'primereact/menuitem';
 import { Badge } from 'primereact/badge';
 import { Menu } from 'primereact/menu';
-import { ToggleButton } from 'primereact/togglebutton';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Toast } from 'primereact/toast';
+import SettingsMenu from './SettingsMenu';
+import HelpMenu from './HelpMenu';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
@@ -46,11 +47,11 @@ function downloadOutput(state: State) {
 export default function Footer({style}: {style?: CSSProperties}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
+  const state = model.state;
   
-  const menu = useRef<Menu>(null);
+  const helpMenu = useRef<Menu>(null);
   const toast = useRef<Toast>(null);
 
-  const state = model.state;
   
   const severityByMarkerSeverity = new Map<monaco.MarkerSeverity, 'danger' | 'warning' | 'info'>([
     [monaco.MarkerSeverity.Error, 'danger'],
@@ -147,49 +148,9 @@ export default function Footer({style}: {style?: CSSProperties}) {
         // </a>
       )}
 
-      <ToggleButton
-                  style={{
-                    // flex: 1,
-                  }}
-                  onIcon='pi pi-table'
-                  offIcon='pi pi-table'
-                  onLabel=''
-                  offLabel=''
-                  // onLabel='Multi'
-                  // offLabel='Single'
-                  title='Change between single and multiple layout'
-                  checked={state.view.layout.mode === 'multi'}
-                  onChange={e => model.changeLayout(e.value ? 'multi' : 'single')} />
+      <SettingsMenu />
       
-      <Menu model={[
-        {
-          label: "openscad-playground",
-          icon: 'pi pi-github',
-          command: () => window.open('https://github.com/openscad/openscad-playground/tree/rewrite1', '_blank'),
-        },
-        {
-          label: 'LICENSES',
-          icon: 'pi pi-info-circle',
-          command: () => window.open('https://github.com/openscad/openscad-playground/blob/rewrite1/LICENSE.md', '_blank'),
-        },
-        {
-          label: 'OpenSCAD Docs',
-          icon: 'pi pi-book',
-          command: () => window.open('http://openscad.org/documentation.html', '_blank'),
-        },
-        {
-          label: 'OpenSCAD Cheatsheet',
-          icon: 'pi pi-palette',
-          command: () => window.open('http://openscad.org/cheatsheet/', '_blank'),
-        },
-        {
-          label: 'BOSL2 Cheatsheet',
-          icon: 'pi pi-palette',
-          command: () => window.open('https://github.com/revarbat/BOSL2/wiki/CheatSheet', '_blank'),
-        },
-      ] as MenuItem[]} popup ref={menu} />
-      <Button title="Help & Licenses" rounded icon="pi pi-question-circle" onClick={(e) => menu.current && menu.current.toggle(e)} />
-
+      <HelpMenu />
     </div>
   </>
 }

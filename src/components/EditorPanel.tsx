@@ -9,10 +9,11 @@ import { MenuItem } from 'primereact/menuitem';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
 import { Menu } from 'primereact/menu';
-import { getParentDir } from '../fs/filesystem';
+import { getParentDir, librariesFolder } from '../fs/filesystem';
 import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
+import FilePicker, { isFileWritable } from './FilePicker';
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";
@@ -21,42 +22,45 @@ import { ModelContext, FSContext } from './contexts';
 let monacoInstance: Monaco
 loader.init().then(mi => monacoInstance = mi);
 
-const isFileWritable = (path: string) => getParentDir(path) === '/home'
+// const isFileWritable = (path: string) => getParentDir(path) === '/home'
 
-function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
-  const files: [string, string][] = []
-  const dirs: [string, string][] = []
-  for (const name of fs.readdirSync(path)) {
-    const childPath = `${path}/${name}`;
-    const stat = fs.lstatSync(childPath);
-    const isDirectory = stat.isDirectory();
-    if (!isDirectory && !name.endsWith('.scad')) {
-      continue;
-    }
-    (isDirectory ? dirs : files).push([name, childPath]);
-  }
-  [files, dirs].forEach(arr => arr.sort(([a], [b]) => a.localeCompare(b)));
+// function listFilesAsNodes(fs: FS, path: string): TreeNode[] {
+//   const files: [string, string][] = []
+//   const dirs: [string, string][] = []
+//   for (const name of fs.readdirSync(path)) {
+//     if (name.startsWith('.')) {
+//       continue;
+//     }
+//     const childPath = `${path}/${name}`;
+//     const stat = fs.lstatSync(childPath);
+//     const isDirectory = stat.isDirectory();
+//     if (!isDirectory && !name.endsWith('.scad')) {
+//       continue;
+//     }
+//     (isDirectory ? dirs : files).push([name, childPath]);
+//   }
+//   [files, dirs].forEach(arr => arr.sort(([a], [b]) => a.localeCompare(b)));
 
-  const nodes: TreeNode[] = []
-  for (const [arr, isDirectory] of [[files, false], [dirs, true]] as [[string, string][], boolean][]) {
-    for (const [name, path] of arr) {
-      const children = isDirectory ? listFilesAsNodes(fs, path) : undefined;
-      if (isDirectory && children!.length == 0) {
-        continue;
-      }
-      nodes.push({
-        // icon: path == '/home' ? 'pi-home' : ...
-        icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
-        label: name,
-        data: path,
-        key: path,
-        children,
-        selectable: !isDirectory // && (name == 'LICENSE' || name.endsWith('.scad') || name.endsWith('.scad')
-      });
-    }
-  }
-  return nodes;
-}
+//   const nodes: TreeNode[] = []
+//   for (const [arr, isDirectory] of [[files, false], [dirs, true]] as [[string, string][], boolean][]) {
+//     for (const [name, path] of arr) {
+//       const children = isDirectory ? listFilesAsNodes(fs, path) : undefined;
+//       if (isDirectory && children!.length == 0) {
+//         continue;
+//       }
+//       nodes.push({
+//         // icon: path == '/home' ? 'pi-home' : ...
+//         icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
+//         label: name,
+//         data: path,
+//         key: path,
+//         children,
+//         selectable: !isDirectory // && (name == 'LICENSE' || name.endsWith('.scad') || name.endsWith('.scad')
+//       });
+//     }
+//   }
+//   return nodes;
+// }
 
 export default function EditorPanel({className, style}: {className?: string, style?: CSSProperties}) {
 
@@ -67,7 +71,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
 
   const state = model.state;
 
-  const fs = useContext(FSContext);
+  // const fs = useContext(FSContext);
   const [editor, setEditor] = useState(null as monaco.editor.IStandaloneCodeEditor | null)
   // const [modelFile, setModelFile] = useState(state.params.sourcePath);
 
@@ -100,8 +104,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
     setEditor(editor)
   }
 
-  const fsItems = fs && listFilesAsNodes(fs, '/home') || [];
-
   return (
     <div className={`editor-panel ${className ?? ''}`} style={{
       // maxWidth: '5 0vw',
@@ -111,7 +113,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
       // width: '100%', height: '100%',
       ...(style ?? {})
     }}>
-      {/* <BreadCrumb model={breadCrumbsItems} home={breadCrumbsHome}/> */}
       <div className='flex flex-row gap-2' style={{
         margin: '5px',
       }}>
@@ -214,73 +215,39 @@ export default function EditorPanel({className, style}: {className?: string, sty
         ] as MenuItem[]} popup ref={menu} />
         <Button title="Editor menu" rounded text icon="pi pi-ellipsis-h" onClick={(e) => menu.current && menu.current.toggle(e)} />
         
-        <TreeSelect 
-            title='OpenSCAD Playground Files'
-            value={state.params.sourcePath}
-            onChange={(e) => model.openFile(String(e.value))}
-            // dropdownIcon="pi pi-folder-open"
-            filter
+        <FilePicker 
             style={{
               flex: 1,
-            }}
-            options={fsItems} />
-  
+            }}/>
       </div>
 
-      {/* <SplitPane type="vertical"> */}
-      {/* <div className='flex flex-column'> */}
-      {/* <Splitter style={{ 
-        // height: '300px' 
-      }} layout="vertical"> */}
-        {/* <SplitterPanel className="flex flex-column align-items-center justify-content-center"
-          style={{
-            // width: '100%', height: '100%'
-          }}> */}
-          <div style={{
-            position: 'relative',
-            flex: 1
-          }}>
-            <Editor
-              className="openscad-editor absolute-fill"
-              defaultLanguage="openscad"
-              path={state.params.sourcePath}
-              value={state.params.source}
-              onChange={s => model.source = s ?? ''}
-              onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
-              options={{
-                ...openscadEditorOptions,
-                readOnly: !isFileWritable(state.params.sourcePath)
-              }}
-              // height="100%"
-              // width="100%"
-              // height="80vh"
-              />
-          </div>
+      
+      <div style={{
+        position: 'relative',
+        flex: 1
+      }}>
+        <Editor
+          className="openscad-editor absolute-fill"
+          defaultLanguage="openscad"
+          path={state.params.sourcePath}
+          value={state.params.source}
+          onChange={s => model.source = s ?? ''}
+          onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
+          options={{
+            ...openscadEditorOptions,
+            readOnly: !isFileWritable(state.params.sourcePath)
+          }}
+          />
+      </div>
 
-          {/* </SplitterPanel>
-          <SplitterPanel className="flex flex-column align-items-center justify-content-center" style={{position: 'relative'}}> */}
-            {/* <ScrollPanel style={{
-              //  width: '100%', height: '200px' 
-            }} className="custombar2"> */}
-            <div style={{
-              display: state.view.logs ? undefined : 'none',
-              overflowY: 'scroll',
-              height: 'calc(min(200px, 30vh))',
-              // position: 'relative',
-              // maxWidth: '100%',
-              // maxWidth: '50vw',
-            }}>
-              <pre><code id="logs" style={{
-                // maxWidth: '200px'
-              }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre>
-            </div>
-            {/* </ScrollPanel> */}
-            {/* <div className="logs-container">
-            </div> */}
-          {/* </SplitterPanel>
-      </Splitter> */}
-      {/* </SplitPane> */}
-      {/* </div> */}
+      <div style={{
+        display: state.view.logs ? undefined : 'none',
+        overflowY: 'scroll',
+        height: 'calc(min(200px, 30vh))',
+      }}>
+        <pre><code id="logs" style={{
+        }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre>
+      </div>
     
     </div>
   )

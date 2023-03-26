@@ -2,7 +2,7 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getBrowserFSLibrariesMounts, librariesFolder, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -33,12 +33,14 @@ addEventListener('message', async (e) => {
         console.debug('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
       },
-      ENV: {
-        OPENSCADPATH: '/home'
-      }
+      // ENV: {
+      //   OPENSCADPATH: '/home'
+      // }
     });
 
-    const fs = await createEditorFS('/home');
+    // const librariesFolder = '/home/.local/share/OpenSCAD/libraries'
+    const fs = await createEditorFS();
+    await symlinkLibraries(allArchiveNames, fs, librariesFolder, '/home');//'/home', '/home');
 
     // https://github.com/emscripten-core/emscripten/issues/10061
     const BFS = new BrowserFS.EmscriptenFS(
@@ -49,7 +51,7 @@ addEventListener('message', async (e) => {
       }, instance.ERRNO_CODES ?? {});
     instance.FS.mount(BFS, {root: '/home'}, '/home');
 
-    // await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
+    //await symlinkLibraries(allArchiveNames, instance.FS, '/home/libraries', '/home');
 
     instance.FS.chdir('/home');
     
@@ -65,7 +67,7 @@ addEventListener('message', async (e) => {
       }
     }
     
-    console.log('Calling main ', args)
+    console.log('Invoking OpenSCAD from ', workingDir, args)
     const start = performance.now();
     const exitCode = instance.callMain(args);
     const end = performance.now();

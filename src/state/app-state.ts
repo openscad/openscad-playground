@@ -20,6 +20,9 @@ export interface State {
     } | ({
       mode: 'multi',
     } & { [K in MultiLayoutComponentId]: boolean })
+
+    showAxes?: boolean,
+    showShadows?: boolean,
   }
 
   lastCheckerRun?: {

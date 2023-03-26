@@ -60,6 +60,9 @@ export function createInitialState(fs: any, state: State | null) {
     }
   }
 
+  initialState.view.showAxes ??= true
+  initialState.view.showShadows ??= true
+
   fs.writeFile(initialState.params.sourcePath, initialState.params.source);
   if (initialState.params.sourcePath !== defaultSourcePath) {
     fs.writeFile(defaultSourcePath, defaultScad);

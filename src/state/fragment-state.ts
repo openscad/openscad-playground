@@ -32,7 +32,9 @@ export function readStateFromFragment(): State | null {
             editor: validateBoolean(view?.layout['editor']),
             viewer: validateBoolean(view?.layout['viewer']),
             customizer: validateBoolean(view?.layout['customizer']),
-          }
+          },
+          showAxes: validateBoolean(view?.layout?.showAxis),
+          showShadows: validateBoolean(view?.layout?.showShadow),
         }
       };
     } catch (e) {

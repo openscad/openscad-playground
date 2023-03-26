@@ -31,7 +31,7 @@ export type OpenSCADInvocationResults = {
   elapsedMillis: number,
 }
 
-export function spawnOpenSCAD({inputs, args, outputPaths}: OpenSCADInvocation): AbortablePromise<OpenSCADInvocationResults> {
+export function spawnOpenSCAD(invocation: OpenSCADInvocation): AbortablePromise<OpenSCADInvocationResults> {
   var worker: Worker | null;
   var rejection: (err: any) => void;
 
@@ -55,7 +55,7 @@ export function spawnOpenSCAD({inputs, args, outputPaths}: OpenSCADInvocation): 
       resolve(e.data);
       terminate();
     }
-    worker.postMessage({inputs, args, outputPaths})
+    worker.postMessage(invocation)
     
     return () => {
       // rejection({error: 'Terminated'});

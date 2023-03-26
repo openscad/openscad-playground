@@ -26,9 +26,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               // width: '100%'
             }}
             // ref={stlModelRef}
-            showAxes={true}
+            showAxes={state.view.showAxes}
             orbitControls
-            shadows
+            shadows={state.view.showShadows}
             modelProps={{
               color: '#f9d72c',
 
