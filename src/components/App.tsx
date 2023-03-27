@@ -54,28 +54,13 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
       }
     }
   }
-  
-  // TODO: test this again:
-  // body {
-  //   min-height: 100vh;
-  //   min-height: fill-available;
-  //   min-height: -webkit-fill-available;
-  // }
-  // html {
-  //     height: fill-available;
-  //     height: -webkit-fill-available;
-  // }
-  const isIPhone = /iPhone/.test(navigator.userAgent)
 
   return (
     <ModelContext.Provider value={model}>
       <FSContext.Provider value={fs}>
         <div className='flex flex-column' style={{
-            // height: '100vh'
-            // maxHeight: '-webkit-fill-available',
-            height: isIPhone ? "calc(100vh - 80px - env(safe-area-inset-bottom) - env(safe-area-inset-top))" : '100vh'
+            flex: 1,
           }}>
-          {isIPhone && <Footer />}
           
           <PanelSwitcher />
     
@@ -84,7 +69,6 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
                 flex: 1,
                 position: 'relative'
               }}>
-                {/* {position: 'relative'}}> */}
 
             <EditorPanel className={`
               opacity-animated
@@ -95,19 +79,9 @@ export function App({initialState, fs}: {initialState: State, fs: FS}) {
             {/* <CustomizerPanel className={`${getPanelClasses('customizer')} absolute-fill`} style={getPanelStyle('customizer')} /> */}
           </div>
 
-          {!isIPhone && <Footer />}
+          <Footer />
         </div>
       </FSContext.Provider>
     </ModelContext.Provider>
   );
 }
-
-        // <Splitter style={{ flex: 1 }}>
-        //     <SplitterPanel className="flex flex-column align-items-center justify-content-center">
-        //       <EditorPanel />
-        //     </SplitterPanel>
-        //     <SplitterPanel className="flex flex-column align-items-center justify-content-center">
-        //       <ViewerPanel/>
-        //     </SplitterPanel>
-        // </Splitter>
-        // <Footer />

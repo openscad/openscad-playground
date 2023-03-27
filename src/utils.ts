@@ -87,3 +87,13 @@ export function formatMillis(n: number) {
 
   return `${Math.floor(n / 100) / 10}sec`;
 }
+
+// https://medium.com/quick-code/100vh-problem-with-ios-safari-92ab23c852a8
+export function registerCustomAppHeightCSSProperty() {
+  const updateAppHeight = () => {
+    const doc = document.documentElement
+    doc.style.setProperty('--app-height', `${window.innerHeight}px`)
+  }
+  window.addEventListener('resize', updateAppHeight)
+  updateAppHeight();
+}

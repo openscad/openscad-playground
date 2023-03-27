@@ -11,6 +11,7 @@ import { createInitialState } from './state/initial-state';
 import './index.css';
 
 import debug from 'debug';
+import { registerCustomAppHeightCSSProperty } from './utils';
 const log = debug('app:log');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -21,7 +22,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 (async () => {
-  
+  registerCustomAppHeightCSSProperty();
+
   const fs = await createEditorFS('/');
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 
