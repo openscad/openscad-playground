@@ -113,7 +113,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
       {state.output && (
         <Button icon='pi pi-download'
-          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})`}
+          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`}
           severity="secondary"
           text
           // label={state.output.isPreview ? "preview.stl" : "render.stl"}

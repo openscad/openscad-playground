@@ -3,6 +3,8 @@
 import { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
 import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
+import { ColorPicker } from 'primereact/colorpicker';
+import { defaultModelColor } from '../state/initial-state';
 
 export default function ViewerPanel({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
@@ -21,8 +23,10 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           }}>
       {state.output?.stlFileURL &&
         <StlViewer
+            className='absolute-fill'
             style={{
-              flex: 1
+              zIndex: 0,
+              // flex: 1,
               // width: '100%'
             }}
             // ref={stlModelRef}
@@ -30,12 +34,22 @@ export default function ViewerPanel({className, style}: {className?: string, sty
             orbitControls
             shadows={state.view.showShadows}
             modelProps={{
-              color: '#f9d72c',
-
+              color: model.state.view.color,
             }}
             url={state.output?.stlFileURL ?? ''}
-            />
-      }
+            />}
+            
+            <ColorPicker
+              className={`opacity-animated ${!model.isComponentFullyVisible('viewer') ? 'opacity-0' : ''}`}
+              value={model.state.view.color}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                // pointerEvents: model.isComponentFullyVisible('viewer') ? undefined : 'none',
+              }}
+              onChange={(e) => model.mutate(s => s.view.color = `#${e.value ?? defaultModelColor}`)} />
+          
 
     </div>
   )

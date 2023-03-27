@@ -51,6 +51,14 @@ export class Model {
     this.mutate(s => s.view.logs = value);
   }
 
+  isComponentFullyVisible(id: SingleLayoutComponentId) {
+    if (this.state.view.layout.mode === 'multi') {
+      return this.state.view.layout[id];
+    } else {
+      return this.state.view.layout.focus === id;
+    }
+  }
+
   changeLayout(mode: 'multi' | 'single') {
     if (this.state.view.layout.mode === mode) return;
     this.mutate(s => {

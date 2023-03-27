@@ -20,7 +20,8 @@ export interface State {
     } | ({
       mode: 'multi',
     } & { [K in MultiLayoutComponentId]: boolean })
-
+    
+    color: string,
     showAxes?: boolean,
     showShadows?: boolean,
   }

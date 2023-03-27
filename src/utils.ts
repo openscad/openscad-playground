@@ -83,7 +83,7 @@ export function formatBytes(n: number) {
 
 export function formatMillis(n: number) {
   if (n < 1000)
-    return `${Math.floor(n)} millis`;
+    return `${Math.floor(n)}ms`;
 
-  return `${Math.floor(n / 100) / 10} sec`;
+  return `${Math.floor(n / 100) / 10}sec`;
 }

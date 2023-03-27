@@ -2,6 +2,7 @@
 
 import { State } from "./app-state";
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
+import { defaultModelColor } from "./initial-state";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -33,6 +34,7 @@ export function readStateFromFragment(): State | null {
             viewer: validateBoolean(view?.layout['viewer']),
             customizer: validateBoolean(view?.layout['customizer']),
           },
+          color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis),
           showShadows: validateBoolean(view?.layout?.showShadow),
         }
