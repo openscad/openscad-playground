@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { zipArchives } from "./zip-archives";
+import { deployedArchiveNames, zipArchives } from "./zip-archives";
 
 declare var BrowserFS: BrowserFSInterface
 
@@ -56,7 +56,7 @@ export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/
   };
 
   await Promise.all(archiveNames.map(n => (async () => {
-    if (!(n in zipArchives)) throw new Error(`Archive named ${n} invalid (valid ones: ${Object.keys(zipArchives).join(', ')})`);
+    if (!(n in zipArchives)) throw new Error(`Archive named ${n} invalid (valid ones: ${deployedArchiveNames.join(', ')})`);
     const {symlinks} = (zipArchives)[n];
     if (symlinks) {
       for (const from in symlinks) {
@@ -87,7 +87,7 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
 }
 
 export async function createEditorFS(prefix: string): Promise<FS> {
-  const archiveNames = Object.keys(zipArchives);
+  const archiveNames = deployedArchiveNames;
   const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
   const allMounts: FSMounts = {};
   for (const n in librariesMounts) {

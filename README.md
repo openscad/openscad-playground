@@ -31,9 +31,11 @@ Licenses: see [LICENSES](./LICENSE).
 - Proper PWA w/ File opening / association to *.scad files
 - Animation rendering (And other formats than STL)
 - Compress URL fragment
-- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD.
+- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD. And use React Hook Forms maybe? https://react-hook-form.com/
 - Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
 - Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
+- Detect which bundled libraries are included / used in the sources and only download these rather than wait for all of the zips. Means the file explorer would need to be more lazy or have some prebuilt hierarchy.
+- Preparse builtin libraries definitions at compile time, ship the JSON.
 
 ## Building
 

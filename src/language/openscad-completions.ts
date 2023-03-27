@@ -76,11 +76,13 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
   const toAbsolutePath = (path: string) => path.startsWith('/') ? path : `${workingDir}/${path}`;
   
   const allSymlinks: Symlinks = {};
-  for (const n of Object.keys(zipArchives)) {
+  for (const [n, {deployed, symlinks}] of Object.entries(zipArchives)) {
     if (n == 'fonts') {
       continue;
     }
-    const { symlinks } = zipArchives[n];
+    if (deployed === false) {
+      continue;
+    }
     for (const s in symlinks) {
       allSymlinks[s] = `${n}/${symlinks[s]}`;
     }
