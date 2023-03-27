@@ -56,12 +56,13 @@ Local prod (test both the different inlining and serving under a prefix):
 make public
 npm run start:prod
 # http://localhost:3000/dist/
+```
 
 Deployment (edit "homepage" in `package.json` to match your deployment root!):
 
 ```bash
 make public
-npm build
+npm run build
 
 rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
 # Now commit and push changes, wait for site update and enjoy!
