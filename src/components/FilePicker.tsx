@@ -45,7 +45,7 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
 
           children.push({
             icon: 'pi pi-github',
-            label: repoUrl,
+            label: repoUrl.replaceAll("https://github.com/", ''),
             key: repoUrl,
             selectable: true,
           });
