@@ -2,8 +2,8 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getBrowserFSLibrariesMounts, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
+import { createEditorFS, symlinkLibraries } from "../fs/filesystem";
 import { zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
 
@@ -11,7 +11,6 @@ importScripts("browserfs.min.js");
 // importScripts("https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js");
 
 const allArchiveNames = Object.keys(zipArchives)
-const allZipMountsPromise = getBrowserFSLibrariesMounts(allArchiveNames);
 
 export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[];
 
