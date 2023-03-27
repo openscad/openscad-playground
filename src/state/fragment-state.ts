@@ -37,6 +37,7 @@ export function readStateFromFragment(): State | null {
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis),
           showShadows: validateBoolean(view?.layout?.showShadow),
+          lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false)
         }
       };
     } catch (e) {

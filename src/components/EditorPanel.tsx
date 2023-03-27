@@ -193,6 +193,8 @@ export default function EditorPanel({className, style}: {className?: string, sty
           onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
           options={{
             ...openscadEditorOptions,
+            
+            lineNumbers: state.view.lineNumbers ? 'on' : 'off',
             // readOnly: !isFileWritable(state.params.sourcePath)
           }}
           />

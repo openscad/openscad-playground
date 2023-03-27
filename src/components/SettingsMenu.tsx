@@ -38,6 +38,12 @@ export default function SettingsMenu({className, style}: {className?: string, st
           // disabled: true,
           command: () => model.mutate(s => s.view.showShadows = !s.view.showShadows)
         },
+        {
+          label: state.view.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
+          icon: 'pi pi-list',
+          // disabled: true,
+          command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
+        },
       ] as MenuItem[]} popup ref={settingsMenu} />
       <Button title="Settings menu"
           style={style}
