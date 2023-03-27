@@ -65,7 +65,7 @@ export default function PanelSwitcher() {
         <SettingsMenu style={{
           position: 'absolute',
           right: 0,
-          top: 0,
+          top: '4px',
         }} />
       </div>
     </div>
