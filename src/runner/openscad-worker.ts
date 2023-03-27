@@ -2,15 +2,13 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { createEditorFS, symlinkLibraries } from "../fs/filesystem";
-import { zipArchives } from "../fs/zip-archives";
+import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
+import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
 
 importScripts("browserfs.min.js");
 // importScripts("https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js");
-
-const allArchiveNames = Object.keys(zipArchives)
 
 export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[];
 
@@ -51,7 +49,7 @@ addEventListener('message', async (e) => {
       
     instance.FS.mount(BFS, {root: '/'}, '/libraries');
 
-    await symlinkLibraries(allArchiveNames, instance.FS, '/libraries', "/");
+    await symlinkLibraries(deployedArchiveNames, instance.FS, '/libraries', "/");
 
     // Fonts are seemingly resolved from $(cwd)/fonts
     instance.FS.chdir("/");
