@@ -21,20 +21,22 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Roadmap
 
-- Persist camera state
 - Add tests!
+- Persist camera state
+- Support 2D somehow? (e.g. add option in OpenSCAD to output 2D geometry as non-closed polysets, or to auto-extrude by some height)
+- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD. And use React Hook Forms maybe? https://react-hook-form.com/
+- Rebuild w/ (and sync) ochafik@'s filtered kernel (https://github.com/openscad/openscad/pull/4160) to fix(ish) 2D operations
+- Replace Makefile w/ something that reads the libs metadata
+- Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
 - Better names for downloads (matching source)
 - Model /home fs in shared state. have two clear paths: /libraries for builtins, and /home for user data. State pointing to /libraries paths needs not store the data except if there's overrides (flagged as modifications in the file picker)
-- Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples will run fine.
-- Bundle some official demos and more examples from each library!
-- Ask users to contribute recipes to include more libraries, and cool examples that work in the environment
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Proper PWA w/ File opening / association to *.scad files
+- Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples that include assets / import local files will run fine.
+- Bundle more examples (ask users to contribute)
 - Animation rendering (And other formats than STL)
 - Compress URL fragment
-- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD. And use React Hook Forms maybe? https://react-hook-form.com/
 - Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
-- Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
 - Detect which bundled libraries are included / used in the sources and only download these rather than wait for all of the zips. Means the file explorer would need to be more lazy or have some prebuilt hierarchy.
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
