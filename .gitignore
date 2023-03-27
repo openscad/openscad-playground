@@ -2,5 +2,7 @@ node_modules
 libs
 dist
 public/libraries
+public/openscad.js
+public/openscad.wasm
 src/wasm
 package-lock.json

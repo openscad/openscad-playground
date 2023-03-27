@@ -9,6 +9,9 @@ import { join } from '../fs/filesystem';
 import { defaultSourcePath } from '../state/initial-state';
 import { zipArchives } from '../fs/zip-archives';
 
+const biasedCompare = (a: string, b: string) => 
+  a === 'openscad' ? -1 : b === 'openscad' ? 1 : a.localeCompare(b);
+
 function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
   const files: [string, string][] = []
   const dirs: [string, string][] = []
@@ -27,7 +30,7 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
     }
     (isDirectory ? dirs : files).push([name, childPath]);
   }
-  [files, dirs].forEach(arr => arr.sort(([a], [b]) => a.localeCompare(b)));
+  [files, dirs].forEach(arr => arr.sort(([a], [b]) => biasedCompare(a, b)));
 
   const nodes: TreeNode[] = []
   for (const [arr, isDirectory] of [[files, false], [dirs, true]] as [[string, string][], boolean][]) {

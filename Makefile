@@ -8,10 +8,11 @@ all: public
 
 .PHONY: public
 public: \
-		libs/openscad \
+		libs/openscad-wasm \
 		public/openscad.js \
 		public/openscad.wasm \
 		public/libraries/fonts.zip \
+		public/libraries/openscad.zip \
 		public/libraries/NopSCADlib.zip \
 		public/libraries/BOSL.zip \
 		public/libraries/BOSL2.zip \
@@ -40,19 +41,19 @@ dist/index.js: public
 dist/openscad-worker.js: src/openscad-worker.ts
 	npx rollup -c
 
-libs/openscad:
-	mkdir -p libs/openscad
-	wget ${WASM_BUILD_URL} -O libs/openscad.zip
-	( cd libs/openscad && unzip ../openscad.zip )
-	rm libs/openscad.zip
+libs/openscad-wasm:
+	mkdir -p libs/openscad-wasm
+	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
+	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
+	rm libs/openscad-wasm.zip
 	rm -f src/wasm
-	ln -sf $(shell pwd)/libs/openscad src/wasm
+	ln -sf $(shell pwd)/libs/openscad-wasm src/wasm
 	
-public/openscad.js: libs/openscad libs/openscad/openscad.js
-	cp libs/openscad/openscad.{js,wasm} public
+public/openscad.js: libs/openscad-wasm
+	cp libs/openscad-wasm/openscad.{js,wasm} public
 		
-public/openscad.wasm: libs/openscad libs/openscad/openscad.wasm
-	cp libs/openscad/openscad.wasm public
+public/openscad.wasm: libs/openscad-wasm
+	cp libs/openscad-wasm/openscad.wasm public
 
 public/libraries/fonts.zip: libs/liberation
 	mkdir -p public/libraries
@@ -61,6 +62,13 @@ public/libraries/fonts.zip: libs/liberation
 
 libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
+
+libs/openscad:
+	git clone https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
+
+public/libraries/openscad.zip: libs/openscad
+	mkdir -p public/libraries
+	( cd libs/openscad ; zip -r ../../public/libraries/openscad.zip `find examples -name '*.scad' | grep -v tests` )
 
 libs/BOSL2: 
 	git clone --recurse https://github.com/revarbat/BOSL2.git ${SHALLOW} ${SINGLE_BRANCH} $@

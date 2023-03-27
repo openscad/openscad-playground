@@ -22,6 +22,14 @@ export type ZipArchives = {
 
 export const zipArchives: ZipArchives = {
   'fonts': {},
+  'openscad': {
+    description: 'OpenSCAD',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/openscad/openscad',
+      include: [{glob: ['examples/*.scad', 'LICENSE']}],
+    },
+  },
   'MCAD': {
     description: 'OpenSCAD Parametric CAD Library',
     gitOrigin: {
