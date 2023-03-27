@@ -21,6 +21,7 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Roadmap
 
+- Persist camera state
 - Add tests!
 - Better names for downloads (matching source)
 - Model /home fs in shared state. have two clear paths: /libraries for builtins, and /home for user data. State pointing to /libraries paths needs not store the data except if there's overrides (flagged as modifications in the file picker)
