@@ -13,13 +13,13 @@ export default function HelpMenu() {
         {
           label: "openscad-playground",
           icon: 'pi pi-github',
-          url: 'https://github.com/openscad/openscad-playground/tree/rewrite1',
+          url: 'https://github.com/openscad/openscad-playground',
           target: '_blank'
         },
         {
           label: 'LICENSES',
           icon: 'pi pi-info-circle',
-          url: 'https://github.com/openscad/openscad-playground/blob/rewrite1/LICENSE.md',
+          url: 'https://github.com/openscad/openscad-playground/blob/main/LICENSE.md',
           target: '_blank'
         },
         {
