@@ -14,11 +14,12 @@ export default function ViewerPanel({className, style}: {className?: string, sty
 
   return (
     <div className={className}
-          style={{display: 'flex', flexDirection: 'column', 
+          style={{
+              display: 'flex',
+              flexDirection: 'column', 
               flex: 1, 
               position: 'relative',
               width: '100%',
-              height: '100%',
               ...(style ?? {})
           }}>
       {state.output?.stlFileURL &&
