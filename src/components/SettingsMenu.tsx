@@ -6,7 +6,7 @@ import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { ModelContext } from './contexts';
 import { isInStandaloneMode } from '../utils';
-import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import { confirmDialog } from 'primereact/confirmdialog';
 
 export default function SettingsMenu({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
@@ -73,7 +73,6 @@ export default function SettingsMenu({className, style}: {className?: string, st
         ] : []),
       ] as MenuItem[]} popup ref={settingsMenu} />
     
-      <ConfirmDialog />
       <Button title="Settings menu"
           style={style}
           className={className}

@@ -8,10 +8,10 @@ import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
 import { Badge } from 'primereact/badge';
 import { Menu } from 'primereact/menu';
-import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Toast } from 'primereact/toast';
 import SettingsMenu from './SettingsMenu';
 import HelpMenu from './HelpMenu';
+import { confirmDialog } from 'primereact/confirmdialog';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
@@ -134,8 +134,6 @@ export default function Footer({style}: {style?: CSSProperties}) {
       {/* <span style={{flex: 1}}></span> */}
       
       <span style={{flex: 1}}></span>
-
-      <ConfirmDialog />
 
       <Toast ref={toast} />
       

@@ -8,6 +8,8 @@ import ViewerPanel from './ViewerPanel';
 import Footer from './Footer';
 import { ModelContext, FSContext } from './contexts';
 import PanelSwitcher from './PanelSwitcher';
+import { ConfirmDialog } from 'primereact/confirmdialog';
+
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
 // import "primereact/resources/primereact.min.css";
@@ -80,6 +82,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
           </div>
 
           <Footer />
+          <ConfirmDialog />
         </div>
       </FSContext.Provider>
     </ModelContext.Provider>
