@@ -240,8 +240,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
 
         const inputFile = join(workingDir, 'foo.scad');
         delete parsedFiles[inputFile];
-        // const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: true});
-        const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: false});
+        const parsed = await getParsed(inputFile, text, {skipPrivates: false, addBuiltins: true});
         console.log("PARSED", JSON.stringify(parsed, null, 2));
         
         type CompletionItem = monaco.languages.CompletionItem & {
