@@ -96,3 +96,10 @@ export function registerCustomAppHeightCSSProperty() {
   window.addEventListener('resize', updateAppHeight)
   updateAppHeight();
 }
+
+// In PWA mode, persist files in LocalStorage instead of the hash fragment.
+export const isInStandaloneMode =
+  // true
+  Boolean(('standalone' in window.navigator) && (window.navigator.standalone));
+
+  

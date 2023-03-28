@@ -33,7 +33,7 @@ addEventListener('message', async (e) => {
     });
 
     // This will mount lots of libraries' ZIP archives under /libraries/<name> -> <name>.zip
-    await createEditorFS('');
+    await createEditorFS({prefix: '', allowPersistence: false});
     
     instance.FS.mkdir('/libraries');
     

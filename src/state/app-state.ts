@@ -50,4 +50,8 @@ export interface State {
   },
 };
 
+export interface StatePersister {
+  set(state: State): void;
+}
+
 export {}

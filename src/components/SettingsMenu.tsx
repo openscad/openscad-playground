@@ -5,6 +5,8 @@ import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { ModelContext } from './contexts';
+import { isInStandaloneMode } from '../utils';
+import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 
 export default function SettingsMenu({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
@@ -44,7 +46,34 @@ export default function SettingsMenu({className, style}: {className?: string, st
           // disabled: true,
           command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
         },
+        ...(isInStandaloneMode ? [
+          {
+            separator: true
+          },  
+          {
+            label: 'Clear local storage',
+            icon: 'pi pi-list',
+            // disabled: true,
+            command: () => {
+              confirmDialog({
+                message: "This will clear all the edits you've made and files you've created in this playground " +
+                  "and will reset it to factory defaults. " +
+                  "Are you sure you wish to proceed? (you might lose your models!)",
+                header: 'Clear local storage',
+                icon: 'pi pi-exclamation-triangle',
+                accept: () => {
+                  localStorage.clear();
+                  location.reload();
+                },
+                acceptLabel: `Clear all files!`,
+                rejectLabel: 'Cancel'
+              });
+            },
+          },
+        ] : []),
       ] as MenuItem[]} popup ref={settingsMenu} />
+    
+      <ConfirmDialog />
       <Button title="Settings menu"
           style={style}
           className={className}

@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import React, { CSSProperties, useEffect, useState } from 'react';
-import {MultiLayoutComponentId, State} from '../state/app-state'
+import {MultiLayoutComponentId, State, StatePersister} from '../state/app-state'
 import { Model } from '../state/model';
 import EditorPanel from './EditorPanel';
 import ViewerPanel from './ViewerPanel';
@@ -13,10 +13,10 @@ import PanelSwitcher from './PanelSwitcher';
 // import "primereact/resources/primereact.min.css";
 // import "primeicons/primeicons.css"; 
 
-export function App({initialState, fs}: {initialState: State, fs: FS}) {
+export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
   const [state, setState] = useState(initialState);
   
-  const model = new Model(fs, state, setState);
+  const model = new Model(fs, state, setState, statePersister);
   useEffect(() => model.init());
 
   const zIndexOfPanelsDependingOnFocus = {

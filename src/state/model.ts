@@ -1,18 +1,13 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, State } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
-import { writeStateInFragment } from "./fragment-state";
 import { formatBytes, formatMillis } from '../utils'
-import { getParentDir } from "../fs/filesystem";
-
-// export const isFileWritable = (path: string) => !path.startsWith('/');
-// export const isFileWritable = (path: string) => getParentDir(path) === '/home';
-// export const isFileWritable = (path: string) => !path.startsWith('/libraries/');
 
 export class Model {
-  constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void) {
+  constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
+    private statePersister?: StatePersister) {
   }
   
   init() {
@@ -24,7 +19,7 @@ export class Model {
 
   private setState(state: State) {
     this.state = state;
-    writeStateInFragment(state);
+    this.statePersister && this.statePersister.set(state);
     this.setStateCallback && this.setStateCallback(state);
   }
 

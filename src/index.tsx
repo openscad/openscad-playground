@@ -11,7 +11,10 @@ import { createInitialState } from './state/initial-state';
 import './index.css';
 
 import debug from 'debug';
-import { registerCustomAppHeightCSSProperty } from './utils';
+import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils';
+import { State, StatePersister } from './state/app-state';
+import { writeStateInFragment } from "./state/fragment-state";
+
 const log = debug('app:log');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -21,20 +24,48 @@ if (process.env.NODE_ENV !== 'production') {
   debug.disable();
 }
 
+declare var BrowserFS: BrowserFSInterface
+
+
 (async () => {
   registerCustomAppHeightCSSProperty();
 
-  const fs = await createEditorFS('/');
+  const fs = await createEditorFS({prefix: '/', allowPersistence: isInStandaloneMode});
+
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 
-  const initialState = createInitialState(fs, readStateFromFragment());
+  let statePersister: StatePersister;
+  let persistedState: State | null = null;
+
+  if (isInStandaloneMode) {
+    const fs: FS = BrowserFS.BFSRequire('fs')
+    try {
+      const data = JSON.parse(new TextDecoder("utf-8").decode(fs.readFileSync('/state.json')));
+      const {view, params} = data
+      persistedState = {view, params};
+    } catch (e) {
+      console.log('Failed to read the persisted state from local storage.', e)
+    }
+    statePersister = {
+      set: ({view, params}) => {
+        fs.writeFile('/state.json', JSON.stringify({view, params}));
+      }
+    };
+  } else {
+    persistedState = readStateFromFragment();
+    statePersister = {
+      set: writeStateInFragment,
+    };
+  }
+
+  const initialState = createInitialState(fs, persistedState);
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement
   );
   root.render(
     <React.StrictMode>
-      <App initialState={initialState} fs={fs} />
+      <App initialState={initialState} statePersister={statePersister} fs={fs} />
     </React.StrictMode>
   );
 })();

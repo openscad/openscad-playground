@@ -86,7 +86,7 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS(prefix: string): Promise<FS> {
+export async function createEditorFS({prefix, allowPersistence}: {prefix: string, allowPersistence: boolean}): Promise<FS> {
   const archiveNames = deployedArchiveNames;
   const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
   const allMounts: FSMounts = {};
@@ -103,7 +103,9 @@ export async function createEditorFS(prefix: string): Promise<FS> {
           ...allMounts,
         }
       },
-      writable: {
+      writable: allowPersistence ? {
+        fs: "LocalStorage",
+      } : {
         fs: "InMemory"
       },
     },
