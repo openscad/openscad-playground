@@ -31,7 +31,7 @@ function downloadOutput(state: State) {
         message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
         header: 'Preview vs. Render',
         icon: 'pi pi-exclamation-triangle',
-        accept: () => doDownload, 
+        accept: doDownload, 
         acceptLabel: `Download ${fileName}`,
         rejectLabel: 'Cancel'
         // reject: () => {}
