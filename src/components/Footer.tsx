@@ -15,8 +15,9 @@ import { confirmDialog } from 'primereact/confirmdialog';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
-
-  const fileName = state.output!.isPreview ? 'preview.stl' : 'render.stl';
+  const sourcePathParts = state.params.sourcePath.split('/');
+  const sourceFileName = sourcePathParts.slice(-1)[0];
+  const fileName = [sourceFileName, state.output!.isPreview ? 'preview.stl' : 'render.stl'].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
     a.href = state.output!.stlFileURL
