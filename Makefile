@@ -1,4 +1,4 @@
-WASM_BUILD_URL=https://files.openscad.org/snapshots/OpenSCAD-2023.03.22.wasm14181-WebAssembly.zip
+WASM_BUILD_URL=https://files.openscad.org/playground/OpenSCAD-2023.06.30.wasm15628-WebAssembly.zip
 
 SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
