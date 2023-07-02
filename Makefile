@@ -4,6 +4,8 @@ SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
 SHALLOW=--depth 1
 
+SHELL:=/bin/bash
+
 all: public
 
 .PHONY: public
