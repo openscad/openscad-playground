@@ -29,7 +29,6 @@ Licenses: see [LICENSES](./LICENSE).
 - Rebuild w/ (and sync) ochafik@'s filtered kernel (https://github.com/openscad/openscad/pull/4160) to fix(ish) 2D operations
 - Replace Makefile w/ something that reads the libs metadata
 - Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
-- Better names for downloads (matching source)
 - Model /home fs in shared state. have two clear paths: /libraries for builtins, and /home for user data. State pointing to /libraries paths needs not store the data except if there's overrides (flagged as modifications in the file picker)
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Fuller PWA support w/ link Sharing, File opening / association to *.scad files... 
