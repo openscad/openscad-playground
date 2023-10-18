@@ -162,6 +162,13 @@ export const zipArchives: ZipArchives = {
       include: [{glob: ['**/*.scad', 'LICENSE']}],
     },
   },
+  'openscad_attachable_text3d': {
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/jon-gilbert/openscad_attachable_text3d.git',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+  },
 };
 
 export const deployedArchiveNames =
