@@ -155,6 +155,20 @@ export const zipArchives: ZipArchives = {
     },
     symlinks: {"ub.scad": "libraries/ub.scad"}, // TODO change this after the replaces work
   },
+  'pathbuilder': {
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/dinther/pathbuilder.git',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+  },
+  'openscad_attachable_text3d': {
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/jon-gilbert/openscad_attachable_text3d.git',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+  },
 };
 
 export const deployedArchiveNames =
