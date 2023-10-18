@@ -15,6 +15,7 @@ module.exports = {
       {
         test: /\.css$/i,
         use: [
+         "style-loader",
          {
           loader: 'css-loader',
           options:{url: false},
@@ -44,6 +45,11 @@ module.exports = {
       patterns: [
         { 
           from: path.resolve(__dirname, 'public'),
+          toType: 'dir',
+        },
+        { 
+          from: path.resolve(__dirname, 'node_modules/primeicons/fonts'),
+          to: path.resolve(__dirname, 'dist/fonts'),
           toType: 'dir',
         },
         { 

@@ -15,6 +15,11 @@ import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils'
 import { State, StatePersister } from './state/app-state';
 import { writeStateInFragment } from "./state/fragment-state";
 
+import "primereact/resources/themes/lara-light-indigo/theme.css";
+import "primereact/resources/primereact.min.css";
+import "primeicons/primeicons.css";
+import "primeflex/primeflex.min.css";
+
 const log = debug('app:log');
 
 if (process.env.NODE_ENV !== 'production') {
