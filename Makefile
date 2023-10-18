@@ -27,6 +27,7 @@ public: \
 		public/libraries/openscad-tray.zip \
 		public/libraries/closepoints.zip \
 		public/libraries/Stemfie_OpenSCAD.zip \
+		public/libraries/pathbuilder.zip \
 		public/libraries/UB.scad.zip
 
 clean:
@@ -49,7 +50,7 @@ libs/openscad-wasm:
 	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
 	rm libs/openscad-wasm.zip
 	rm -f src/wasm
-	ln -sf $(shell pwd)/libs/openscad-wasm src/wasm
+	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
 	
 public/openscad.js: libs/openscad-wasm
 	cp libs/openscad-wasm/openscad.{js,wasm} public
@@ -127,6 +128,13 @@ libs/Stemfie_OpenSCAD:
 public/libraries/Stemfie_OpenSCAD.zip: libs/Stemfie_OpenSCAD
 	mkdir -p public/libraries
 	( cd libs/Stemfie_OpenSCAD ; zip -r ../../public/libraries/Stemfie_OpenSCAD.zip *.scad LICENSE )
+
+libs/pathbuilder: 
+	git clone --recurse https://github.com/dinther/pathbuilder.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@
+
+public/libraries/pathbuilder.zip: libs/pathbuilder
+	mkdir -p public/libraries
+	( cd libs/pathbuilder ; zip -r ../../public/libraries/pathbuilder.zip *.scad demo/*.scad LICENSE )
 
 # libs/threads: 
 # 	git clone --recurse https://github.com/rcolyer/threads.git ${SHALLOW} ${SINGLE_BRANCH} $@
