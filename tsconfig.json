@@ -26,6 +26,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "src/**/*.js",
     // "public"
   ]
 }
