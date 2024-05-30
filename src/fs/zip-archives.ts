@@ -100,6 +100,18 @@ export const zipArchives: ZipArchives = {
       include: [{glob: ['**/*.scad', 'LICENSE']}],
     },
   },
+  'OpenSCAD-Snippet': {
+    description: 'OpenSCAD Snippet Library',
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/AngeloNicoli/OpenSCAD-Snippet',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+    symlinks: {
+      'Asset_SCAD': 'Asset_SCAD',
+      'Import_Library.scad': 'Import_Library.scad',
+    },
+  },
   'funcutils': {
     description: 'OpenSCAD collection of functional programming utilities, making use of function-literals.',
     gitOrigin: {
