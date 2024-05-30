@@ -29,6 +29,10 @@ export const zipArchives: ZipArchives = {
       repoUrl: 'https://github.com/openscad/openscad',
       include: [{glob: ['examples/*.scad', 'LICENSE']}],
     },
+    docs: {
+      'CheatSheet': 'https://openscad.org/cheatsheet/index.html',
+      'Documentation': 'https://openscad.org/documentation.html',
+    },
   },
   'MCAD': {
     description: 'OpenSCAD Parametric CAD Library',
@@ -90,6 +94,9 @@ export const zipArchives: ZipArchives = {
         glob: ['**/*.scad', 'LICENSE'],
         ignore: 'test/**',
       }],
+    },
+    docs: {
+      'Documentation': 'https://github.com/BelfrySCAD/brailleSCAD/wiki/TOC',
     },
   },
   'FunctionalOpenSCAD': {
