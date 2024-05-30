@@ -68,6 +68,16 @@ export const zipArchives: ZipArchives = {
       }],
     },
   },
+  'brailleSCAD': {
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/BelfrySCAD/brailleSCAD',
+      include: [{
+        glob: ['**/*.scad', 'LICENSE'],
+        ignore: 'test/**',
+      }],
+    },
+  },
   'FunctionalOpenSCAD': {
     description: 'Implementing OpenSCAD in OpenSCAD',
     gitOrigin: {
