@@ -73,3 +73,15 @@ npm run build
 rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
 # Now commit and push changes, wait for site update and enjoy!
 ```
+
+## Adding OpenSCAD libraries
+
+You'll need to update 3 files (search for BOSL2 for an example):
+
+- [Makefile](./Makefile): to pull the library's code (optionally alias some files for easier imports) and package it as a `.zip` archive
+
+- [src/fs/zip-archives.ts](./src/fs/zip-archives.ts): to use the `.zip` archive in the UI (both for file explorer and automatic imports mounting)
+
+- [LICENSE.md](./LICENSE.md): most libraries require proper disclosure of their usage and of their license. If a license is unique, paste it in full, otherwise, link to one of the standard ones already there.
+
+Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad2 demo.
