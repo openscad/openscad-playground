@@ -29,6 +29,7 @@ public: \
 		public/libraries/Stemfie_OpenSCAD.zip \
 		public/libraries/pathbuilder.zip \
 		public/libraries/openscad_attachable_text3d.zip \
+		public/libraries/brailleSCAD.zip \
 		public/libraries/UB.scad.zip
 
 clean:
@@ -143,6 +144,13 @@ libs/openscad_attachable_text3d:
 public/libraries/openscad_attachable_text3d.zip: libs/openscad_attachable_text3d
 	mkdir -p public/libraries
 	( cd libs/openscad_attachable_text3d ; zip -r ../../public/libraries/openscad_attachable_text3d.zip *.scad LICENSE )
+
+libs/brailleSCAD:
+	git clone --recurse https://github.com/BelfrySCAD/brailleSCAD.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@
+
+public/libraries/brailleSCAD.zip: libs/brailleSCAD
+	mkdir -p public/libraries
+	( cd libs/brailleSCAD ; zip -r ../../public/libraries/brailleSCAD.zip *.scad LICENSE )
 
 # libs/threads: 
 # 	git clone --recurse https://github.com/rcolyer/threads.git ${SHALLOW} ${SINGLE_BRANCH} $@
