@@ -46,6 +46,7 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
   + [Stemfie_OpenSCAD](#stemfie-openscad)
   + [UB.scad](#ubscad)
   + [pathbuilder](#pathbuilder)
+  + [boltsparts](#boltsparts)
   + [openscad_attachable_text3d](#openscad_attachable_text3d)
 
 ## Manifold
@@ -745,6 +746,12 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## boltsparts
+
+https://github.com/boltsparts/boltsparts
+
+Licensed under the [GPLv3](#gplv3).
 
 ## pathbuilder
 

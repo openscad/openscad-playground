@@ -68,6 +68,20 @@ export const zipArchives: ZipArchives = {
       }],
     },
   },
+  'boltsparts': {
+    description: 'OpenSCAD library for generating bolt/nut models',
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/boltsparts/boltsparts',
+      include: [{
+        glob: 'openscad/**/*.scad',
+        ignore: 'test/**',
+      }],
+    },
+    docs: {
+      'Usage': 'https://boltsparts.github.io/en/docs/0.3/document/openscad/usage.html',
+    },
+  },
   'brailleSCAD': {
     gitOrigin: {
       branch: 'main',
