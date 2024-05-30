@@ -18,6 +18,8 @@ public: \
 		public/libraries/NopSCADlib.zip \
 		public/libraries/BOSL.zip \
 		public/libraries/BOSL2.zip \
+		public/libraries/boltsparts.zip \
+		public/libraries/OpenSCAD-Snippet.zip \
 		public/libraries/funcutils.zip \
 		public/libraries/FunctionalOpenSCAD.zip \
 		public/libraries/YAPP_Box.zip \
@@ -123,6 +125,20 @@ libs/MCAD:
 public/libraries/MCAD.zip: libs/MCAD
 	mkdir -p public/libraries
 	( cd libs/MCAD ; zip -r ../../public/libraries/MCAD.zip *.scad bitmap/*.scad LICENSE )
+
+libs/boltsparts:
+	git clone --recurse https://github.com/boltsparts/boltsparts.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@
+
+public/libraries/boltsparts.zip: libs/boltsparts
+	mkdir -p public/libraries
+	( cd libs/boltsparts/openscad ; zip -r ../../../public/libraries/boltsparts.zip `find . -name '*.scad' | grep -v tests` ../LICENSE )
+
+libs/OpenSCAD-Snippet:
+	git clone --recurse https://github.com/AngeloNicoli/OpenSCAD-Snippet.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@
+
+public/libraries/OpenSCAD-Snippet.zip: libs/OpenSCAD-Snippet
+	mkdir -p public/libraries
+	( cd libs/OpenSCAD-Snippet ; zip -r ../../public/libraries/OpenSCAD-Snippet.zip `find . -name '*.scad'` LICENSE )
 
 libs/Stemfie_OpenSCAD: 
 	git clone --recurse https://github.com/Cantareus/Stemfie_OpenSCAD.git ${SHALLOW} ${SINGLE_BRANCH_MAIN} $@

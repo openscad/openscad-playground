@@ -29,6 +29,10 @@ export const zipArchives: ZipArchives = {
       repoUrl: 'https://github.com/openscad/openscad',
       include: [{glob: ['examples/*.scad', 'LICENSE']}],
     },
+    docs: {
+      'CheatSheet': 'https://openscad.org/cheatsheet/index.html',
+      'Documentation': 'https://openscad.org/documentation.html',
+    },
   },
   'MCAD': {
     description: 'OpenSCAD Parametric CAD Library',
@@ -68,6 +72,20 @@ export const zipArchives: ZipArchives = {
       }],
     },
   },
+  'boltsparts': {
+    description: 'OpenSCAD library for generating bolt/nut models',
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/boltsparts/boltsparts',
+      include: [{
+        glob: 'openscad/**/*.scad',
+        ignore: 'test/**',
+      }],
+    },
+    docs: {
+      'Usage': 'https://boltsparts.github.io/en/docs/0.3/document/openscad/usage.html',
+    },
+  },
   'brailleSCAD': {
     gitOrigin: {
       branch: 'main',
@@ -77,6 +95,9 @@ export const zipArchives: ZipArchives = {
         ignore: 'test/**',
       }],
     },
+    docs: {
+      'Documentation': 'https://github.com/BelfrySCAD/brailleSCAD/wiki/TOC',
+    },
   },
   'FunctionalOpenSCAD': {
     description: 'Implementing OpenSCAD in OpenSCAD',
@@ -84,6 +105,18 @@ export const zipArchives: ZipArchives = {
       branch: 'master',
       repoUrl: 'https://github.com/thehans/FunctionalOpenSCAD',
       include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+  },
+  'OpenSCAD-Snippet': {
+    description: 'OpenSCAD Snippet Library',
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/AngeloNicoli/OpenSCAD-Snippet',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+    symlinks: {
+      'Asset_SCAD': 'Asset_SCAD',
+      'Import_Library.scad': 'Import_Library.scad',
     },
   },
   'funcutils': {
