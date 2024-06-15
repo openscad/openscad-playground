@@ -17,10 +17,12 @@ function downloadOutput(state: State) {
   if (!state.output) return;
   const sourcePathParts = state.params.sourcePath.split('/');
   const sourceFileName = sourcePathParts.slice(-1)[0];
-  const fileName = [sourceFileName, state.output!.isPreview ? 'preview.stl' : 'render.stl'].join('.');
+  const fileName = [sourceFileName, state.output!.isPreview ? 'preview.glb' : 'render.glb'].join('.');
+  // const fileName = [sourceFileName, state.output!.isPreview ? 'preview.stl' : 'render.stl'].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
-    a.href = state.output!.stlFileURL
+    // a.href = state.output!.stlFileURL
+    a.href = state.output!.glbFileURL
     a.download = fileName;
     document.body.appendChild(a)
     a.click()

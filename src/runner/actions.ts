@@ -41,7 +41,12 @@ export const checkSyntax =
   });
 
 var renderDelay = 1000;
-export type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis: number}
+export type RenderOutput = {
+  // stlFile: File,
+  glbFile: File,
+  logText: string,
+  markers: monaco.editor.IMarkerData[],
+  elapsedMillis: number}
 
 export type RenderArgs = {
   source: string,
@@ -62,8 +67,8 @@ export const render =
 
     const args = [
       sourcePath,
-      "-o", "out.stl",
-      "--export-format=binstl",
+      "-o", "out.glb",
+      // "--export-format=binstl",
       ...(features ?? []).map(f => `--enable=${f}`),
       ...(extraArgs ?? [])
     ]
@@ -72,7 +77,8 @@ export const render =
       // wasmMemory,
       inputs: [[sourcePath, source]],
       args,
-      outputPaths: ['out.stl'],
+      // outputPaths: ['out.stl'],
+      outputPaths: ['out.glb'],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     });
 
@@ -105,8 +111,10 @@ export const render =
           // TODO: have the runner accept and return files.
           const blob = new Blob([content], { type: "application/octet-stream" });
           // console.log(new TextDecoder().decode(content));
-          const stlFile = new File([blob], fileName);
-          resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
+          const glbFile = new File([blob], fileName);
+          resolve({glbFile, logText, markers, elapsedMillis: result.elapsedMillis});
+          // const stlFile = new File([blob], fileName);
+          // resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
         } catch (e) {
           console.error(e);
           reject(e);

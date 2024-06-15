@@ -38,8 +38,10 @@ export interface State {
   error?: string,
   output?: {
     isPreview: boolean,
-    stlFile: File,
-    stlFileURL: string,
+    // stlFile: File,
+    // stlFileURL: string,
+    glbFile: File,
+    glbFileURL: string,
     elapsedMillis: number,
     formattedElapsedMillis: string,
     formattedStlFileSize: string,

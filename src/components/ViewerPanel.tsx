@@ -5,12 +5,22 @@ import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
 import { ColorPicker } from 'primereact/colorpicker';
 import { defaultModelColor } from '../state/initial-state';
+// import { ModelViewer } from 'react-model-viewer';
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "model-viewer": any;
+    }
+  }
+}
 
 export default function ViewerPanel({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
 
   const state = model.state;
+  const modelRef = useRef();
 
   return (
     <div className={className}
@@ -22,35 +32,54 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
-      {state.output?.stlFileURL &&
-        <StlViewer
-            className='absolute-fill'
-            style={{
-              zIndex: 0,
-              // flex: 1,
-              // width: '100%'
-            }}
-            // ref={stlModelRef}
-            showAxes={state.view.showAxes}
-            orbitControls
-            shadows={state.view.showShadows}
-            modelProps={{
-              color: model.state.view.color,
-            }}
-            url={state.output?.stlFileURL ?? ''}
-            />}
+      {state.output?.glbFileURL && (
+        // https://stackoverflow.com/questions/71512752/integrating-googles-model-viewer-with-react-reagent
+
+        <model-viewer
+          // className="model-viewer"
+          src={state.output?.glbFileURL ?? ''}
+          camera-controls
+          ar
+          ar-modes="webxr"
+          ref={(ref: any) => {
+            modelRef.current = ref;
+          }}
+        >
+        </model-viewer>
+          // <ModelViewer
+          //   src={state.output?.glbFileURL ?? ''}
+          //   cameraControls
+          //   touchAction="pan-y"
+          // />
+      // {state.output?.stlFileURL && (
+        // <StlViewer
+        //     className='absolute-fill'
+        //     style={{
+        //       zIndex: 0,
+        //       // flex: 1,
+        //       // width: '100%'
+        //     }}
+        //     // ref={stlModelRef}
+        //     showAxes={state.view.showAxes}
+        //     orbitControls
+        //     shadows={state.view.showShadows}
+        //     modelProps={{
+        //       color: model.state.view.color,
+        //     }}
+        //     url={state.output?.stlFileURL ?? ''}
+        //     />}
             
-            <ColorPicker
-              className={`opacity-animated ${!model.isComponentFullyVisible('viewer') ? 'opacity-0' : ''}`}
-              value={model.state.view.color}
-              style={{
-                position: 'absolute',
-                top: '12px',
-                left: '12px',
-                // pointerEvents: model.isComponentFullyVisible('viewer') ? undefined : 'none',
-              }}
-              onChange={(e) => model.mutate(s => s.view.color = `#${e.value ?? defaultModelColor}`)} />
-          
+        //     <ColorPicker
+        //       className={`opacity-animated ${!model.isComponentFullyVisible('viewer') ? 'opacity-0' : ''}`}
+        //       value={model.state.view.color}
+        //       style={{
+        //         position: 'absolute',
+        //         top: '12px',
+        //         left: '12px',
+        //         // pointerEvents: model.isComponentFullyVisible('viewer') ? undefined : 'none',
+        //       }}
+        //       onChange={(e) => model.mutate(s => s.view.color = `#${e.value ?? defaultModelColor}`)
+        )}
 
     </div>
   )

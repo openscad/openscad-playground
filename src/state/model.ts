@@ -160,17 +160,23 @@ export class Model {
             logText: output.logText,
             markers: output.markers,
           }
-          if (s.output?.stlFileURL) {
-            URL.revokeObjectURL(s.output.stlFileURL);
+          if (s.output?.glbFileURL) {
+            URL.revokeObjectURL(s.output.glbFileURL);
           }
+          // if (s.output?.stlFileURL) {
+          //   URL.revokeObjectURL(s.output.stlFileURL);
+          // }
 
           s.output = {
             isPreview: isPreview,
-            stlFile: output.stlFile,
-            stlFileURL: URL.createObjectURL(output.stlFile),
+            glbFile: output.glbFile,
+            glbFileURL: URL.createObjectURL(output.glbFile),
+            // stlFile: output.stlFile,
+            // stlFileURL: URL.createObjectURL(output.stlFile),
             elapsedMillis: output.elapsedMillis,
             formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedStlFileSize: formatBytes(output.stlFile.size),
+            formattedStlFileSize: formatBytes(output.glbFile.size),
+            // formattedStlFileSize: formatBytes(output.stlFile.size),
           };
         }
       });
