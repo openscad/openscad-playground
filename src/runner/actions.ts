@@ -5,6 +5,7 @@ import { getFileName, getParentDir } from '../fs/filesystem';
 import { spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
+import { VALID_RENDER_FORMATS } from '../state/app-state';
 
 const syntaxDelay = 300;
 
@@ -43,7 +44,7 @@ export const checkSyntax =
 var renderDelay = 1000;
 export type RenderOutput = {
   // stlFile: File,
-  glbFile: File,
+  outFile: File,
   logText: string,
   markers: monaco.editor.IMarkerData[],
   elapsedMillis: number}
@@ -53,10 +54,11 @@ export type RenderArgs = {
   sourcePath: string,
   features?: string[],
   extraArgs?: string[],
-  isPreview: boolean
+  isPreview: boolean,
+  renderFormat: keyof typeof VALID_RENDER_FORMATS,
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs}: RenderArgs) => {
+ turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs, renderFormat}: RenderArgs) => {
 
     const prefixLines: string[] = [];
     if (isPreview) {
@@ -65,10 +67,11 @@ export const render =
     source = [...prefixLines, source].join('\n');
     sourcePath = getFileName(sourcePath);
 
+    const outFile = 'out.' + renderFormat;
     const args = [
       sourcePath,
-      "-o", "out.glb",
-      // "--export-format=binstl",
+      "-o", outFile,
+      "--export-format=" + (renderFormat == 'stl' ? 'binstl' : renderFormat),
       ...(features ?? []).map(f => `--enable=${f}`),
       ...(extraArgs ?? [])
     ]
@@ -78,7 +81,7 @@ export const render =
       inputs: [[sourcePath, source]],
       args,
       // outputPaths: ['out.stl'],
-      outputPaths: ['out.glb'],
+      outputPaths: [outFile],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     });
 
@@ -111,8 +114,8 @@ export const render =
           // TODO: have the runner accept and return files.
           const blob = new Blob([content], { type: "application/octet-stream" });
           // console.log(new TextDecoder().decode(content));
-          const glbFile = new File([blob], fileName);
-          resolve({glbFile, logText, markers, elapsedMillis: result.elapsedMillis});
+          const outFile = new File([blob], fileName);
+          resolve({outFile, logText, markers, elapsedMillis: result.elapsedMillis});
           // const stlFile = new File([blob], fileName);
           // resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
         } catch (e) {

@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister, VALID_RENDER_FORMATS } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { formatBytes, formatMillis } from '../utils'
 
@@ -33,6 +33,10 @@ export class Model {
     }
 
     return false;
+  }
+
+  set renderFormat(format: keyof typeof VALID_RENDER_FORMATS) {
+    this.mutate(s => s.params.renderFormat = format);
   }
 
   set logsVisible(value: boolean) {
@@ -146,9 +150,10 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    const {source, sourcePath, features} = this.state.params;
+    let {source, sourcePath, features, renderFormat} = this.state.params;
+    features = [...features, isPreview ? 'color-faces' : 'color-solids'];
     
-    render({source, sourcePath, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
+    render({source, sourcePath, features, extraArgs: [], isPreview, renderFormat})({now, callback: (output, err) => {
       this.mutate(s => {
         setRendering(s, false);
         if (err != null) {
@@ -160,8 +165,8 @@ export class Model {
             logText: output.logText,
             markers: output.markers,
           }
-          if (s.output?.glbFileURL) {
-            URL.revokeObjectURL(s.output.glbFileURL);
+          if (s.output?.outFileURL) {
+            URL.revokeObjectURL(s.output.outFileURL);
           }
           // if (s.output?.stlFileURL) {
           //   URL.revokeObjectURL(s.output.stlFileURL);
@@ -169,14 +174,14 @@ export class Model {
 
           s.output = {
             isPreview: isPreview,
-            glbFile: output.glbFile,
-            glbFileURL: URL.createObjectURL(output.glbFile),
+            outFile: output.outFile,
+            outFileURL: URL.createObjectURL(output.outFile),
             // stlFile: output.stlFile,
             // stlFileURL: URL.createObjectURL(output.stlFile),
             elapsedMillis: output.elapsedMillis,
             formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedStlFileSize: formatBytes(output.glbFile.size),
-            // formattedStlFileSize: formatBytes(output.stlFile.size),
+            formattedOutFileSize: formatBytes(output.outFile.size),
+            // formattedOutFileSize: formatBytes(output.stlFile.size),
           };
         }
       });

@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { State } from "./app-state";
+import { State, VALID_RENDER_FORMATS } from "./app-state";
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
 import { defaultModelColor } from "./initial-state";
 
@@ -25,6 +25,7 @@ export function readStateFromFragment(): State | null {
           sourcePath: validateString(params?.sourcePath),
           source: validateString(params?.source),
           features: validateArray(params?.features, validateString),
+          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS))
         },
         view: {
           layout: {

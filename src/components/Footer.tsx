@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { CSSProperties, useContext, useRef } from 'react';
-import { State } from '../state/app-state'
+import { State, VALID_RENDER_FORMATS } from '../state/app-state'
 import { ModelContext } from './contexts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
@@ -12,17 +12,20 @@ import { Toast } from 'primereact/toast';
 import SettingsMenu from './SettingsMenu';
 import HelpMenu from './HelpMenu';
 import { confirmDialog } from 'primereact/confirmdialog';
+import { Dropdown } from 'primereact/dropdown';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
   const sourcePathParts = state.params.sourcePath.split('/');
   const sourceFileName = sourcePathParts.slice(-1)[0];
-  const fileName = [sourceFileName, state.output!.isPreview ? 'preview.glb' : 'render.glb'].join('.');
-  // const fileName = [sourceFileName, state.output!.isPreview ? 'preview.stl' : 'render.stl'].join('.');
+  const fileName = [
+    sourceFileName,
+    state.output!.isPreview ? 'preview.glb' : 'render.' + state.params.renderFormat
+  ].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
     // a.href = state.output!.stlFileURL
-    a.href = state.output!.glbFileURL
+    a.href = state.output!.outFileURL
     a.download = fileName;
     document.body.appendChild(a)
     a.click()
@@ -114,9 +117,16 @@ export default function Footer({style}: {style?: CSSProperties}) {
           {getBadge(monaco.MarkerSeverity.Info)}
         </Button>}
 
+        <Dropdown
+           value={state.params.renderFormat}
+           onChange={(e) => model.renderFormat = e.value}
+           itemTemplate={(option: string) => <span>{option}</span>}
+           valueTemplate={(option: string) => <span>{option}</span>}
+           options={Object.keys(VALID_RENDER_FORMATS)} optionLabel="name"/>
+
       {state.output && (
         <Button icon='pi pi-download'
-          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`}
+          title={`Download ${(state.output.isPreview ? "preview." : "render.") + state.params.renderFormat} (${state.output.formattedOutFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`}
           severity="secondary"
           text
           // label={state.output.isPreview ? "preview.stl" : "render.stl"}
