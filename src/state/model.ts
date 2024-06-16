@@ -168,20 +168,14 @@ export class Model {
           if (s.output?.outFileURL) {
             URL.revokeObjectURL(s.output.outFileURL);
           }
-          // if (s.output?.stlFileURL) {
-          //   URL.revokeObjectURL(s.output.stlFileURL);
-          // }
 
           s.output = {
             isPreview: isPreview,
             outFile: output.outFile,
             outFileURL: URL.createObjectURL(output.outFile),
-            // stlFile: output.stlFile,
-            // stlFileURL: URL.createObjectURL(output.stlFile),
             elapsedMillis: output.elapsedMillis,
             formattedElapsedMillis: formatMillis(output.elapsedMillis),
             formattedOutFileSize: formatBytes(output.outFile.size),
-            // formattedOutFileSize: formatBytes(output.stlFile.size),
           };
         }
       });

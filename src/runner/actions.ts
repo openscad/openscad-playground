@@ -80,7 +80,6 @@ export const render =
       // wasmMemory,
       inputs: [[sourcePath, source]],
       args,
-      // outputPaths: ['out.stl'],
       outputPaths: [outFile],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     });

@@ -12,6 +12,7 @@ import { Toast } from 'primereact/toast';
 import SettingsMenu from './SettingsMenu';
 import HelpMenu from './HelpMenu';
 import { confirmDialog } from 'primereact/confirmdialog';
+// import { SplitButton } from 'primereact/splitbutton';
 import { Dropdown } from 'primereact/dropdown';
 
 function downloadOutput(state: State) {
@@ -24,7 +25,6 @@ function downloadOutput(state: State) {
   ].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
-    // a.href = state.output!.stlFileURL
     a.href = state.output!.outFileURL
     a.download = fileName;
     document.body.appendChild(a)
