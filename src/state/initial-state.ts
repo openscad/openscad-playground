@@ -11,7 +11,7 @@ export const blankProjectState: State = {
     sourcePath: defaultSourcePath,
     source: '',
     features: [],
-    renderFormat: 'glb',
+    renderFormat: 'stl',
   },
   view: {
     color: defaultModelColor,
@@ -33,7 +33,7 @@ export function createInitialState(fs: any, state: State | null) {
       sourcePath: defaultSourcePath,
       source: defaultScad,
       features: [],
-      renderFormat: 'glb',
+      renderFormat: 'stl',
     },
     view: {
       layout: {
