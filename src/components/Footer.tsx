@@ -119,7 +119,10 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
         <Dropdown
            value={state.params.renderFormat}
-           onChange={(e) => model.renderFormat = e.value}
+           onChange={(e) => {
+             model.renderFormat = e.value;
+             model.render({isPreview: true, now: true});
+           }}
            itemTemplate={(option: string) => <span>{option}</span>}
            valueTemplate={(option: string) => <span>{option}</span>}
            options={Object.keys(VALID_RENDER_FORMATS)} optionLabel="name"/>

@@ -31,8 +31,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
-      {state.output?.outFileURL && (
-          <>
+      {state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL && (
             <model-viewer
               src={state.output?.outFileURL ?? ''}
               style={{
@@ -45,7 +44,26 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 modelRef.current = ref;
               }}
             />
-            {/* <ColorPicker
+      )}
+      {state.output?.outFile && state.output.outFile.name.endsWith('.stl') && state.output?.outFileURL && (
+        <>
+         <StlViewer
+             className='absolute-fill'
+             style={{
+               zIndex: 0,
+               // flex: 1,
+               // width: '100%'
+             }}
+             // ref={stlModelRef}
+             showAxes={state.view.showAxes}
+             orbitControls
+             shadows={state.view.showShadows}
+             modelProps={{
+               color: model.state.view.color,
+             }}
+             url={state.output?.outFileURL ?? ''}
+             />
+            <ColorPicker
               className={`opacity-animated ${!model.isComponentFullyVisible('viewer') ? 'opacity-0' : ''}`}
               value={model.state.view.color}
               style={{
@@ -54,10 +72,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 left: '12px',
               }}
               onChange={(e) => model.mutate(s => s.view.color = `#${e.value ?? defaultModelColor}`)}
-            /> */}
+            />
             </>
         )}
-
     </div>
   )
 }
