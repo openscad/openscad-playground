@@ -47,6 +47,13 @@ Prerequisites:
 *   wget
 *   GNU make
 *   npm
+*   docker
+
+First, you need a WASM build of [a branch](https://github.com/openscad/openscad/pull/5180) that handles colors & exports to GLTF (will take a while):
+
+```bash
+./build-openscad-wasm.sh
+```
 
 Local dev:
 
