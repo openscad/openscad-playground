@@ -74,7 +74,7 @@ export function createInitialState(fs: any, state: State | null) {
     fs.writeFile(defaultSourcePath, defaultScad);
   }
   
-  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union', 'assimp'];
+  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union', 'assimp', 'colors', 'color-faces'];
   defaultFeatures.forEach(f => {
     if (initialState.params.features.indexOf(f) < 0)
     initialState.params.features.push(f);
