@@ -163,7 +163,7 @@ Licensed under the [GNU LGPLv2.1](#lgplv21).
 ### BOSL2
 
 https://github.com/revarbat/BOSL
-https://github.com/revarbat/BOSL2
+https://github.com/BelfrySCAD/BOSL2
 
 ```
 BSD 2-Clause License

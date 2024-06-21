@@ -7,19 +7,55 @@ import { defaultModelColor } from "./initial-state";
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
 }
-export function writeStateInFragment(state: State) {
-  window.location.hash = encodeStateParamsAsFragment(state);
+export async function writeStateInFragment(state: State) {
+  window.location.hash = await encodeStateParamsAsFragment(state);
 }
+async function compressString(input: string): Promise<string> {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(input));
+      controller.close();
+    }
+  });
+  const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+  const compressedData = await new Response(compressedStream).arrayBuffer();
+  return btoa(String.fromCharCode(...new Uint8Array(compressedData)));
+}
+
+async function decompressString(compressedInput: string): Promise<string> {
+  const compressedData = Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0));
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(compressedData);
+      controller.close();
+    }
+  });
+
+  const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+  const decompressedData = await new Response(decompressedStream).arrayBuffer();
+  return new TextDecoder().decode(decompressedData);
+}
+
 export function encodeStateParamsAsFragment(state: State) {
-  return encodeURIComponent(JSON.stringify({
+  const json = JSON.stringify({
     params: state.params,
     view: state.view
-  }));
+  });
+  // return encodeURIComponent(json);
+  return compressString(json);
 }
-export function readStateFromFragment(): State | null {
+export async function readStateFromFragment(): Promise<State | null> {
   if (window.location.hash.startsWith('#') && window.location.hash.length > 1) {
     try {
-      const {params, view} = JSON.parse(decodeURIComponent(window.location.hash.substring(1)));
+      const serialized = window.location.hash.substring(1);
+      let obj;
+      try {
+        obj = JSON.parse(await decompressString(serialized));
+      } catch (e) {
+        // Backwards compatibility
+        obj = JSON.parse(decodeURIComponent(serialized));
+      }
+      const {params, view} = obj;
       return {
         params: {
           sourcePath: validateString(params?.sourcePath),

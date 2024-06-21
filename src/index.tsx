@@ -52,12 +52,12 @@ declare var BrowserFS: BrowserFSInterface
       console.log('Failed to read the persisted state from local storage.', e)
     }
     statePersister = {
-      set: ({view, params}) => {
+      set: async ({view, params}) => {
         fs.writeFile('/state.json', JSON.stringify({view, params}));
       }
     };
   } else {
-    persistedState = readStateFromFragment();
+    persistedState = await readStateFromFragment();
     statePersister = {
       set: writeStateInFragment,
     };
