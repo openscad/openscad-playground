@@ -4,6 +4,7 @@ import React, { CSSProperties, useContext, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import openscadEditorOptions from '../language/openscad-editor-options';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
@@ -11,14 +12,18 @@ import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState, defaultSourcePath } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
 import FilePicker, {  } from './FilePicker';
-// import { isFileWritable } from '../state/model';
 
-// import "primereact/resources/themes/lara-light-indigo/theme.css";
-// import "primereact/resources/primereact.min.css";
-// import "primeicons/primeicons.css"; 
+// const isMonacoSupported = false;
+const isMonacoSupported = (() => {
+  const ua = window.navigator.userAgent;
+  const iosWk = ua.match(/iPad|iPhone/i) && ua.match(/WebKit/i);
+  return !iosWk;
+})();
 
-let monacoInstance: Monaco
-loader.init().then(mi => monacoInstance = mi);
+let monacoInstance: Monaco | null = null;
+if (isMonacoSupported) {
+  loader.init().then(mi => monacoInstance = mi);
+}
 
 export default function EditorPanel({className, style}: {className?: string, style?: CSSProperties}) {
 
@@ -35,7 +40,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
     const checkerRun = state.lastCheckerRun;
     const editorModel = editor.getModel();
     if (editorModel) {
-      if (checkerRun) {
+      if (checkerRun && monacoInstance) {
         monacoInstance.editor.setModelMarkers(editorModel, 'openscad', checkerRun.markers);
       }
     }
@@ -184,20 +189,32 @@ export default function EditorPanel({className, style}: {className?: string, sty
         position: 'relative',
         flex: 1
       }}>
-        <Editor
-          className="openscad-editor absolute-fill"
-          defaultLanguage="openscad"
-          path={state.params.sourcePath}
-          value={state.params.source}
-          onChange={s => model.source = s ?? ''}
-          onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
-          options={{
-            ...openscadEditorOptions,
-            fontSize: 16,
-            lineNumbers: state.view.lineNumbers ? 'on' : 'off',
-            // readOnly: !isFileWritable(state.params.sourcePath)
-          }}
+        {isMonacoSupported && (
+          <Editor
+            className="openscad-editor absolute-fill"
+            defaultLanguage="openscad"
+            path={state.params.sourcePath}
+            value={state.params.source}
+            onChange={s => model.source = s ?? ''}
+            onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
+            options={{
+              ...openscadEditorOptions,
+              fontSize: 16,
+              lineNumbers: state.view.lineNumbers ? 'on' : 'off',
+              // readOnly: !isFileWritable(state.params.sourcePath)
+            }}
           />
+        )}
+        {!isMonacoSupported && (
+          <InputTextarea 
+            style={{
+              backgroundColor: 'transparent',
+            }}
+            className="openscad-editor absolute-fill"
+            value={state.params.source}
+            onChange={s => model.source = s.target.value ?? ''}  
+          />
+        )}
       </div>
 
       <div style={{
