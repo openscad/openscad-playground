@@ -54,12 +54,12 @@ export const zipArchives: ZipArchives = {
     description: 'The Belfry OpenScad Library, v2.0',
     gitOrigin: {
       branch: 'master',
-      repoUrl: 'https://github.com/revarbat/BOSL2',
+      repoUrl: 'https://github.com/BelfrySCAD/BOSL2',
       include: [{glob: ['**/*.scad', 'LICENSE']}],
     },
     docs: {
-      'CheatSheet': 'https://github.com/revarbat/BOSL2/wiki/CheatSheet',
-      'Wiki': 'https://github.com/revarbat/BOSL2/wiki',
+      'CheatSheet': 'https://github.com/BelfrySCAD/BOSL2/wiki/CheatSheet',
+      'Wiki': 'https://github.com/BelfrySCAD/BOSL2/wiki',
     },
   },
   'NopSCADlib': {

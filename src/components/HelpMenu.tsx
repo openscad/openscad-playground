@@ -37,7 +37,7 @@ export default function HelpMenu() {
         {
           label: 'BOSL2 Cheatsheet',
           icon: 'pi pi-palette',
-          url: 'https://github.com/revarbat/BOSL2/wiki/CheatSheet',
+          url: 'https://github.com/BelfrySCAD/BOSL2/wiki/CheatSheet',
           target: '_blank'
         },
       ] as MenuItem[]} popup ref={menuRef} />
