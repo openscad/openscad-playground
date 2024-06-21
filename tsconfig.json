@@ -4,7 +4,7 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "ES2021",
+      "ES2023",
       "WebWorker",
     ],
     "rootDir": "src",

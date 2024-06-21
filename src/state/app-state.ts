@@ -61,7 +61,7 @@ export interface State {
 };
 
 export interface StatePersister {
-  set(state: State): void;
+  set(state: State): Promise<void>;
 }
 
 export {}
