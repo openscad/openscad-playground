@@ -150,10 +150,9 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    let {source, sourcePath, features, renderFormat} = this.state.params;
-    features = [...features, isPreview ? 'color-faces' : 'color-solids'];
+    let {source, sourcePath, features, renderFormat, extruderColors} = this.state.params;
     
-    render({source, sourcePath, features, extraArgs: [], isPreview, renderFormat})({now, callback: (output, err) => {
+    render({source, sourcePath, features, extraArgs: [], isPreview, renderFormat, extruderColors})({now, callback: (output, err) => {
       this.mutate(s => {
         setRendering(s, false);
         if (err != null) {

@@ -63,7 +63,8 @@ export async function readStateFromFragment(): Promise<State | null> {
           sourcePath: validateString(params?.sourcePath),
           source: validateString(params?.source),
           features: validateArray(params?.features, validateString),
-          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS))
+          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS)),
+          extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
           layout: {

@@ -6,6 +6,8 @@ import { spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 import { VALID_RENDER_FORMATS } from '../state/app-state';
+import { materialize3MFFile } from '../multimaterial/materialize';
+import { parseColors } from '../multimaterial/colors';
 
 const syntaxDelay = 300;
 
@@ -56,9 +58,12 @@ export type RenderArgs = {
   extraArgs?: string[],
   isPreview: boolean,
   renderFormat: keyof typeof VALID_RENDER_FORMATS,
+  extruderColors?: string[]
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs, renderFormat}: RenderArgs) => {
+ turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs, renderFormat, extruderColors}: RenderArgs) => {
+
+    const extruderRGBColors = renderFormat == '3mf' && extruderColors ? parseColors(extruderColors.join('\n')) : undefined;
 
     const prefixLines: string[] = [];
     if (isPreview) {
@@ -113,7 +118,10 @@ export const render =
           // TODO: have the runner accept and return files.
           const blob = new Blob([content], { type: "application/octet-stream" });
           // console.log(new TextDecoder().decode(content));
-          const outFile = new File([blob], fileName);
+          let outFile = new File([blob], fileName);
+          if (extruderRGBColors) {
+            outFile = await materialize3MFFile(outFile, extruderRGBColors);
+          }
           resolve({outFile, logText, markers, elapsedMillis: result.elapsedMillis});
           // const stlFile = new File([blob], fileName);
           // resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
@@ -126,3 +134,4 @@ export const render =
       return () => job.kill()
     });
   });
+

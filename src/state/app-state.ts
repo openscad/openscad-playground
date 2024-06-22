@@ -20,6 +20,7 @@ export interface State {
     source: string,
     features: string[],
     renderFormat: keyof typeof VALID_RENDER_FORMATS,
+    extruderColors?: string[],
   },
 
   view: {

@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { CSSProperties, useContext, useRef } from 'react';
-import { State, VALID_RENDER_FORMATS } from '../state/app-state'
+import { State } from '../state/app-state'
 import { ModelContext } from './contexts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
@@ -14,6 +14,7 @@ import HelpMenu from './HelpMenu';
 import { confirmDialog } from 'primereact/confirmdialog';
 // import { SplitButton } from 'primereact/splitbutton';
 import { Dropdown } from 'primereact/dropdown';
+import ExportButton from './ExportButton';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
@@ -94,11 +95,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
         margin: '5px',
         ...(style ?? {})
     }}>
-      <Button onClick={() => model.render({isPreview: false, now: true})}
-        loading={state.rendering}
-        icon="pi pi-refresh"
-        title="Render the model (F6 / Ctrl+Enter). Models can test $preview to enable more detail in renders only."
-        label="Render" />
+      <ExportButton />
       
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
@@ -116,16 +113,6 @@ export default function Footer({style}: {style?: CSSProperties}) {
           {getBadge(monaco.MarkerSeverity.Warning)}
           {getBadge(monaco.MarkerSeverity.Info)}
         </Button>}
-
-        <Dropdown
-           value={state.params.renderFormat}
-           onChange={(e) => {
-             model.renderFormat = e.value;
-             model.render({isPreview: true, now: true});
-           }}
-           itemTemplate={(option: string) => <span>{option}</span>}
-           valueTemplate={(option: string) => <span>{option}</span>}
-           options={Object.keys(VALID_RENDER_FORMATS)} optionLabel="name"/>
 
       {state.output && (
         <Button icon='pi pi-download'
