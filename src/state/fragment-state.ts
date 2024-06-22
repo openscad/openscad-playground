@@ -17,6 +17,7 @@ async function compressString(input: string): Promise<string> {
       controller.close();
     }
   });
+  // @ts-ignore
   const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
   const compressedData = await new Response(compressedStream).arrayBuffer();
   return btoa(String.fromCharCode(...new Uint8Array(compressedData)));
@@ -31,6 +32,7 @@ async function decompressString(compressedInput: string): Promise<string> {
     }
   });
 
+  // @ts-ignore
   const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
   const decompressedData = await new Response(decompressedStream).arrayBuffer();
   return new TextDecoder().decode(decompressedData);
