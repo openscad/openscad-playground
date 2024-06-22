@@ -23,6 +23,7 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
 * [OpenSCAD](#openscad)
 * [CGAL](#cgal)
 * [Assimp](#assimp)
+* [JSZip](#jszip)
 * [Manifold](#manifold)
 * [Eigen](#eigen)
 * [glib2](#glib2)
@@ -56,6 +57,12 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
 https://github.com/elalish/manifold
 
 Licensed under the [Apache 2.0](#apache2) license.
+
+## JSZip
+
+https://github.com/Stuk/jszip
+
+Licensed under the [GPLv3](#gplv3) (actually dual-licensed under MIT, but we're picking this one here for brevity).
 
 ## PrimeReact
 
