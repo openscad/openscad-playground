@@ -1,5 +1,4 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getFileName } from '../fs/filesystem';
 import { MergedOutputs } from "./openscad-worker";
 
 const ignoredLogs = new Set([
@@ -45,10 +44,10 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOut
       severity: monaco.MarkerSeverity.Error
     })
   }
-  const shiftSourceName = opts.shiftSourceLines && getFileName(opts.shiftSourceLines.sourcePath);
+  const shiftSourceName = opts.shiftSourceLines && opts.shiftSourceLines.sourcePath;
   const getLine = (path: string, lineStr: string) => {
     const line = Number(lineStr);
-    if (shiftSourceName && getFileName(path) == shiftSourceName) {
+    if (shiftSourceName && (path == shiftSourceName)) {
       return line - opts.shiftSourceLines!.skipLines;
     } else {
       return line;

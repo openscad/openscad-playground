@@ -14,7 +14,6 @@ export const getParentDir = (path: string) => {
   let d = path.split('/').slice(0, -1).join('/');
   return d === '' ? (path.startsWith('/') ? '/' : '.') : d;
 } 
-export const getFileName = (path: string) => path.split('/').splice(-1)[0];
 
 export function readDirAsArray(fs: FS, path: string): Promise<string[] | undefined> {
   return new Promise((res, rej) => fs.readdir(path, (err, files) => err ? rej(err) : res(files)));
