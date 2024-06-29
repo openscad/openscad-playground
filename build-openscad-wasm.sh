@@ -2,11 +2,11 @@
 set -euo pipefail
 
 if [ -z "${OPENSCAD_DIR:-}" ]; then
-  OPENSCAD_DIR=/tmp/openscad-color  
+  OPENSCAD_DIR=/tmp/openscad-color
   if [ ! -d "$OPENSCAD_DIR" ]; then
       rm -fR "$OPENSCAD_DIR"
       git clone --recurse https://github.com/ochafik/openscad.git \
-          --depth=1 --branch colors --single-branch \
+          --depth=1 --branch color-assimp2 --single-branch \
           "$OPENSCAD_DIR"
   fi
 fi
