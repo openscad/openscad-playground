@@ -2,7 +2,7 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
 declare var BrowserFS: BrowserFSInterface
@@ -17,8 +17,9 @@ addEventListener('message', async (e) => {
   const { inputs, args, outputPaths, wasmMemory } = e.data as OpenSCADInvocation;
 
   const mergedOutputs: MergedOutputs = [];
+  let instance: any;
   try {
-    const instance = await OpenSCAD({
+    instance = await OpenSCAD({
       wasmMemory,
       buffer: wasmMemory && wasmMemory.buffer,
       noInitialRun: true,
@@ -29,6 +30,9 @@ addEventListener('message', async (e) => {
       'printErr': (text: string) => {
         console.debug('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
+      },
+      'ENV': {
+        'OPENSCADPATH': '/libraries',
       },
     });
 
@@ -53,11 +57,27 @@ addEventListener('message', async (e) => {
 
     // Fonts are seemingly resolved from $(cwd)/fonts
     instance.FS.chdir("/");
-    
+      
+      // const walkFolder = (path: string, indent = '') => {
+      //   console.log("Walking " + path);
+      //   instance.FS.readdir(path)?.forEach((f: string) => {
+      //     if (f.startsWith('.')) {
+      //       return;
+      //     }
+      //     const ii = indent + '  ';
+      //     const p = `${path != '/' ? path + '/' : '/'}${f}`;
+      //     console.log(`${ii}${p}`);
+      //     walkFolder(p, ii);
+      //   });
+      // };
+      // walkFolder('/libraries');
+
     if (inputs) {
       for (const [path, content] of inputs) {
         try {
           // const parent = getParentDir(path);
+          // instance.FS.mkdir(parent, { recursive: true });
+          // console.log('Made ' + parent);
           instance.FS.writeFile(path, content);
           // fs.writeFile(path, content);
         } catch (e) {
@@ -68,6 +88,14 @@ addEventListener('message', async (e) => {
     
     console.log('Invoking OpenSCAD with: ', args)
     const start = performance.now();
+    // console.log(Object.keys(instance.FS))
+
+    // instance.FS.readdir('/libraries').forEach((f: string) => {
+    //   console.log("TOP LEVEL: " + f);
+    //   instance.FS.readdir(`/libraries/${f}`).forEach((ff: string) => {
+    //     console.log("  " + ff);
+    //   });
+    // });
     const exitCode = instance.callMain(args);
     const end = performance.now();
 
