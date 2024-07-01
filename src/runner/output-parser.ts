@@ -47,7 +47,7 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOut
   const shiftSourceName = opts.shiftSourceLines && opts.shiftSourceLines.sourcePath;
   const getLine = (path: string, lineStr: string) => {
     const line = Number(lineStr);
-    if (shiftSourceName && (path == shiftSourceName)) {
+    if (shiftSourceName && path.endsWith(shiftSourceName)) {
       return line - opts.shiftSourceLines!.skipLines;
     } else {
       return line;
