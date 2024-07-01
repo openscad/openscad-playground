@@ -11,7 +11,7 @@ all: public
 
 .PHONY: public
 public: \
-		libs/openscad-wasm \
+		src/wasm \
 		public/openscad.js \
 		public/openscad.wasm \
 		public/libraries/fonts.zip \
@@ -49,19 +49,20 @@ dist/index.js: public
 dist/openscad-worker.js: src/openscad-worker.ts
 	npx rollup -c
 
+src/wasm: libs/openscad-wasm
+	rm -f src/wasm
+	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
+
 libs/openscad-wasm:
 	mkdir -p libs/openscad-wasm
 	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
 	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
-	rm libs/openscad-wasm.zip
-	rm -f src/wasm
-	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
 	
-public/openscad.js: libs/openscad-wasm
-	cp libs/openscad-wasm/openscad.{js,wasm} public
+public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
+	ln -sf libs/openscad-wasm/openscad.js public/openscad.js
 		
-public/openscad.wasm: libs/openscad-wasm
-	cp libs/openscad-wasm/openscad.wasm public
+public/openscad.wasm: libs/openscad-wasm libs/openscad-wasm/openscad.wasm
+	ln -sf libs/openscad-wasm/openscad.wasm public/openscad.wasm
 
 public/libraries/fonts.zip: libs/liberation
 	mkdir -p public/libraries
