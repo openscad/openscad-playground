@@ -17,8 +17,10 @@ export default function PanelSwitcher() {
   const singleTargets: {id: SingleLayoutComponentId, icon: string, label: string}[] = [
     { id: 'editor', icon: 'pi pi-pencil', label: 'Edit' },
     { id: 'viewer', icon: 'pi pi-box', label: 'View' },
-    { id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' },
   ];
+  if ((state.parameterSet?.parameters?.length ?? 0) > 0) {
+    singleTargets.push({ id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' });
+  }
   const multiTargets = singleTargets;
 
   return (

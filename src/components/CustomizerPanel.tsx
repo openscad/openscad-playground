@@ -48,10 +48,10 @@ export default function CustomizerPanel({className, style}: {className?: string,
     <div
         className={className}
         style={{
-          ...style,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'scroll',
+          ...style,
         }}>
       <Accordion
           style={{
