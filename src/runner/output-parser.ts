@@ -11,6 +11,7 @@ type MergedOutputsOptions = {
     skipLines: number,
   }
 }
+
 export const processMergedOutputs = (outputs: MergedOutputs, opts: MergedOutputsOptions) => ({
   logText: joinMergedOutputs(outputs, opts),
   markers: parseMergedOutputs(outputs, opts)

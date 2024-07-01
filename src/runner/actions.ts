@@ -5,23 +5,26 @@ import { getParentDir } from '../fs/filesystem';
 import { spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
-import { VALID_RENDER_FORMATS } from '../state/app-state';
+import { Source, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from '../state/app-state';
 import { materialize3MFFile } from '../multimaterial/materialize';
 import { parseColors } from '../multimaterial/colors';
+import { ParameterSet } from '../state/customizer-types';
 
 const syntaxDelay = 300;
 
-type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[]};
+type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[], parameterSet?: ParameterSet};
 export const checkSyntax =
-  turnIntoDelayableExecution(syntaxDelay, (source: string, sourcePath: string) => {
+  turnIntoDelayableExecution(syntaxDelay, (activePath: string, sources: Source[]) => {
     // const timestamp = Date.now(); 
     
-    source = '$preview=true;\n' + source;
+    const content = '$preview=true;\n' + sources[0].content;
 
+    const outFile = 'out.json';
     const job = spawnOpenSCAD({
-      inputs: [[sourcePath, source + '\n']],
-      args: [sourcePath, "-o", "out.ast"],
+      inputs: sources,
+      args: [activePath, "-o", outFile, "--export-format=param"],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
+      outputPaths: [outFile],
     });
 
     return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
@@ -29,10 +32,28 @@ export const checkSyntax =
         try {
           const result = await job;
           // console.log(result);
-          res(processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
-            sourcePath,
-            skipLines: 1,
-          }}));
+
+          let parameterSet: ParameterSet | undefined = undefined;
+          if (result.outputs && result.outputs.length == 1) {
+            let [[, content]] = result.outputs;
+            content = new TextDecoder().decode(content as any);
+            try {
+              parameterSet = JSON.parse(content)
+              // console.log('PARAMETER SET', JSON.stringify(parameterSet, null, 2))
+            } catch (e) {
+              console.error(`Error while parsing parameter set: ${e}\n${content}`);
+            }
+          } else {
+            console.error('No output from runner!');
+          }
+
+          res({
+            ...processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
+              sourcePath: sources[0].path,
+              skipLines: 1,
+            }}),
+            parameterSet,
+          });
         } catch (e) {
           console.error(e);
           rej(e);
@@ -44,23 +65,33 @@ export const checkSyntax =
 
 var renderDelay = 1000;
 export type RenderOutput = {
-  // stlFile: File,
   outFile: File,
   logText: string,
   markers: monaco.editor.IMarkerData[],
   elapsedMillis: number}
 
 export type RenderArgs = {
-  source: string,
-  sourcePath: string,
+  scadPath: string,
+  sources: Source[],
+  vars?: {[name: string]: any},
   features?: string[],
   extraArgs?: string[],
   isPreview: boolean,
-  renderFormat: keyof typeof VALID_RENDER_FORMATS,
+  renderFormat: keyof typeof VALID_EXPORT_FORMATS | keyof typeof VALID_RENDER_FORMATS,
   extruderColors?: string[]
 }
+
+function formatValue(any: any): string {
+  if (typeof any === 'string') {
+    return `"${any}"`;
+  } else if (any instanceof Array) {
+    return `[${any.map(formatValue).join(', ')}]`;
+  } else {
+    return `${any}`;
+  }
+}
 export const render =
- turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, features, extraArgs, renderFormat, extruderColors}: RenderArgs) => {
+ turnIntoDelayableExecution(renderDelay, ({scadPath, sources, isPreview, vars, features, extraArgs, renderFormat, extruderColors}: RenderArgs) => {
 
     const extruderRGBColors = renderFormat == '3mf' && extruderColors ? parseColors(extruderColors.join('\n')) : undefined;
 
@@ -68,20 +99,27 @@ export const render =
     if (isPreview) {
       prefixLines.push('$preview=true;');
     }
-    source = [...prefixLines, source].join('\n');
+    if (!scadPath.endsWith('.scad')) throw new Error('First source must be a .scad file, got ' + sources[0].path + ' instead');
+    
+    const source = sources.filter(s => s.path === scadPath)[0];
+    if (!source) throw new Error('Active path not found in sources!');
+
+    if (source.content == null) throw new Error('Source content is null!');
+    const content = [...prefixLines, source.content].join('\n');
 
     const outFile = 'out.' + renderFormat;
     const args = [
-      sourcePath,
+      scadPath,
       "-o", outFile,
       "--export-format=" + (renderFormat == 'stl' ? 'binstl' : renderFormat),
+      ...(Object.entries(vars ?? {}).flatMap(([k, v]) => [`-D${k}=${formatValue(v)}`])),
       ...(features ?? []).map(f => `--enable=${f}`),
       ...(extraArgs ?? [])
     ]
     
     const job = spawnOpenSCAD({
       // wasmMemory,
-      inputs: [[sourcePath, source]],
+      inputs: sources.map(s => s.path === scadPath ? {path: s.path, content} : s),
       args,
       outputPaths: [outFile],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
@@ -91,11 +129,11 @@ export const render =
       (async () => {
         try {
           const result = await job;
-          console.log(result);
+          // console.log(result);
 
           const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
             shiftSourceLines: {
-              sourcePath: sourcePath,
+              sourcePath: source.path,
               skipLines: prefixLines.length
             }
           });

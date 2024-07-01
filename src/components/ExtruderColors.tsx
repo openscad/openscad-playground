@@ -5,22 +5,21 @@ import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { ModelContext } from './contexts';
 
-export default function ExtruderColors() {
+export default function ExtruderColors({extruderColors, setExtruderColors}: {extruderColors: string[], setExtruderColors: (colors: string[]) => void}) {
     const model = useContext(ModelContext);
     if (!model) throw new Error('No model');
-    const state = model.state;
 
-    const extruderColors = state.params.extruderColors ?? [];
+    // const extruderColors = state.params.extruderColors ?? [];
     console.log(`extruderColors: ${JSON.stringify(extruderColors)}`);
 
     function changeColor(index: number, color: string) {
-      model!.mutate(s => s.params.extruderColors = extruderColors.map((c, i) => i === index ? color : c));
+        setExtruderColors(extruderColors.map((c, i) => i === index ? color : c));
     }
     function removeColor(index: number) {
-      model!.mutate(s => s.params.extruderColors = extruderColors.filter((c, i) => i !== index));
+        setExtruderColors(extruderColors.filter((c, i) => i !== index));
     }
     function addColor() {
-      model!.mutate(s => s.params.extruderColors = [...extruderColors, '#ffffff']);
+        setExtruderColors([...extruderColors, '#ffffff']);
     }
     function toString(color: string | ColorPickerRGBType | ColorPickerHSBType): string {
       if (typeof color === 'string') {

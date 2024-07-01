@@ -18,34 +18,34 @@ import ExportButton from './ExportButton';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
-  const sourcePathParts = state.params.sourcePath.split('/');
-  const sourceFileName = sourcePathParts.slice(-1)[0];
-  const fileName = [
-    sourceFileName,
-    state.output!.isPreview ? 'preview.glb' : 'render.' + state.params.renderFormat
-  ].join('.');
+  const sourcePathParts = state.params.activePath.split('/');
+  const sourceFileName = sourcePathParts.slice(-1)[0] + '.' + state.params.exportFormat;
+  // const fileName = [
+  //   sourceFileName,
+  //   state.output!.isPreview ? 'preview.glb' : 'render.' + state.params.renderFormat
+  // ].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
     a.href = state.output!.outFileURL
-    a.download = fileName;
+    a.download = sourceFileName;//
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
   };
 
-  if (state.output.isPreview && state.params.source.indexOf('$preview') >= 0) {
-    confirmDialog({
-        message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
-        header: 'Preview vs. Render',
-        icon: 'pi pi-exclamation-triangle',
-        accept: doDownload, 
-        acceptLabel: `Download ${fileName}`,
-        rejectLabel: 'Cancel'
-        // reject: () => {}
-    });
-  } else {
-    doDownload();
-  }
+  // if (state.output.isPreview && state.params.source.indexOf('$preview') >= 0) {
+  //   confirmDialog({
+  //       message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
+  //       header: 'Preview vs. Render',
+  //       icon: 'pi pi-exclamation-triangle',
+  //       accept: doDownload, 
+  //       acceptLabel: `Download ${fileName}`,
+  //       rejectLabel: 'Cancel'
+  //       // reject: () => {}
+  //   });
+  // } else {
+  doDownload();
+  // }
 
 }
 
@@ -82,7 +82,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
                 style={{
                   marginLeft: '5px',
                   marginRight: '5px',
-                    visibility: state.rendering || state.previewing || state.checkingSyntax
+                    visibility: state.rendering || state.previewing || state.checkingSyntax || state.exporting
                       ? 'visible' : 'hidden',
                     height: '6px' }}></ProgressBar>
       
@@ -95,7 +95,12 @@ export default function Footer({style}: {style?: CSSProperties}) {
         margin: '5px',
         ...(style ?? {})
     }}>
-      <ExportButton />
+      <Button
+        icon="pi pi-cog"
+        onClick={() => model.render({isPreview: false, now: true})}
+        className="p-button-sm"
+        label="Render"
+        />
       
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
@@ -114,15 +119,20 @@ export default function Footer({style}: {style?: CSSProperties}) {
           {getBadge(monaco.MarkerSeverity.Info)}
         </Button>}
 
-      {state.output && (
+      <div style={{flex: 1}}></div>
+
+      <ExportButton />
+
+        {/* title={`Download ${(state.output.isPreview ? "preview." : "render.") + state.params.renderFormat} (${state.output.formattedOutFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`} */}
+      {/* {state.export && (
         <Button icon='pi pi-download'
-          title={`Download ${(state.output.isPreview ? "preview." : "render.") + state.params.renderFormat} (${state.output.formattedOutFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`}
           severity="secondary"
           text
+          title={`Download ${state.export.outFile.name} (${state.export.formattedOutFileSize})\nGenerated in ${state.export.formattedElapsedMillis}`}
           // label={state.output.isPreview ? "preview.stl" : "render.stl"}
           iconPos='right'
           onClick={() => downloadOutput(state)} />
-      )}
+      )} */}
 
       {/* {state.output &&
         <span style={{color: 'blue'}}>
@@ -136,11 +146,9 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
       {/* <span style={{flex: 1}}></span> */}
       
-      <span style={{flex: 1}}></span>
+      {/* <span style={{flex: 1}}></span> */}
 
       <Toast ref={toast} />
-      
-      <HelpMenu />
     </div>
   </>
 }

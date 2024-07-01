@@ -9,8 +9,9 @@ import { SplitButton } from 'primereact/splitbutton';
 import { Dialog } from 'primereact/dialog';
 import ExtruderColors from './ExtruderColors';
 import { MenuItem, MenuItemCommandEvent } from 'primereact/menuitem';
+import { downloadUrl } from '../utils';
 
-export default function ExportButton() {
+export default function ExportButton({className, style}: {className?: string, style?: React.CSSProperties}) {
     const model = useContext(ModelContext);
     if (!model) throw new Error('No model');
     const state = model.state;
@@ -23,79 +24,84 @@ export default function ExportButton() {
         data: 'glb',
         label: 'glTF',
         icon: 'pi pi-download',
-        command: exportHandler('glb'),
+        command: () => model!.exportFormat = 'glb',
       },
       {
         data: 'stl',
         label: 'STL',
         icon: 'pi pi-download',
-        command: exportHandler('stl'),
+        command: () => model!.exportFormat = 'stl',
       },
       {
         data: 'off',
         label: 'OFF',
         icon: 'pi pi-download',
-        command: exportHandler('off'),
+        command: () => model!.exportFormat = 'off',
       },
-      {
-        data: 'stp',
-        label: 'STEP',
-        icon: 'pi pi-download',
-        command: exportHandler('stp'),
-      },
+      // {
+      //   data: 'stp',
+      //   label: 'STEP',
+      //   icon: 'pi pi-download',
+      //   command: () => model!.exportFormat = 'stp',
+      // },
       {
         data: 'x3d',
         label: 'X3D',
         icon: 'pi pi-download',
-        command: exportHandler('x3d'),
+        command: () => model!.exportFormat = 'x3d',
       },
       {
         data: '3mf',
-        label: '3MF (Multicolor)',
+        label: '3MF (Multi-material)',
         icon: 'pi pi-download',
-        command: exportHandler('3mf'),
+        command: () => model!.exportFormat = '3mf',
       },
+      {
+        label: 'Edit materials',
+        icon: 'pi pi-cog',
+        command: () => model!.mutate(s => s.view.extruderPicker = true),
+      }
     ];
 
-    const selectedItem = dropdownModel.filter(item => item.data === state.params.renderFormat)[0] || dropdownModel[0]!;
-  
-    function exportHandler(format: string) {
-      return (event: MenuItemCommandEvent) => {
-        model!.renderFormat = event.item.data;
-        if (event.item.data === '3mf' && (dropdownVisible || (state.params.extruderColors ?? []).length === 0)) {
-            setShowMulticolorDialog(true);
-        } else {
-            setShowMulticolorDialog(false)
-            model!.render({isPreview: false, now: true})
-        }
-      };
-    }
+    const selectedItem = dropdownModel.filter(item => item.data === state.params.exportFormat)[0] || dropdownModel[0]!;
 
-  return (<>
+  const hideExtruderPicker = () => {
+    model!.mutate(s => s.view.extruderPicker = false);
+  };
+  return (
+    <div className={className} style={style}>
       <SplitButton 
         label={selectedItem.label}
+        disabled={state.output == null || state.rendering || state.exporting}
         icon="pi pi-download" 
         model={dropdownModel}
-        onClick={e => selectedItem.command!({originalEvent: e, item: selectedItem})}
+        onClick={e => model!.export()}
         className="p-button-sm"
         onShow={() => setDropdownVisible(true)}
         onHide={() => setDropdownVisible(false)}
       />
       <Dialog 
           header="Export 3MF (Multicolor)" 
-          visible={showMulticolorDialog} 
-          onHide={() => setShowMulticolorDialog(false)}
+          visible={state.view.extruderPicker} 
+          onHide={hideExtruderPicker}
           footer={
               <div>
-                  <Button label="Cancel" icon="pi pi-times" onClick={() => setShowMulticolorDialog(false)} className="p-button-text" />
-                  <Button label="Export" icon="pi pi-check" onClick={e => selectedItem.command!({originalEvent: e, item: selectedItem})} autoFocus />
+                  <Button label="Cancel" icon="pi pi-times" onClick={hideExtruderPicker} className="p-button-text" />
+                  <Button label="Export" icon="pi pi-check" onClick={e => {
+                    hideExtruderPicker();
+                    model!.export();
+                  }} autoFocus />
               </div>
           }
       >
           <div className="flex flex-column align-items-center">
               <h3 className="mb-3">Choose a color for 3MF export:</h3>
-              <ExtruderColors />
+              <ExtruderColors 
+                extruderColors={state.params.extruderColors ?? []}
+                setExtruderColors={colors => model!.mutate(s => s.params.extruderColors = colors)}
+                />
           </div>
       </Dialog>
-      </>);
+    </div>
+  );
 }

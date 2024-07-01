@@ -157,7 +157,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
                 label: 'Select All',
                 icon: 'pi pi-info-circle',
                 // disabled: true,
-                command: () => editor?.trigger(state.params.sourcePath, 'editor.action.selectAll', null),
+                command: () => editor?.trigger(state.params.activePath, 'editor.action.selectAll', null),
               },
               {
                 separator: true
@@ -166,7 +166,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
                 label: 'Find',
                 icon: 'pi pi-search',
                 // disabled: true,
-                command: () => editor?.trigger(state.params.sourcePath, 'actions.find', null),
+                command: () => editor?.trigger(state.params.activePath, 'actions.find', null),
               },
         ] as MenuItem[]} popup ref={menu} />
         <Button title="Editor menu" rounded text icon="pi pi-ellipsis-h" onClick={(e) => menu.current && menu.current.toggle(e)} />
@@ -176,7 +176,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
               flex: 1,
             }}/>
 
-        {state.params.sourcePath !== defaultSourcePath && 
+        {state.params.activePath !== defaultSourcePath && 
           <Button icon="pi pi-chevron-left" 
           text
           onClick={() => model.openFile(defaultSourcePath)} 
@@ -193,8 +193,8 @@ export default function EditorPanel({className, style}: {className?: string, sty
           <Editor
             className="openscad-editor absolute-fill"
             defaultLanguage="openscad"
-            path={state.params.sourcePath}
-            value={state.params.source}
+            path={state.params.activePath}
+            value={model.source}
             onChange={s => model.source = s ?? ''}
             onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
             options={{
@@ -211,7 +211,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
               backgroundColor: 'transparent',
             }}
             className="openscad-editor absolute-fill"
-            value={state.params.source}
+            value={model.source}
             onChange={s => model.source = s.target.value ?? ''}  
           />
         )}

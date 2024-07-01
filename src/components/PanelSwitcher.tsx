@@ -6,6 +6,7 @@ import { TabMenu } from 'primereact/tabmenu';
 import { ToggleButton } from 'primereact/togglebutton';
 import { ModelContext, FSContext } from './contexts';
 import SettingsMenu from './SettingsMenu';
+import HelpMenu from './HelpMenu';
 
 export default function PanelSwitcher() {
   const model = useContext(ModelContext);
@@ -45,7 +46,7 @@ export default function PanelSwitcher() {
                     onIcon={icon}
                     offIcon={icon}
                     // icon={icon}
-                    disabled={id === 'customizer'}
+                    // disabled={id === 'customizer'}
                     // onClick={() => model.changeMultiVisibility(id, !(state.view.layout as any)[id])}
                     onChange={e => model.changeMultiVisibility(id, e.value)}
                     />
@@ -59,14 +60,21 @@ export default function PanelSwitcher() {
                     // justifyContent: 'center'
                   }}
                   model={singleTargets.map(({icon, label, id}) => 
-                  ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
+                  ({icon, label/*, disabled: id === 'customizer' && state?.parameterSet == null*/, command: () => model.changeSingleVisibility(id)}))} />
               </>
         }
-        <SettingsMenu style={{
+
+      
+        <HelpMenu style={{
           position: 'absolute',
           right: 0,
           top: '4px',
         }} />
+        {/* <SettingsMenu style={{
+          position: 'absolute',
+          right: 0,
+          top: '4px',
+        }} /> */}
       </div>
     </div>
   );

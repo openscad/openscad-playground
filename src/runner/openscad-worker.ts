@@ -58,27 +58,43 @@ addEventListener('message', async (e) => {
     // Fonts are seemingly resolved from $(cwd)/fonts
     instance.FS.chdir("/");
       
-      // const walkFolder = (path: string, indent = '') => {
-      //   console.log("Walking " + path);
-      //   instance.FS.readdir(path)?.forEach((f: string) => {
-      //     if (f.startsWith('.')) {
-      //       return;
-      //     }
-      //     const ii = indent + '  ';
-      //     const p = `${path != '/' ? path + '/' : '/'}${f}`;
-      //     console.log(`${ii}${p}`);
-      //     walkFolder(p, ii);
-      //   });
-      // };
-      // walkFolder('/libraries');
+    // const walkFolder = (path: string, indent = '') => {
+    //   console.log("Walking " + path);
+    //   instance.FS.readdir(path)?.forEach((f: string) => {
+    //     if (f.startsWith('.')) {
+    //       return;
+    //     }
+    //     const ii = indent + '  ';
+    //     const p = `${path != '/' ? path + '/' : '/'}${f}`;
+    //     console.log(`${ii}${p}`);
+    //     walkFolder(p, ii);
+    //   });
+    // };
+    // walkFolder('/libraries');
 
     if (inputs) {
-      for (const [path, content] of inputs) {
+      for (let {path, content, url} of inputs) {
         try {
+          if (content) {
+            instance.FS.writeFile(path, content);
+          } else if (url) {
+            if (path.endsWith('.scad') || path.endsWith('.json')) {
+              content = await (await fetch(url)).text();
+              instance.FS.writeFile(path, content);
+            } else {
+              // Fetch bytes
+              const response = await fetch(url);
+              const buffer = await response.arrayBuffer();
+              const data = new Uint8Array(buffer);
+              instance.FS.writeFile(path, data);
+            }
+          } else {
+            throw new Error('Invalid input: ' + JSON.stringify({path, content, url}));
+          }
           // const parent = getParentDir(path);
           // instance.FS.mkdir(parent, { recursive: true });
           // console.log('Made ' + parent);
-          instance.FS.writeFile(path, content);
+          
           // fs.writeFile(path, content);
         } catch (e) {
           console.error(`Error while trying to write ${path}`, e);

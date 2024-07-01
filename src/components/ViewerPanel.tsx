@@ -27,7 +27,6 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               display: 'flex',
               flexDirection: 'column', 
               flex: 1, 
-              position: 'relative',
               width: '100%',
               ...(style ?? {})
           }}>

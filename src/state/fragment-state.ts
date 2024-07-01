@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { State, VALID_RENDER_FORMATS } from "./app-state";
+import { State, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
 import { defaultModelColor } from "./initial-state";
 
@@ -60,13 +60,18 @@ export async function readStateFromFragment(): Promise<State | null> {
       const {params, view} = obj;
       return {
         params: {
-          sourcePath: validateString(params?.sourcePath),
-          source: validateString(params?.source),
+          activePath: validateString(params?.activePath),
           features: validateArray(params?.features, validateString),
+          vars: params?.vars, // TODO: validate!
+          // sources: validateArray(params?.sources, validateSource),
+          sources: params?.sources, // TODO: validate!
           renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS)),
+          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS)),
           extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
+          logs: validateBoolean(view?.logs),
+          extruderPicker: validateBoolean(view?.extruderPicker),
           layout: {
             mode: validateStringEnum(view?.layout?.mode, ['multi', 'single']),
             focus: validateStringEnum(view?.layout?.focus, ['editor', 'viewer', 'customizer'], s => false),
@@ -74,6 +79,7 @@ export async function readStateFromFragment(): Promise<State | null> {
             viewer: validateBoolean(view?.layout['viewer']),
             customizer: validateBoolean(view?.layout['customizer']),
           },
+          // customizerExpandedTabs: validateArray(view?.customizerExpandedTabs, validateString),
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis, () => true),
           showShadows: validateBoolean(view?.layout?.showShadow, () => true),

@@ -1,9 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister, VALID_RENDER_FORMATS } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
-import { formatBytes, formatMillis } from '../utils'
+import { downloadUrl, formatBytes, formatMillis } from '../utils'
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -12,7 +12,7 @@ export class Model {
   
   init() {
     if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering &&
-        this.state.params.source.trim() != '') {
+        this.source.trim() != '') {
       this.processSource();
     }
   }
@@ -37,6 +37,14 @@ export class Model {
 
   set renderFormat(format: keyof typeof VALID_RENDER_FORMATS) {
     this.mutate(s => s.params.renderFormat = format);
+  }
+
+  set exportFormat(format: keyof typeof VALID_EXPORT_FORMATS) {
+    this.mutate(s => s.params.exportFormat = format);
+  }
+  setVar(name: string, value: any) {
+    this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
+    this.render({isPreview: true, now: false});
   }
 
   set logsVisible(value: boolean) {
@@ -102,42 +110,111 @@ export class Model {
   openFile(path: string) {
     // alert(`TODO: open ${path}`);
     if (this.mutate(s => {
-      s.params.source = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
-      if (s.params.sourcePath != path) {
-        s.params.sourcePath = path;
+      if (s.params.activePath != path) {
+        s.params.activePath = path;
+        if (!s.params.sources.find(src => src.path === path)) {
+          let content = '';
+          try {
+            content = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
+          } catch (e) {
+            console.error('Error while reading file:', e);
+          }
+          s.params.sources = [...s.params.sources, {path, content}];
+        }
         s.lastCheckerRun = undefined;
         s.output = undefined;
+        s.export = undefined;
       }
     })) {
       this.processSource();
     }
   }
 
+  get source(): string {
+    return this.state.params.sources.find(src => src.path === this.state.params.activePath)?.content ?? '';
+  }
   set source(source: string) {
-    if (this.mutate(s => { s.params.source = source; })) {
+    if (this.mutate(s => s.params.sources = s.params.sources.map(src => src.path === s.params.activePath ? {path: src.path, content: source} : src))) {
       this.processSource();
     }
   }
 
   private processSource() {
-    const params = this.state.params;
+    // const params = this.state.params;
     // if (isFileWritable(params.sourcePath)) {
       // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
-      this.fs.writeFile(params.sourcePath, params.source);
+    // this.fs.writeFile(params.sourcePath, params.source);
     // }
     this.checkSyntax();
     this.render({isPreview: true, now: false});
   }
+
   checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
-    checkSyntax(this.state.params.source, this.state.params.sourcePath)({now: false, callback: (checkerRun, err) => this.mutate(s => {
+    checkSyntax(this.state.params.activePath, this.state.params.sources)({now: false, callback: (checkerRun, err) => this.mutate(s => {
       if (err != null) {
         console.error('Error while checking syntax:', err)
       } else {
         s.lastCheckerRun = checkerRun;
+        s.parameterSet = checkerRun?.parameterSet;
         s.checkingSyntax = false;
       }
     })});
+  }
+
+  export() {
+    if (this.state.output && (this.state.params.renderFormat === this.state.params.exportFormat)) {
+      this.mutate(s => s.export = s.output);
+      downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
+      return;
+    }
+    if (this.state.params.exportFormat == '3mf' && (this.state.view.extruderPicker || (this.state.params.extruderColors ?? []).length === 0)) {
+      this.mutate(s => this.state.view.extruderPicker = true);
+      return;
+    }
+    this.mutate(s => s.exporting = true);
+
+    const outFile = this.state.output?.outFile;
+    const outFileURL = this.state.output?.outFileURL;
+    if (!outFile || !outFileURL) {
+      throw new Error('No output file to export');
+    }
+
+    const scadPath = '/export.scad'
+    const sources: Source[] = [
+      {
+        path: scadPath,
+        content: `import("${outFile.name}");`
+      },
+      {
+        path: outFile.name,
+        url: outFileURL,
+      }
+    ];
+    let {features, exportFormat, extruderColors} = this.state.params;
+    
+    render({scadPath, sources, features, extraArgs: [], isPreview: false, renderFormat: exportFormat, extruderColors})({now: true, callback: (output, err) => {
+      this.mutate(s => {
+        s.exporting = false;
+        
+        if (err != null) {
+          console.error('Error while exporting:', err)
+          s.error = `${err}`;
+        } else if (output) {
+          if (s.export?.outFileURL) {
+            URL.revokeObjectURL(s.export.outFileURL);
+          }
+          s.export = {
+            outFile: output.outFile,
+            outFileURL: URL.createObjectURL(output.outFile),
+            elapsedMillis: output.elapsedMillis,
+            formattedElapsedMillis: formatMillis(output.elapsedMillis),
+            formattedOutFileSize: formatBytes(output.outFile.size),
+          };
+          downloadUrl(s.export.outFileURL, output.outFile.name);
+        }
+      });
+    }})
   }
 
   render({isPreview, now}: {isPreview: boolean, now: boolean}) {
@@ -150,9 +227,9 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    let {source, sourcePath, features, renderFormat, extruderColors} = this.state.params;
+    let {activePath, sources, vars, features, renderFormat, extruderColors} = this.state.params;
     
-    render({source, sourcePath, features, extraArgs: [], isPreview, renderFormat, extruderColors})({now, callback: (output, err) => {
+    render({scadPath: activePath, sources, vars, features, extraArgs: [], isPreview, renderFormat, extruderColors})({now, callback: (output, err) => {
       this.mutate(s => {
         setRendering(s, false);
         if (err != null) {

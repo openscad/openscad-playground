@@ -1,5 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+import { Source } from "./state/app-state";
+
 export function mapObject(o: any, f: (key: string, value: any) => any, ifPred: (key: string) => boolean) {
   const ret = [];
   for (const key of Object.keys(o)) {
@@ -67,7 +69,7 @@ export const validateString = (s: string, orElse: () => string = () => '') => s 
 export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orElse: () => T[] = () => []) => {
   if (!(a instanceof Array)) return orElse();
   return a.map(validateElement);
-}
+};
 
 export function formatBytes(n: number) {
   if (n < 1024) {
@@ -102,4 +104,11 @@ export const isInStandaloneMode =
   // true
   Boolean(('standalone' in window.navigator) && (window.navigator.standalone));
 
-  
+export function downloadUrl(url: string, filename: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename)
+  document.body.appendChild(link);
+  link.click();
+  link.parentNode?.removeChild(link);
+}

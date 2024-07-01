@@ -2,6 +2,7 @@
 
 import { MergedOutputs } from "./openscad-worker";
 import { AbortablePromise } from "../utils";
+import { Source } from "../state/app-state";
 
 export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegabytes: number, maximumBytes: number}) {
   const pageSize = 64 * 1024; // 64KB
@@ -19,7 +20,7 @@ export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegab
 export type OpenSCADInvocation = {
   wasmMemory?: WebAssembly.Memory,
   // workingDir: string,
-  inputs?: [string, string][],
+  inputs?: Source[],
   args: string[],
   outputPaths?: string[],
 }
