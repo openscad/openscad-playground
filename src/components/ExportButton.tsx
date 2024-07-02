@@ -72,7 +72,7 @@ export default function ExportButton({className, style}: {className?: string, st
     <div className={className} style={style}>
       <SplitButton 
         label={selectedItem.label}
-        disabled={state.output == null || state.rendering || state.exporting}
+        disabled={!state.output || state.output.isPreview || state.rendering || state.exporting}
         icon="pi pi-download" 
         model={dropdownModel}
         onClick={e => model!.export()}

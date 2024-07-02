@@ -96,7 +96,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
         ...(style ?? {})
     }}>
       <Button
-        icon="pi pi-cog"
+        icon="pi pi-bolt"
         onClick={() => model.render({isPreview: false, now: true})}
         className="p-button-sm"
         label="Render"
