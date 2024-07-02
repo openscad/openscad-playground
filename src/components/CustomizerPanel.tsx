@@ -32,14 +32,14 @@ export default function CustomizerPanel({className, style}: {className?: string,
   }, {} as { [key: string]: any[] });
 
   const groups = Object.entries(groupedParameters);
-  const expandedTabSet = new Set(state.view.customizerExpandedTabs ?? []);
+  const collapsedTabSet = new Set(state.view.collapsedCustomizerTabs ?? []);
   const setTabOpen = (name: string, open: boolean) => {
     if (open) {
-      expandedTabSet.add(name)
+      collapsedTabSet.delete(name);
     } else {
-      expandedTabSet.delete(name);
+      collapsedTabSet.add(name)
     }
-    model.mutate(s => s.view.customizerExpandedTabs = Array.from(expandedTabSet));
+    model.mutate(s => s.view.collapsedCustomizerTabs = Array.from(collapsedTabSet));
   }
 
   return (
@@ -59,7 +59,7 @@ export default function CustomizerPanel({className, style}: {className?: string,
             }}
             onCollapse={() => setTabOpen(group, false)}
             onExpand={() => setTabOpen(group, true)}
-            collapsed={!expandedTabSet.has(group)}
+            collapsed={collapsedTabSet.has(group)}
             key={group}
             legend={group}
             toggleable={true}>
