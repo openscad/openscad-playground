@@ -112,3 +112,22 @@ export function downloadUrl(url: string, filename: string) {
   link.click();
   link.parentNode?.removeChild(link);
 }
+
+export async function fetchSource({content, path, url}: Source) {
+  if (content) {
+    return content;
+  } else if (url) {
+    if (path.endsWith('.scad') || path.endsWith('.json')) {
+      content = await (await fetch(url)).text();
+      return content;
+    } else {
+      // Fetch bytes
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+      return data;
+    }
+  } else {
+    throw new Error('Invalid source: ' + JSON.stringify({path, content, url}));
+  }
+}

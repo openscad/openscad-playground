@@ -5,6 +5,7 @@ import OpenSCAD from "../wasm/openscad.js";
 import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
+import { fetchSource } from "../utils.js";
 declare var BrowserFS: BrowserFSInterface
 
 importScripts("browserfs.min.js");
@@ -73,31 +74,11 @@ addEventListener('message', async (e) => {
     // walkFolder('/libraries');
 
     if (inputs) {
-      for (let {path, content, url} of inputs) {
+      for (const source of inputs) {
         try {
-          if (content) {
-            instance.FS.writeFile(path, content);
-          } else if (url) {
-            if (path.endsWith('.scad') || path.endsWith('.json')) {
-              content = await (await fetch(url)).text();
-              instance.FS.writeFile(path, content);
-            } else {
-              // Fetch bytes
-              const response = await fetch(url);
-              const buffer = await response.arrayBuffer();
-              const data = new Uint8Array(buffer);
-              instance.FS.writeFile(path, data);
-            }
-          } else {
-            throw new Error('Invalid input: ' + JSON.stringify({path, content, url}));
-          }
-          // const parent = getParentDir(path);
-          // instance.FS.mkdir(parent, { recursive: true });
-          // console.log('Made ' + parent);
-          
-          // fs.writeFile(path, content);
+          instance.FS.writeFile(source.path, await fetchSource(source));
         } catch (e) {
-          console.error(`Error while trying to write ${path}`, e);
+          console.error(`Error while trying to write ${source.path}`, e);
         }
       }
     }
