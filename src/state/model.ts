@@ -3,7 +3,9 @@
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
 import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
-import { downloadUrl, formatBytes, formatMillis } from '../utils'
+import { downloadUrl, fetchSource, formatBytes, formatMillis } from '../utils'
+
+import JSZip from 'jszip';
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -215,6 +217,29 @@ export class Model {
         }
       });
     }})
+  }
+
+  async saveProject() {
+    if (this.state.params.sources.length == 1) {
+      const content = this.state.params.sources[0].content;
+      const contentBytes = new TextEncoder().encode(content);
+      const blob = new Blob([contentBytes], {type: 'text/plain'});
+      const file = new File([blob], this.state.params.activePath.split('/').pop()!);
+      downloadUrl(URL.createObjectURL(file), file.name);
+    } else {
+      const zip = new JSZip();
+      for (const source of this.state.params.sources) {
+        let path = source.path
+        if (path.startsWith('/')) {
+          path = path.substring(1);
+        }
+        zip.file(path, await fetchSource(source));
+      }
+      zip.generateAsync({type: 'blob'}).then(blob => {
+        const file = new File([blob], 'project.zip');
+        downloadUrl(URL.createObjectURL(file), file.name);
+      });
+    }
   }
 
   render({isPreview, now}: {isPreview: boolean, now: boolean}) {

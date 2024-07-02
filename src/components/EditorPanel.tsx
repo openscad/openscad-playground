@@ -62,6 +62,18 @@ export default function EditorPanel({className, style}: {className?: string, sty
       keybindings: [monaco.KeyCode.F5],
       run: () => model.render({isPreview: true, now: true})
     });
+    editor.addAction({
+      id: "openscad-save-do-nothing",
+      label: "Save (disabled)",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => {}
+    });
+    editor.addAction({
+      id: "openscad-save-project",
+      label: "Save OpenSCAD project",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
+      run: () => model.saveProject()
+    });
     setEditor(editor)
   }
 
