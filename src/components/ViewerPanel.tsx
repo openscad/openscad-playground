@@ -37,6 +37,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 width: '100%',
                 height: '100%',
               }}
+              max-camera-orbit="auto 180deg auto"
+              min-camera-orbit="auto 0deg auto"
               camera-controls
               ar
               ref={(ref: any) => {
