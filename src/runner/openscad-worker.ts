@@ -93,7 +93,17 @@ addEventListener('message', async (e) => {
     //     console.log("  " + ff);
     //   });
     // });
-    const exitCode = instance.callMain(args);
+    let exitCode;
+    try {
+      exitCode = instance.callMain(args);
+    } catch(e){
+      if(typeof e === "number"){
+        // The number was a raw C++ exception
+        // See https://github.com/emscripten-core/emscripten/pull/16343
+        e = instance.formatException(e);
+      }
+      throw new Error(`OpenSCAD invocation failed: ${e}`);
+    }
     const end = performance.now();
 
     const outputs: [string, string][] = [];
