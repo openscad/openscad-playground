@@ -55,7 +55,7 @@ export interface State {
       mode: 'multi',
     } & { [K in MultiLayoutComponentId]: boolean })
 
-    // customizerExpandedTabs?: string[],
+    customizerExpandedTabs?: string[],
     
     color: string,
     showAxes?: boolean,

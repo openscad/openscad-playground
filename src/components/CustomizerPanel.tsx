@@ -8,7 +8,7 @@ import { Slider } from 'primereact/slider';
 import { Checkbox } from 'primereact/checkbox';
 import { InputNumber } from 'primereact/inputnumber';
 import { InputText } from 'primereact/inputtext';
-import { Accordion, AccordionTab } from 'primereact/accordion';
+import { Fieldset } from 'primereact/fieldset';
 import { Parameter } from '../state/customizer-types';
 import { Button } from 'primereact/button';
 
@@ -32,18 +32,15 @@ export default function CustomizerPanel({className, style}: {className?: string,
   }, {} as { [key: string]: any[] });
 
   const groups = Object.entries(groupedParameters);
-  // const groupNames = groups.map(([group]) => group);
-  // const activeTabIndices = (state.view.customizerExpandedTabs ?? []).map(n => groupNames.indexOf(n)).filter(i => i >= 0);
-
-  // const setTabOpen = (index: number, open: boolean) => {
-  //   const newTabs = new Set(state.view.customizerExpandedTabs ?? []);
-  //   if (open) {
-  //     newTabs.add(groupNames[index])
-  //   } else {
-  //     newTabs.delete(groupNames[index]);
-  //   }
-  //   model.mutate(s => s.view.customizerExpandedTabs = Array.from(newTabs));
-  // }
+  const expandedTabSet = new Set(state.view.customizerExpandedTabs ?? []);
+  const setTabOpen = (name: string, open: boolean) => {
+    if (open) {
+      expandedTabSet.add(name)
+    } else {
+      expandedTabSet.delete(name);
+    }
+    model.mutate(s => s.view.customizerExpandedTabs = Array.from(expandedTabSet));
+  }
 
   return (
     <div
@@ -54,29 +51,27 @@ export default function CustomizerPanel({className, style}: {className?: string,
           overflow: 'scroll',
           ...style,
         }}>
-      <Accordion
-          style={{
-            flex: 1,
-            backgroundColor: 'transparent'
-          }}
-          multiple={true}
-          // activeIndex={activeTabIndices}
-          // onTabOpen={(e) => setTabOpen(e.index, true)}
-          // onTabClose={(e) => setTabOpen(e.index, false)}
-          // activeIndex={groupNames.length ? groupNames.length - 1 : undefined}
-        >
-        {groups.map(([group, params]) => (
-          <AccordionTab key={group} header={group}>
-            {params.map((param) => (
-              <ParameterInput
-                key={param.name}
-                value={(state.params.vars ?? {})[param.name]}
-                param={param}
-                handleChange={handleChange} />
-            ))}
-          </AccordionTab>
-        ))}
-      </Accordion>
+      {groups.map(([group, params]) => (
+        <Fieldset 
+            style={{
+              margin: '5px 10px 5px 10px',
+              backgroundColor: 'transparent',
+            }}
+            onCollapse={() => setTabOpen(group, false)}
+            onExpand={() => setTabOpen(group, true)}
+            collapsed={!expandedTabSet.has(group)}
+            key={group}
+            legend={group}
+            toggleable={true}>
+          {params.map((param) => (
+            <ParameterInput
+              key={param.name}
+              value={(state.params.vars ?? {})[param.name]}
+              param={param}
+              handleChange={handleChange} />
+          ))}
+        </Fieldset>
+      ))}
     </div>
   );
 };
@@ -85,7 +80,6 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
   return (
     <div style={{
       ...style,
-      padding: '5px 0 5px 5px',
       display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
@@ -152,6 +146,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
             style={{flex: 1}}
             value={value || param.initial}
             showButtons
+            buttonLayout='horizontal'
             onValueChange={(e) => handleChange(param.name, e.value)}
           />
         )}
@@ -176,6 +171,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
                 min={param.min}
                 max={param.max}
                 showButtons
+                buttonLayout='horizontal'
                 step={param.step}
                 onValueChange={(e) => {
                   const newArray = [...(value ?? param.initial)];
