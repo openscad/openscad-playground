@@ -52,7 +52,7 @@ Prerequisites:
 First, you need a WASM build of [a branch](https://github.com/openscad/openscad/pull/5180) that handles colors & exports to GLTF (will take a while):
 
 ```bash
-./build-openscad-wasm.sh
+./build-openscad-wasm.sh -DCMAKE_BUILD_TYPE=Release
 ```
 
 Local dev:

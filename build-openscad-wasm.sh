@@ -13,14 +13,14 @@ fi
 
 ( cd "$OPENSCAD_DIR" && 
   docker run --rm -it -v $PWD:/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
-    emcmake cmake -B build -DEXPERIMENTAL=ON -DCMAKE_BUILD_TYPE=Debug && \
+    emcmake cmake -B build -DEXPERIMENTAL=ON "$@" && \
   docker run --rm -it -v $PWD:/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
     cmake --build build -j10 )
 
 rm -fR libs/openscad-wasm
 mkdir -p libs/openscad-wasm
 
-"$OPENSCAD_DIR/build/openscad.wasm" libs/openscad-wasm/
-"$OPENSCAD_DIR/build/openscad.js" libs/openscad-wasm/
-"$OPENSCAD_DIR/build/openscad.wasm.map" libs/openscad-wasm/ || true
+cp "$OPENSCAD_DIR/build/openscad.wasm" libs/openscad-wasm/
+cp "$OPENSCAD_DIR/build/openscad.js" libs/openscad-wasm/
+cp "$OPENSCAD_DIR/build/openscad.wasm.map" libs/openscad-wasm/ || true
 ( cd libs && zip -r ../dist/openscad-wasm.zip openscad-wasm )
