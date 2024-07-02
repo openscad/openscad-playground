@@ -67,11 +67,11 @@ export default function PanelSwitcher() {
         }
 
       
-        <HelpMenu style={{
+        {/* <HelpMenu style={{
           position: 'absolute',
           right: 0,
           top: '4px',
-        }} />
+        }} /> */}
         {/* <SettingsMenu style={{
           position: 'absolute',
           right: 0,

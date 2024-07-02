@@ -101,6 +101,8 @@ export default function Footer({style}: {style?: CSSProperties}) {
         className="p-button-sm"
         label="Render"
         />
+
+      <ExportButton />
       
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
@@ -121,7 +123,11 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
       <div style={{flex: 1}}></div>
 
-      <ExportButton />
+      <HelpMenu style={{
+          position: 'absolute',
+          right: 0,
+          top: '4px',
+        }} />
 
         {/* title={`Download ${(state.output.isPreview ? "preview." : "render.") + state.params.renderFormat} (${state.output.formattedOutFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`} */}
       {/* {state.export && (
