@@ -10,6 +10,7 @@ import { InputNumber } from 'primereact/inputnumber';
 import { InputText } from 'primereact/inputtext';
 import { Accordion, AccordionTab } from 'primereact/accordion';
 import { Parameter } from '../state/customizer-types';
+import { Button } from 'primereact/button';
 
 export default function CustomizerPanel({className, style}: {className?: string, style?: CSSProperties}) {
 
@@ -84,7 +85,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
   return (
     <div style={{
       ...style,
-      padding: '5px',
+      padding: '5px 0 5px 5px',
       display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
@@ -99,11 +100,16 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         <div>{param.caption}</div>
       </div>
       <div style={{
-        flex: 1,
-        margin: '10px'
+        // flex: 1,
+        margin: '10px',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}>
         {param.type === 'number' && 'options' in param && (
           <Dropdown
+            style={{flex: 1}}
             value={value || param.initial}
             options={param.options}
             onChange={(e) => handleChange(param.name, e.value)}
@@ -113,6 +119,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         )}
         {param.type === 'string' && param.options && (
           <Dropdown
+           style={{flex: 1}}
             value={value || param.initial}
             options={param.options}
             onChange={(e) => handleChange(param.name, e.value)}
@@ -122,6 +129,10 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         )}
         {!Array.isArray(param.initial) && param.type === 'number' && param.min !== undefined && (
           <Slider
+            style={{
+              flex: 1,
+              minWidth: '150px',
+            }}
             value={value || param.initial}
             min={param.min}
             max={param.max}
@@ -131,30 +142,40 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         )}
         {param.type === 'boolean' && (
           <Checkbox
+            style={{flex: 1}}
             checked={value ?? param.initial}
             onChange={(e) => handleChange(param.name, e.checked)}
           />
         )}
         {param.type === 'number' && !('options' in param) && !('min' in param) && (
           <InputNumber
+            style={{flex: 1}}
             value={value || param.initial}
+            showButtons
             onValueChange={(e) => handleChange(param.name, e.value)}
           />
         )}
         {param.type === 'string' && !param.options && (
           <InputText
+            style={{flex: 1}}
             value={value || param.initial}
             onChange={(e) => handleChange(param.name, e.target.value)}
           />
         )}
         {Array.isArray(param.initial) && 'min' in param && (
-          <div>
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'row',
+          }}>
             {param.initial.map((_, index) => (
               <InputNumber
+                style={{flex: 1}}
                 key={index}
                 value={value?.[index] || (param.initial as any)[index]}
                 min={param.min}
                 max={param.max}
+                showButtons
                 step={param.step}
                 onValueChange={(e) => {
                   const newArray = [...(value ?? param.initial)];
@@ -165,6 +186,13 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
             ))}
           </div>
         )}
+        <Button
+          onClick={() => handleChange(param.name, param.initial)}
+          style={{
+            visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
+          }}
+          icon='pi pi-refresh'
+          className='p-button-text'/>
       </div>
     </div>
   );
