@@ -156,7 +156,11 @@ export const render =
           // console.log(new TextDecoder().decode(content));
           let outFile = new File([blob], fileName);
           if (extruderRGBColors) {
-            outFile = await materialize3MFFile(outFile, extruderRGBColors);
+            try {
+              outFile = await materialize3MFFile(outFile, extruderRGBColors);
+            } catch (e) {
+              console.error('Error while materializing 3MF file:', e);
+            }
           }
           resolve({outFile, logText, markers, elapsedMillis: result.elapsedMillis});
           // const stlFile = new File([blob], fileName);
