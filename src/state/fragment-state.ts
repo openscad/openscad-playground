@@ -2,7 +2,7 @@
 
 import { State, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
-import { defaultModelColor } from "./initial-state";
+import { defaultModelColor, defaultSourcePath } from "./initial-state";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -60,13 +60,13 @@ export async function readStateFromFragment(): Promise<State | null> {
       const {params, view} = obj;
       return {
         params: {
-          activePath: validateString(params?.activePath),
+          activePath: validateString(params?.activePath, () => defaultSourcePath),
           features: validateArray(params?.features, validateString),
           vars: params?.vars, // TODO: validate!
-          // sources: validateArray(params?.sources, validateSource),
-          sources: params?.sources, // TODO: validate!
-          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS)),
-          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS)),
+          // Source deserialization also handles legacy links (source + sourcePath)
+          sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
+          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'glb'),
+          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'glb'),
           extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
