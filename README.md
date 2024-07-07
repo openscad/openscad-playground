@@ -1,6 +1,6 @@
 # OpenSCAD Playground
 
-[Open the Demo](https://ochafik.com/openscad3)
+[Open the Demo](https://ochafik.com/openscad2)
 
 This is wrapping the headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)) into a lots of pretty [PrimeReact](https://github.com/primefaces/primereact) components, slapping in a [React Monaco editor](https://github.com/react-monaco-editor/react-monaco-editor) (VS Codesque power!), a [React STL viewer](https://github.com/gabotechs/react-stl-viewer) and a few tricks (of course, it's using the [experimental Manifold support](https://github.com/openscad/openscad/pull/4533) we've added recently, to make it super fast).
 
@@ -77,7 +77,7 @@ Deployment (edit "homepage" in `package.json` to match your deployment root!):
 make public
 npm run build
 
-rm -fR ../ochafik.github.io/openscad3 && cp -R dist ../ochafik.github.io/openscad3 
+rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
 # Now commit and push changes, wait for site update and enjoy!
 ```
 
@@ -91,4 +91,4 @@ You'll need to update 3 files (search for BOSL2 for an example):
 
 - [LICENSE.md](./LICENSE.md): most libraries require proper disclosure of their usage and of their license. If a license is unique, paste it in full, otherwise, link to one of the standard ones already there.
 
-Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad3 demo.
+Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad2 demo.
