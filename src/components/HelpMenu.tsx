@@ -29,6 +29,13 @@ export default function HelpMenu({className, style}: {className?: string, style?
           target: '_blank'
         },
         {
+          label: 'Customizer Syntax',
+          icon: 'pi pi-book',
+          url: 'https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Customizer',
+          target: '_blank'
+        },
+        
+        {
           label: 'OpenSCAD Cheatsheet',
           icon: 'pi pi-palette',
           url: 'http://openscad.org/cheatsheet/',
