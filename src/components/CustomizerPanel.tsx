@@ -143,7 +143,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
               onChange={(e) => handleChange(param.name, e.checked)}
             />
           )}
-          {param.type === 'number' && !('options' in param) && (
+          {!Array.isArray(param.initial) && param.type === 'number' && !('options' in param) && (
             <InputNumber
               // style={{flex: 1}}
               value={value || param.initial}
@@ -170,7 +170,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
                 <InputNumber
                   style={{flex: 1}}
                   key={index}
-                  value={value?.[index] || (param.initial as any)[index]}
+                  value={value?.[index] ?? (param.initial as any)[index]}
                   min={param.min}
                   max={param.max}
                   showButtons
