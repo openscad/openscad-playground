@@ -50,12 +50,14 @@ export default function CustomizerPanel({className, style}: {className?: string,
           flexDirection: 'column',
           overflow: 'scroll',
           ...style,
+          bottom: 'unset',
         }}>
       {groups.map(([group, params]) => (
         <Fieldset 
             style={{
               margin: '5px 10px 5px 10px',
-              backgroundColor: 'transparent',
+              // backgroundColor: 'transparent',
+              backgroundColor: 'rgba(255,255,255,0.4)',
             }}
             onCollapse={() => setTabOpen(group, false)}
             onExpand={() => setTabOpen(group, true)}
