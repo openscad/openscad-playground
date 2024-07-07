@@ -81,6 +81,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
     <div style={{
       ...style,
       display: 'flex',
+      margin: '10px -10px 10px 5px',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -95,7 +96,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
       </div>
       <div style={{
         // flex: 1,
-        margin: '10px',
+        // margin: '10px',
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
@@ -113,7 +114,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         )}
         {param.type === 'string' && param.options && (
           <Dropdown
-           style={{flex: 1}}
+            // style={{flex: 1}}
             value={value || param.initial}
             options={param.options}
             onChange={(e) => handleChange(param.name, e.value)}
@@ -124,7 +125,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         {!Array.isArray(param.initial) && param.type === 'number' && param.min !== undefined && (
           <Slider
             style={{
-              flex: 1,
+              // flex: 1,
               minWidth: '150px',
             }}
             value={value || param.initial}
@@ -136,17 +137,18 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         )}
         {param.type === 'boolean' && (
           <Checkbox
-            style={{flex: 1}}
+            // style={{flex: 1}}
             checked={value ?? param.initial}
             onChange={(e) => handleChange(param.name, e.checked)}
           />
         )}
         {param.type === 'number' && !('options' in param) && !('min' in param) && (
           <InputNumber
-            style={{flex: 1}}
+            // style={{flex: 1}}
             value={value || param.initial}
             showButtons
-            buttonLayout='horizontal'
+            size={5}
+            // buttonLayout='horizontal'
             onValueChange={(e) => handleChange(param.name, e.value)}
           />
         )}
@@ -171,7 +173,8 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
                 min={param.min}
                 max={param.max}
                 showButtons
-                buttonLayout='horizontal'
+                // buttonLayout='horizontal'
+                size={5}
                 step={param.step}
                 onValueChange={(e) => {
                   const newArray = [...(value ?? param.initial)];
@@ -185,6 +188,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
         <Button
           onClick={() => handleChange(param.name, param.initial)}
           style={{
+            marginRight: '0',
             visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
           }}
           tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
