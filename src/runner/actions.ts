@@ -98,6 +98,9 @@ export const render =
     const prefixLines: string[] = [];
     if (isPreview) {
       prefixLines.push('$preview=true;');
+      features = ['render-modifiers', ...(features ?? [])];
+    } else {
+      features = (features ?? []).filter(f => f != 'render-modifiers');
     }
     if (!scadPath.endsWith('.scad')) throw new Error('First source must be a .scad file, got ' + sources[0].path + ' instead');
     
