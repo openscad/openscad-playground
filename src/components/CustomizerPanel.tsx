@@ -192,7 +192,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
               marginRight: '0',
               visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
             }}
-            tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
+            // tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
             tooltipOptions={{position: 'left'}}
             icon='pi pi-refresh'
             className='p-button-text'/>
