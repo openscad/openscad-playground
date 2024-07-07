@@ -107,7 +107,8 @@ export default function Footer({style}: {style?: CSSProperties}) {
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
             // label={state.view.logs ? "Hide logs" : "Show logs"}
-            label="Logs"
+            // label="Logs"
+            severity={maxMarkerSeverity && severityByMarkerSeverity.get(maxMarkerSeverity)}
             icon="pi pi-align-left"
             text={!state.view.logs}
             onClick={() => model.logsVisible = !state.view.logs}
