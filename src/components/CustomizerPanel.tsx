@@ -78,124 +78,140 @@ export default function CustomizerPanel({className, style}: {className?: string,
 
 function ParameterInput({param, value, className, style, handleChange}: {param: Parameter, value: any, className?: string, style?: CSSProperties, handleChange: (key: string, value: any) => void}) {
   return (
-    <div style={{
-      ...style,
-      display: 'flex',
-      margin: '10px -10px 10px 5px',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    }}>
-      <div style={{
+    <div 
+      // ref={ref} 
+      // onClick={state.view.layout.mode === 'single' ? handleClick : undefined}
+      style={{
         flex: 1,
+        ...style,
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <label><b>{param.name}</b></label>
-        <div>{param.caption}</div>
-      </div>
-      <div style={{
-        // flex: 1,
-        // margin: '10px',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        {param.type === 'number' && 'options' in param && (
-          <Dropdown
-            style={{flex: 1}}
-            value={value || param.initial}
-            options={param.options}
-            onChange={(e) => handleChange(param.name, e.value)}
-            optionLabel="name"
-            optionValue="value"
-          />
-        )}
-        {param.type === 'string' && param.options && (
-          <Dropdown
-            // style={{flex: 1}}
-            value={value || param.initial}
-            options={param.options}
-            onChange={(e) => handleChange(param.name, e.value)}
-            optionLabel="name"
-            optionValue="value"
-          />
-        )}
-        {!Array.isArray(param.initial) && param.type === 'number' && param.min !== undefined && (
-          <Slider
-            style={{
-              // flex: 1,
-              minWidth: '150px',
-            }}
-            value={value || param.initial}
-            min={param.min}
-            max={param.max}
-            step={param.step}
-            onChange={(e) => handleChange(param.name, e.value)}
-          />
-        )}
-        {param.type === 'boolean' && (
-          <Checkbox
-            // style={{flex: 1}}
-            checked={value ?? param.initial}
-            onChange={(e) => handleChange(param.name, e.checked)}
-          />
-        )}
-        {param.type === 'number' && !('options' in param) && !('min' in param) && (
-          <InputNumber
-            // style={{flex: 1}}
-            value={value || param.initial}
-            showButtons
-            size={5}
-            // buttonLayout='horizontal'
-            onValueChange={(e) => handleChange(param.name, e.value)}
-          />
-        )}
-        {param.type === 'string' && !param.options && (
-          <InputText
-            style={{flex: 1}}
-            value={value || param.initial}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-          />
-        )}
-        {Array.isArray(param.initial) && 'min' in param && (
-          <div style={{
+      <div 
+        style={{
+          flex: 1,
+          display: 'flex',
+          margin: '10px -10px 10px 5px',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+        <div 
+          // onClick={swallowClick}
+          style={{
             flex: 1,
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: 'column',
           }}>
-            {param.initial.map((_, index) => (
-              <InputNumber
-                style={{flex: 1}}
-                key={index}
-                value={value?.[index] || (param.initial as any)[index]}
-                min={param.min}
-                max={param.max}
-                showButtons
-                // buttonLayout='horizontal'
-                size={5}
-                step={param.step}
-                onValueChange={(e) => {
-                  const newArray = [...(value ?? param.initial)];
-                  newArray[index] = e.value;
-                  handleChange(param.name, newArray);
-                }}
-              />
-            ))}
-          </div>
-        )}
-        <Button
-          onClick={() => handleChange(param.name, param.initial)}
+          <label><b>{param.name}</b></label>
+          <div>{param.caption}</div>
+        </div>
+        <div 
+          // onClick={swallowClick}
           style={{
-            marginRight: '0',
-            visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
-          }}
-          tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
-          tooltipOptions={{position: 'left'}}
-          icon='pi pi-refresh'
-          className='p-button-text'/>
+            // flex: 1,
+            // margin: '10px',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+          {param.type === 'number' && 'options' in param && (
+            <Dropdown
+              style={{flex: 1}}
+              value={value || param.initial}
+              options={param.options}
+              onChange={(e) => handleChange(param.name, e.value)}
+              optionLabel="name"
+              optionValue="value"
+            />
+          )}
+          {param.type === 'string' && param.options && (
+            <Dropdown
+              // style={{flex: 1}}
+              value={value || param.initial}
+              options={param.options}
+              onChange={(e) => handleChange(param.name, e.value)}
+              optionLabel="name"
+              optionValue="value"
+            />
+          )}
+          {param.type === 'boolean' && (
+            <Checkbox
+              // style={{flex: 1}}
+              checked={value ?? param.initial}
+              onChange={(e) => handleChange(param.name, e.checked)}
+            />
+          )}
+          {param.type === 'number' && !('options' in param) && (
+            <InputNumber
+              // style={{flex: 1}}
+              value={value || param.initial}
+              showButtons
+              size={5}
+              // buttonLayout='horizontal'
+              onValueChange={(e) => handleChange(param.name, e.value)}
+            />
+          )}
+          {param.type === 'string' && !param.options && (
+            <InputText
+              style={{flex: 1}}
+              value={value || param.initial}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+            />
+          )}
+          {Array.isArray(param.initial) && 'min' in param && (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'row',
+            }}>
+              {param.initial.map((_, index) => (
+                <InputNumber
+                  style={{flex: 1}}
+                  key={index}
+                  value={value?.[index] || (param.initial as any)[index]}
+                  min={param.min}
+                  max={param.max}
+                  showButtons
+                  // buttonLayout='horizontal'
+                  size={5}
+                  step={param.step}
+                  onValueChange={(e) => {
+                    const newArray = [...(value ?? param.initial)];
+                    newArray[index] = e.value;
+                    handleChange(param.name, newArray);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          <Button
+            onClick={() => handleChange(param.name, param.initial)}
+            style={{
+              marginRight: '0',
+              visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
+            }}
+            tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
+            tooltipOptions={{position: 'left'}}
+            icon='pi pi-refresh'
+            className='p-button-text'/>
+        </div>
       </div>
+      {!Array.isArray(param.initial) && param.type === 'number' && param.min !== undefined && (
+        <Slider
+          style={{
+            flex: 1,
+            minHeight: '5px',
+            margin: '5px 40px 5px 5px',
+          }}
+          value={value || param.initial}
+          min={param.min}
+          max={param.max}
+          step={param.step}
+          onChange={(e) => handleChange(param.name, e.value)}
+        />
+      )}
     </div>
   );
 }

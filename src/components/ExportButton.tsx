@@ -75,6 +75,7 @@ export default function ExportButton({className, style}: {className?: string, st
         disabled={!state.output || state.output.isPreview || state.rendering || state.exporting}
         icon="pi pi-download" 
         model={dropdownModel}
+        severity="secondary"
         onClick={e => model!.export()}
         className="p-button-sm"
         onShow={() => setDropdownVisible(true)}
