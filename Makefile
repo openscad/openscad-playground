@@ -119,7 +119,7 @@ libs/YAPP_Box:
 
 public/libraries/YAPP_Box.zip: libs/YAPP_Box
 	mkdir -p public/libraries
-	( cd libs/YAPP_Box ; zip -r ../../public/libraries/YAPP_Box.zip *.scad LICENSE )
+	( cd libs/YAPP_Box ; zip -r ../../public/libraries/YAPP_Box.zip `find . -name '*.scad'` LICENSE )
 
 libs/MCAD:
 	git clone --recurse https://github.com/openscad/MCAD.git ${SHALLOW} ${SINGLE_BRANCH} $@
