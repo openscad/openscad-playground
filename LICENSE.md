@@ -407,6 +407,8 @@ Licensed under [GNU GPLv3](#gplv3) or later (note: some headers use the more per
 
 ## assimp
 
+https://github.com/assimp/assimp
+
 ```
 Open Asset Import Library (assimp)
 
