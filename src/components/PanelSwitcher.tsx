@@ -48,7 +48,6 @@ export default function PanelSwitcher() {
                     onIcon={icon}
                     offIcon={icon}
                     // icon={icon}
-                    // disabled={id === 'customizer'}
                     // onClick={() => model.changeMultiVisibility(id, !(state.view.layout as any)[id])}
                     onChange={e => model.changeMultiVisibility(id, e.value)}
                     />

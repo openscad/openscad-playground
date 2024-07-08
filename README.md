@@ -13,6 +13,7 @@ Licenses: see [LICENSES](./LICENSE).
 ## Features
 
 - Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Using a trick to force $preview=true.
+- [Customizer](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Customizer) support
 - Syntax highlighting
 - Ships with many standard SCAD libraries (can browse through them in the UI)
 - Autocomplete of imports
@@ -25,7 +26,6 @@ Licenses: see [LICENSES](./LICENSE).
 - Add tests!
 - Persist camera state
 - Support 2D somehow? (e.g. add option in OpenSCAD to output 2D geometry as non-closed polysets, or to auto-extrude by some height)
-- Customizer support. Probably by adding --export-json or --export-format=customizer-json to OpenSCAD. And use React Hook Forms maybe? https://react-hook-form.com/
 - Rebuild w/ (and sync) ochafik@'s filtered kernel (https://github.com/openscad/openscad/pull/4160) to fix(ish) 2D operations
 - Replace Makefile w/ something that reads the libs metadata
 - Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
