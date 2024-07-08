@@ -98,7 +98,7 @@ libs/NopSCADlib:
 
 public/libraries/NopSCADlib.zip: libs/NopSCADlib
 	mkdir -p public/libraries
-	( cd libs/NopSCADlib ; zip -r ../../public/libraries/NopSCADlib.zip `find . -name '*.scad' -or -name '*.stl'` COPYING )
+	( cd libs/NopSCADlib ; zip -r ../../public/libraries/NopSCADlib.zip `find . -name '*.scad'` COPYING )
 
 libs/funcutils: 
 	git clone --recurse https://github.com/thehans/funcutils.git ${SHALLOW} ${SINGLE_BRANCH} $@
