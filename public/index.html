@@ -81,9 +81,17 @@
         bottom: 0;
       }
 
-
-      .monaco-editor {
+      .monaco-editor,
+      .openscad-editor {
         background-color: rgba(255,255,255,0.5) !important;
+      }
+      textarea.openscad-editor {
+        font-family: "Droid Sans Mono", "monospace", monospace;
+        font-weight: normal;
+        font-size: 16px;
+        font-feature-settings: "liga" 0, "calt" 0;
+        line-height: 22px;
+        letter-spacing: 0px;
       }
       .overflow-guard,
       .monaco-scrollable-element,
