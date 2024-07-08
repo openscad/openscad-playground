@@ -203,7 +203,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
         {!isMonacoSupported && (
           <InputTextarea 
             style={{
-              backgroundColor: 'transparent',
             }}
             className="openscad-editor absolute-fill"
             value={state.params.source}
