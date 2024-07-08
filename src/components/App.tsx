@@ -22,6 +22,22 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
   const model = new Model(fs, state, setState, statePersister);
   useEffect(() => model.init());
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'F5') {
+        event.preventDefault();
+        model.render({isPreview: true, now: true})
+      } else if (event.key === 'F6') {
+        event.preventDefault();
+        model.render({isPreview: false, now: true})
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const zIndexOfPanelsDependingOnFocus = {
     editor: {
       editor: 3,

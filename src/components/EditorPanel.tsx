@@ -50,16 +50,11 @@ export default function EditorPanel({className, style}: {className?: string, sty
     editor.addAction({
       id: "openscad-render",
       label: "Render OpenSCAD",
-      keybindings: [
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-        monaco.KeyCode.F6,
-      ],
       run: () => model.render({isPreview: false, now: true})
     });
     editor.addAction({
       id: "openscad-preview",
       label: "Preview OpenSCAD",
-      keybindings: [monaco.KeyCode.F5],
       run: () => model.render({isPreview: true, now: true})
     });
     setEditor(editor)
