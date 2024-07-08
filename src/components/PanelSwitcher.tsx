@@ -16,8 +16,10 @@ export default function PanelSwitcher() {
   const singleTargets: {id: SingleLayoutComponentId, icon: string, label: string}[] = [
     { id: 'editor', icon: 'pi pi-pencil', label: 'Edit' },
     { id: 'viewer', icon: 'pi pi-box', label: 'View' },
-    { id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' },
   ];
+  if ((state.parameterSet?.parameters?.length ?? 0) > 0) {
+    singleTargets.push({ id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' });
+  }
   const multiTargets = singleTargets;
 
   return (
@@ -45,7 +47,6 @@ export default function PanelSwitcher() {
                     onIcon={icon}
                     offIcon={icon}
                     // icon={icon}
-                    disabled={id === 'customizer'}
                     // onClick={() => model.changeMultiVisibility(id, !(state.view.layout as any)[id])}
                     onChange={e => model.changeMultiVisibility(id, e.value)}
                     />
@@ -59,7 +60,7 @@ export default function PanelSwitcher() {
                     // justifyContent: 'center'
                   }}
                   model={singleTargets.map(({icon, label, id}) => 
-                  ({icon, label, disabled: id === 'customizer', command: () => model.changeSingleVisibility(id)}))} />
+                  ({icon, label/*, disabled: id === 'customizer' && state?.parameterSet == null*/, command: () => model.changeSingleVisibility(id)}))} />
               </>
         }
         <SettingsMenu style={{

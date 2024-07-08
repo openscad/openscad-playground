@@ -63,6 +63,7 @@ export async function readStateFromFragment(): Promise<State | null> {
           sourcePath: validateString(params?.sourcePath),
           source: validateString(params?.source),
           features: validateArray(params?.features, validateString),
+          vars: params?.vars, // TODO: validate!
         },
         view: {
           layout: {
@@ -72,6 +73,7 @@ export async function readStateFromFragment(): Promise<State | null> {
             viewer: validateBoolean(view?.layout['viewer']),
             customizer: validateBoolean(view?.layout['customizer']),
           },
+          collapsedCustomizerTabs: validateArray(view?.collapsedCustomizerTabs, validateString),
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis, () => true),
           showShadows: validateBoolean(view?.layout?.showShadow, () => true),
