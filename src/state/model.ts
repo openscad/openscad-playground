@@ -178,6 +178,11 @@ export class Model {
             formattedElapsedMillis: formatMillis(output.elapsedMillis),
             formattedStlFileSize: formatBytes(output.stlFile.size),
           };
+
+          if (!isPreview) {
+            const audio = document.getElementById('complete-sound') as HTMLAudioElement;
+            audio?.play();
+          }
         }
       });
     }})
