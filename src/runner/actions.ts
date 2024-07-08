@@ -90,16 +90,6 @@ function formatValue(any: any): string {
     return `${any}`;
   }
 }
-
-function formatValue(any: any): string {
-  if (typeof any === 'string') {
-    return `"${any}"`;
-  } else if (any instanceof Array) {
-    return `[${any.map(formatValue).join(', ')}]`;
-  } else {
-    return `${any}`;
-  }
-}
 export const render =
  turnIntoDelayableExecution(renderDelay, ({scadPath, sources, isPreview, vars, features, extraArgs, renderFormat, extruderColors}: RenderArgs) => {
 
