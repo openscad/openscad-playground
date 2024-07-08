@@ -35,6 +35,11 @@ export class Model {
     return false;
   }
 
+  setVar(name: string, value: any) {
+    this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
+    this.render({isPreview: true, now: false});
+  }
+
   set logsVisible(value: boolean) {
     if (value) {
       if (this.state.view.layout.mode === 'single') {
@@ -131,6 +136,7 @@ export class Model {
         console.error('Error while checking syntax:', err)
       } else {
         s.lastCheckerRun = checkerRun;
+        s.parameterSet = checkerRun?.parameterSet;
         s.checkingSyntax = false;
       }
     })});
@@ -146,9 +152,9 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    const {source, sourcePath, features} = this.state.params;
+    const {source, sourcePath, vars, features} = this.state.params;
     
-    render({source, sourcePath, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
+    render({source, sourcePath, vars, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
       this.mutate(s => {
         setRendering(s, false);
         if (err != null) {

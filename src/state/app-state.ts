@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { ParameterSet } from './customizer-types';
 
 export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
@@ -9,6 +10,7 @@ export interface State {
   params: {
     sourcePath: string,
     source: string,
+    vars?: {[name: string]: any},
     features: string[],
   },
 
@@ -20,6 +22,8 @@ export interface State {
     } | ({
       mode: 'multi',
     } & { [K in MultiLayoutComponentId]: boolean })
+
+    collapsedCustomizerTabs?: string[],
     
     color: string,
     showAxes?: boolean,
@@ -35,6 +39,7 @@ export interface State {
   previewing?: boolean,
   checkingSyntax?: boolean,
 
+  parameterSet?: ParameterSet,
   error?: string,
   output?: {
     isPreview: boolean,
