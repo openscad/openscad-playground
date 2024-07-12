@@ -97,7 +97,7 @@ addEventListener('message', async (e) => {
     try {
       exitCode = instance.callMain(args);
     } catch(e){
-      if(typeof e === "number"){
+      if(typeof e === "number" && instance.formatException){
         // The number was a raw C++ exception
         // See https://github.com/emscripten-core/emscripten/pull/16343
         e = instance.formatException(e);
