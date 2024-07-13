@@ -36,6 +36,7 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
 * [Flex](#flex)
 * [double-conversion](#double-conversion)
 * [Liberation Fonts](#liberation-fonts)
+* [Noto Fonts](#noto-fonts)
 * [SCAD Libraries](#scad-libraries)
   + [BOSL2](#bosl2)
   + [NopSCADlib](#nopscadlib)
@@ -184,6 +185,12 @@ THE SOFTWARE.
 ## Liberation Fonts
 
 https://github.com/shantigilbert/liberation-fonts-ttf.git
+
+Licensed under the [SIL Open Font License, Version 1.1](#sil-11)
+
+## Noto Fonts
+
+https://fonts.google.com/noto
 
 Licensed under the [SIL Open Font License, Version 1.1](#sil-11)
 

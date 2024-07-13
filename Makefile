@@ -64,11 +64,66 @@ public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
 public/openscad.wasm: libs/openscad-wasm libs/openscad-wasm/openscad.wasm
 	ln -sf libs/openscad-wasm/openscad.wasm public/openscad.wasm
 
-public/libraries/fonts.zip: libs/liberation
-	mkdir -p public/libraries
-	cp fonts.conf libs/liberation
-	( cd libs/liberation && zip -r ../../public/libraries/fonts.zip fonts.conf *.ttf LICENSE AUTHORS )
+# Var w/ noto fonts
+NOTO_FONTS=\
+	libs/noto/NotoNaskhArabic-Bold.ttf \
+	libs/noto/NotoNaskhArabic-Regular.ttf \
+	libs/noto/NotoSans-Bold.ttf \
+	libs/noto/NotoSans-Italic.ttf \
+	libs/noto/NotoSans-Regular.ttf \
+	libs/noto/NotoSansArmenian-Bold.ttf \
+	libs/noto/NotoSansArmenian-Regular.ttf \
+	libs/noto/NotoSansBalinese-Regular.ttf \
+	libs/noto/NotoSansBengali-Bold.ttf \
+	libs/noto/NotoSansBengali-Regular.ttf \
+	libs/noto/NotoSansCJKtc-Bold.otf \
+	libs/noto/NotoSansCJKtc-Regular.otf \
+	libs/noto/NotoSansDevanagari-Bold.ttf \
+	libs/noto/NotoSansDevanagari-Regular.ttf \
+	libs/noto/NotoSansEthiopic-Bold.ttf \
+	libs/noto/NotoSansEthiopic-Regular.ttf \
+	libs/noto/NotoSansGeorgian-Bold.ttf \
+	libs/noto/NotoSansGeorgian-Regular.ttf \
+	libs/noto/NotoSansGujarati-Bold.ttf \
+	libs/noto/NotoSansGujarati-Regular.ttf \
+	libs/noto/NotoSansGurmukhi-Bold.ttf \
+	libs/noto/NotoSansGurmukhi-Regular.ttf \
+	libs/noto/NotoSansHebrew-Bold.ttf \
+	libs/noto/NotoSansHebrew-Regular.ttf \
+	libs/noto/NotoSansJavanese-Regular.ttf \
+	libs/noto/NotoSansKannada-Bold.ttf \
+	libs/noto/NotoSansKannada-Regular.ttf \
+	libs/noto/NotoSansKhmer-Bold.ttf \
+	libs/noto/NotoSansKhmer-Regular.ttf \
+	libs/noto/NotoSansLao-Bold.ttf \
+	libs/noto/NotoSansLao-Regular.ttf \
+	libs/noto/NotoSansMongolian-Regular.ttf \
+	libs/noto/NotoSansMyanmar-Bold.ttf \
+	libs/noto/NotoSansMyanmar-Regular.ttf \
+	libs/noto/NotoSansOriya-Bold.ttf \
+	libs/noto/NotoSansOriya-Regular.ttf \
+	libs/noto/NotoSansSinhala-Bold.ttf \
+	libs/noto/NotoSansSinhala-Regular.ttf \
+	libs/noto/NotoSansTamil-Bold.ttf \
+	libs/noto/NotoSansTamil-Regular.ttf \
+	libs/noto/NotoSansThai-Bold.ttf \
+	libs/noto/NotoSansThai-Regular.ttf \
+	libs/noto/NotoSansTibetan-Bold.ttf \
+	libs/noto/NotoSansTibetan-Regular.ttf \
+	libs/noto/NotoSansTifinagh-Regular.ttf \
 
+
+public/libraries/fonts.zip: $(NOTO_FONTS) libs/liberation
+	zip -r $@ -j fonts.conf libs/noto/{*.ttf,*.otf} libs/liberation/{*.ttf,LICENSE,AUTHORS}
+
+libs/noto/%.ttf:
+	mkdir -p libs/noto
+	wget https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@
+	
+libs/noto/%.otf:
+	mkdir -p libs/noto
+	wget https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@
+	
 libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
