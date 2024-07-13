@@ -76,8 +76,6 @@ NOTO_FONTS=\
 	libs/noto/NotoSansBalinese-Regular.ttf \
 	libs/noto/NotoSansBengali-Bold.ttf \
 	libs/noto/NotoSansBengali-Regular.ttf \
-	libs/noto/NotoSansCJKtc-Bold.otf \
-	libs/noto/NotoSansCJKtc-Regular.otf \
 	libs/noto/NotoSansDevanagari-Bold.ttf \
 	libs/noto/NotoSansDevanagari-Regular.ttf \
 	libs/noto/NotoSansEthiopic-Bold.ttf \
@@ -112,6 +110,9 @@ NOTO_FONTS=\
 	libs/noto/NotoSansTibetan-Regular.ttf \
 	libs/noto/NotoSansTifinagh-Regular.ttf \
 
+# Way too big for now, also can't make them work yet:
+# libs/noto/NotoSansCJKtc-Bold.otf
+# libs/noto/NotoSansCJKtc-Regular.otf
 
 public/libraries/fonts.zip: $(NOTO_FONTS) libs/liberation
 	zip -r $@ -j fonts.conf libs/noto/{*.ttf,*.otf} libs/liberation/{*.ttf,LICENSE,AUTHORS}
