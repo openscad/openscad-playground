@@ -86,11 +86,17 @@ greeting = struct_val([
     ["Thai", "สวัสดี"],
     ["Tibetan", "བཀྲ་ཤིས་བདེ་ལེགས།"],
     ["Tifinagh", "ⴰⵣⵓⵍ"],
-], language, "Hello");
+], script, "Hello");
 
-echo(script=script, 
-    greeting=greeting,
+direction = struct_val([
+  ["Arabic", "rtl"],
+  ["Hebrew", "rtl"],
+], script, "ltr");
+
+echo(greeting=greeting,
     font=font,
+    script=script, 
+    direction=direction,
     style=style);
 
 color("gray")
@@ -99,6 +105,7 @@ color("gray")
         text(
             greeting,
             font=str(font, ":style=", style),
+            direction=direction,
             script=script,
             halign="center",
             valign="center");
