@@ -1,7 +1,7 @@
 include <BOSL2/std.scad>
 include <BOSL2/structs.scad>
 
-script="Arabic"; // [Arabic,Armenian,Balinese,Bengali,CJK TC,Devanagari,English,Ethiopic,Georgian,Gujarati,Gurmukhi,Hebrew,Javanese,Kannada,Khmer,Lao,Mongolian,Myanmar,Oriya,Sinhala,Tamil,Thai,Tibetan,Tifinagh]
+script="Arabic"; // [Arabic,Armenian,Balinese,Bengali,Devanagari,English,Ethiopic,Georgian,Gujarati,Gurmukhi,Hebrew,Javanese,Kannada,Khmer,Lao,Mongolian,Myanmar,Oriya,Sinhala,Tamil,Thai,Tibetan,Tifinagh]
 
 style="Regular"; // [Regular,Bold,Italic]
 
@@ -66,7 +66,7 @@ greeting = struct_val([
     ["Armenian", "Բարև"],
     ["Balinese", "ᬒᬁᬓᬭ"],
     ["Bengali", "নমস্কার"],
-    ["CJK TC": "你好"],
+    // ["CJK TC": "你好"],
     ["Devanagari", "नमस्ते"],
     ["English", "Hello"],
     ["Ethiopic", "ሰላም"],
