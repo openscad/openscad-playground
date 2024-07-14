@@ -5,7 +5,7 @@ SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
 SHALLOW=--depth 1
 
-SHELL:=/bin/bash
+SHELL:=/usr/bin/env bash
 
 all: public
 
@@ -33,7 +33,8 @@ public: \
 		public/libraries/pathbuilder.zip \
 		public/libraries/openscad_attachable_text3d.zip \
 		public/libraries/brailleSCAD.zip \
-		public/libraries/UB.scad.zip
+		public/libraries/UB.scad.zip \
+		public/libraries/lasercut.zip
 
 clean:
 	rm -fR libs build
@@ -267,3 +268,10 @@ libs/openscad-tray:
 public/libraries/openscad-tray.zip: libs/openscad-tray
 	mkdir -p public/libraries
 	( cd libs/openscad-tray ; zip -r ../../public/libraries/openscad-tray.zip *.scad LICENSE )
+	
+libs/lasercut:
+	git clone --recurse https://github.com/bmsleight/lasercut.git ${SHALLOW} ${SINGLE_BRANCH} $@
+public/libraries/lasercut.zip: libs/lasercut
+	mkdir -p public/libraries
+	( cd libs/lasercut ; zip -r ../../public/libraries/lasercut.zip *.scad LICENSE )
+	
