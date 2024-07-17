@@ -25,7 +25,7 @@ export default function HelpMenu({className, style}: {className?: string, style?
         {
           label: 'OpenSCAD Docs',
           icon: 'pi pi-book',
-          url: 'http://openscad.org/documentation.html',
+          url: 'https://openscad.org/documentation.html',
           target: '_blank'
         },
         {
@@ -38,7 +38,7 @@ export default function HelpMenu({className, style}: {className?: string, style?
         {
           label: 'OpenSCAD Cheatsheet',
           icon: 'pi pi-palette',
-          url: 'http://openscad.org/cheatsheet/',
+          url: 'https://openscad.org/cheatsheet/',
           target: '_blank'
         },
         {

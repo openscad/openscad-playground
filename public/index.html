@@ -1,13 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OpenSCAD Playground</title>
+    <meta name="description" content="OpenSCAD Playground: edit .scad models and render them to STL from the browser (WebAssembly build OpenSCAD, with Monaco editor and STL Viewer)">
+
+    <link rel="icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="logo192.png">
+    <!-- https://developers.google.com/web/fundamentals/web-app-manifest/ -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
 
     <link rel="prefetch" href="openscad.wasm">
     <link rel="prefetch" href="openscad-worker.js">
     <link rel="prefetch" href="libraries/fonts.zip">
-  
+
     <link rel="prefetch" href="libraries/MCAD.zip">
     <link rel="prefetch" href="libraries/BOSL2.zip">
     <link rel="prefetch" href="libraries/BOSL.zip">
@@ -29,22 +37,8 @@
 
     <script src="./index.js" defer></script>
 
-    <link rel="icon" href="../public/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css">
 
-    <meta
-      name="description"
-      content="OpenSCAD Playground: edit .scad models and render them to STL from the browser (WebAssembly build OpenSCAD, with Monaco editor and STL Viewer)"
-    />
-    <link rel="apple-touch-icon" href="logo192.png" />
-    
-    <!-- https://developers.google.com/web/fundamentals/web-app-manifest/ -->
-    <link rel="manifest" href="manifest.json" />
-
-    <title>OpenSCAD Playground</title>
     <style>
       #root,
       body,
@@ -70,7 +64,7 @@
       }
 
       .p-fieldset-legend,
-      .p-fieldset-content {  
+      .p-fieldset-content {
         padding-top: 0 !important;
         padding-bottom: 0 !important;
       }
@@ -120,16 +114,15 @@
       .p-tabmenu-nav {
         padding-right: 30px;
       }
-      
+
+      .github-fork-ribbon:before { background-color: #333; }
     </style>
-    <style>.github-fork-ribbon:before { background-color: #333; }</style>
-  
-    <audio id="complete-sound">
-      <source src="complete.wav" type="audio/wav" />
-      Your browser does not support the audio element.
-    </audio>
   </head>
   <body>
+    <audio id="complete-sound">
+      <source src="complete.wav" type="audio/wav">
+      Your browser does not support the audio element.
+    </audio>
     <a target="_blank" class="github-fork-ribbon"
        href="https://github.com/ochafik/openscad-playground/tree/color-assimp2"
        data-ribbon="Fork me on GitHub"
