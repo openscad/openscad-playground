@@ -48,6 +48,7 @@ export default function CustomizerPanel({className, style}: {className?: string,
         style={{
           display: 'flex',
           flexDirection: 'column',
+          maxHeight: '80vh',
           overflow: 'scroll',
           ...style,
           bottom: 'unset',

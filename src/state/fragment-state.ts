@@ -1,8 +1,8 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { State } from "./app-state";
+import { State, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
-import { defaultModelColor } from "./initial-state";
+import { defaultModelColor, defaultSourcePath } from "./initial-state";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -60,12 +60,18 @@ export async function readStateFromFragment(): Promise<State | null> {
       const {params, view} = obj;
       return {
         params: {
-          sourcePath: validateString(params?.sourcePath),
-          source: validateString(params?.source),
+          activePath: validateString(params?.activePath, () => defaultSourcePath),
           features: validateArray(params?.features, validateString),
           vars: params?.vars, // TODO: validate!
+          // Source deserialization also handles legacy links (source + sourcePath)
+          sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
+          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'glb'),
+          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'glb'),
+          extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
+          logs: validateBoolean(view?.logs),
+          extruderPicker: validateBoolean(view?.extruderPicker),
           layout: {
             mode: validateStringEnum(view?.layout?.mode, ['multi', 'single']),
             focus: validateStringEnum(view?.layout?.focus, ['editor', 'viewer', 'customizer'], s => false),

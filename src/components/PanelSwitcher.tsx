@@ -6,6 +6,7 @@ import { TabMenu } from 'primereact/tabmenu';
 import { ToggleButton } from 'primereact/togglebutton';
 import { ModelContext, FSContext } from './contexts';
 import SettingsMenu from './SettingsMenu';
+import HelpMenu from './HelpMenu';
 
 export default function PanelSwitcher() {
   const model = useContext(ModelContext);
@@ -63,11 +64,18 @@ export default function PanelSwitcher() {
                   ({icon, label/*, disabled: id === 'customizer' && state?.parameterSet == null*/, command: () => model.changeSingleVisibility(id)}))} />
               </>
         }
-        <SettingsMenu style={{
+
+      
+        {/* <HelpMenu style={{
           position: 'absolute',
           right: 0,
           top: '4px',
-        }} />
+        }} /> */}
+        {/* <SettingsMenu style={{
+          position: 'absolute',
+          right: 0,
+          top: '4px',
+        }} /> */}
       </div>
     </div>
   );

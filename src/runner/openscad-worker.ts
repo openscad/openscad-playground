@@ -2,9 +2,10 @@
 
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, symlinkLibraries } from "../fs/filesystem";
+import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem";
 import { OpenSCADInvocation, OpenSCADInvocationResults } from "./openscad-runner";
 import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
+import { fetchSource } from "../utils.js";
 declare var BrowserFS: BrowserFSInterface
 
 importScripts("browserfs.min.js");
@@ -17,8 +18,9 @@ addEventListener('message', async (e) => {
   const { inputs, args, outputPaths, wasmMemory } = e.data as OpenSCADInvocation;
 
   const mergedOutputs: MergedOutputs = [];
+  let instance: any;
   try {
-    const instance = await OpenSCAD({
+    instance = await OpenSCAD({
       wasmMemory,
       buffer: wasmMemory && wasmMemory.buffer,
       noInitialRun: true,
@@ -29,6 +31,9 @@ addEventListener('message', async (e) => {
       'printErr': (text: string) => {
         console.debug('stderr: ' + text);
         mergedOutputs.push({ stderr: text })
+      },
+      'ENV': {
+        'OPENSCADPATH': '/libraries',
       },
     });
 
@@ -53,22 +58,52 @@ addEventListener('message', async (e) => {
 
     // Fonts are seemingly resolved from $(cwd)/fonts
     instance.FS.chdir("/");
-    
+      
+    // const walkFolder = (path: string, indent = '') => {
+    //   console.log("Walking " + path);
+    //   instance.FS.readdir(path)?.forEach((f: string) => {
+    //     if (f.startsWith('.')) {
+    //       return;
+    //     }
+    //     const ii = indent + '  ';
+    //     const p = `${path != '/' ? path + '/' : '/'}${f}`;
+    //     console.log(`${ii}${p}`);
+    //     walkFolder(p, ii);
+    //   });
+    // };
+    // walkFolder('/libraries');
+
     if (inputs) {
-      for (const [path, content] of inputs) {
+      for (const source of inputs) {
         try {
-          // const parent = getParentDir(path);
-          instance.FS.writeFile(path, content);
-          // fs.writeFile(path, content);
+          instance.FS.writeFile(source.path, await fetchSource(source));
         } catch (e) {
-          console.error(`Error while trying to write ${path}`, e);
+          console.error(`Error while trying to write ${source.path}`, e);
         }
       }
     }
     
     console.log('Invoking OpenSCAD with: ', args)
     const start = performance.now();
-    const exitCode = instance.callMain(args);
+    // console.log(Object.keys(instance.FS))
+
+    // instance.FS.readdir('/libraries').forEach((f: string) => {
+    //   console.log("TOP LEVEL: " + f);
+    //   instance.FS.readdir(`/libraries/${f}`).forEach((ff: string) => {
+    //     console.log("  " + ff);
+    //   });
+    // });
+    let exitCode;
+    try {
+      exitCode = instance.callMain(args);
+    } catch(e){
+      if(typeof e === "number" && instance.formatException){
+        // The number was a raw C++ exception
+        // See https://github.com/emscripten-core/emscripten/pull/16343
+        e = instance.formatException(e);
+      }
+      throw new Error(`OpenSCAD invocation failed: ${e}`);
+    }
     const end = performance.now();
 
     const outputs: [string, string][] = [];

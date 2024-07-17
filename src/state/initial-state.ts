@@ -8,9 +8,11 @@ export const defaultModelColor = '#f9d72c';
   
 export const blankProjectState: State = {
   params: {
-    sourcePath: defaultSourcePath,
-    source: '',
+    activePath: defaultSourcePath,
+    sources: [{path: defaultSourcePath, content: ''}],
     features: [],
+    renderFormat: 'glb',
+    exportFormat: 'glb',
   },
   view: {
     color: defaultModelColor,
@@ -29,9 +31,12 @@ export function createInitialState(fs: any, state: State | null) {
 
   const initialState: State = {
     params: {
-      sourcePath: defaultSourcePath,
-      source: defaultScad,
+      activePath: defaultSourcePath,
+      sources: [{path: defaultSourcePath, content: defaultScad}],
       features: [],
+      renderFormat: 'glb',
+      exportFormat: 'glb',
+      extruderColors: state?.params?.extruderColors,
     },
     view: {
       layout: {
@@ -67,12 +72,12 @@ export function createInitialState(fs: any, state: State | null) {
   initialState.view.showAxes ??= true
   initialState.view.showShadows ??= true
 
-  fs.writeFile(initialState.params.sourcePath, initialState.params.source);
-  if (initialState.params.sourcePath !== defaultSourcePath) {
-    fs.writeFile(defaultSourcePath, defaultScad);
-  }
+  // fs.writeFile(initialState.params.sourcePath, initialState.params.source);
+  // if (initialState.params.sourcePath !== defaultSourcePath) {
+  //   fs.writeFile(defaultSourcePath, defaultScad);
+  // }
   
-  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
+  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union', 'assimp', 'render-colors'];
   defaultFeatures.forEach(f => {
     if (initialState.params.features.indexOf(f) < 0)
     initialState.params.features.push(f);

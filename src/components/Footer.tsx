@@ -12,34 +12,40 @@ import { Toast } from 'primereact/toast';
 import SettingsMenu from './SettingsMenu';
 import HelpMenu from './HelpMenu';
 import { confirmDialog } from 'primereact/confirmdialog';
+// import { SplitButton } from 'primereact/splitbutton';
+import { Dropdown } from 'primereact/dropdown';
+import ExportButton from './ExportButton';
 
 function downloadOutput(state: State) {
   if (!state.output) return;
-  const sourcePathParts = state.params.sourcePath.split('/');
-  const sourceFileName = sourcePathParts.slice(-1)[0];
-  const fileName = [sourceFileName, state.output!.isPreview ? 'preview.stl' : 'render.stl'].join('.');
+  const sourcePathParts = state.params.activePath.split('/');
+  const sourceFileName = sourcePathParts.slice(-1)[0] + '.' + state.params.exportFormat;
+  // const fileName = [
+  //   sourceFileName,
+  //   state.output!.isPreview ? 'preview.glb' : 'render.' + state.params.renderFormat
+  // ].join('.');
   const doDownload = () => {
     const a = document.createElement('a')
-    a.href = state.output!.stlFileURL
-    a.download = fileName;
+    a.href = state.output!.outFileURL
+    a.download = sourceFileName;//
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
   };
 
-  if (state.output.isPreview && state.params.source.indexOf('$preview') >= 0) {
-    confirmDialog({
-        message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
-        header: 'Preview vs. Render',
-        icon: 'pi pi-exclamation-triangle',
-        accept: doDownload, 
-        acceptLabel: `Download ${fileName}`,
-        rejectLabel: 'Cancel'
-        // reject: () => {}
-    });
-  } else {
-    doDownload();
-  }
+  // if (state.output.isPreview && state.params.source.indexOf('$preview') >= 0) {
+  //   confirmDialog({
+  //       message: "This model references the $preview variable but hasn't been rendered (F6), or its rendering is stale. You're about to download the preview result itself, which may not have the intended refinement of the render. Sure you want to proceed?",
+  //       header: 'Preview vs. Render',
+  //       icon: 'pi pi-exclamation-triangle',
+  //       accept: doDownload, 
+  //       acceptLabel: `Download ${fileName}`,
+  //       rejectLabel: 'Cancel'
+  //       // reject: () => {}
+  //   });
+  // } else {
+  doDownload();
+  // }
 
 }
 
@@ -76,7 +82,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
                 style={{
                   marginLeft: '5px',
                   marginRight: '5px',
-                    visibility: state.rendering || state.previewing || state.checkingSyntax
+                    visibility: state.rendering || state.previewing || state.checkingSyntax || state.exporting
                       ? 'visible' : 'hidden',
                     height: '6px' }}></ProgressBar>
       
@@ -89,16 +95,20 @@ export default function Footer({style}: {style?: CSSProperties}) {
         margin: '5px',
         ...(style ?? {})
     }}>
-      <Button onClick={() => model.render({isPreview: false, now: true})}
-        loading={state.rendering}
-        icon="pi pi-refresh"
-        title="Render the model (F6 / Ctrl+Enter). Models can test $preview to enable more detail in renders only."
-        label="Render" />
+      <Button
+        icon="pi pi-bolt"
+        onClick={() => model.render({isPreview: false, now: true})}
+        className="p-button-sm"
+        label="Render"
+        />
+
+      <ExportButton />
       
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
             // label={state.view.logs ? "Hide logs" : "Show logs"}
-            label="Logs"
+            // label="Logs"
+            severity={maxMarkerSeverity && severityByMarkerSeverity.get(maxMarkerSeverity)}
             icon="pi pi-align-left"
             text={!state.view.logs}
             onClick={() => model.logsVisible = !state.view.logs}
@@ -112,15 +122,24 @@ export default function Footer({style}: {style?: CSSProperties}) {
           {getBadge(monaco.MarkerSeverity.Info)}
         </Button>}
 
-      {state.output && (
+      <div style={{flex: 1}}></div>
+
+      <HelpMenu style={{
+          position: 'absolute',
+          right: 0,
+          top: '4px',
+        }} />
+
+        {/* title={`Download ${(state.output.isPreview ? "preview." : "render.") + state.params.renderFormat} (${state.output.formattedOutFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`} */}
+      {/* {state.export && (
         <Button icon='pi pi-download'
-          title={`Download ${state.output.isPreview ? "preview.stl" : "render.stl"} (${state.output.formattedStlFileSize})\nGenerated in ${state.output.formattedElapsedMillis}`}
           severity="secondary"
           text
+          title={`Download ${state.export.outFile.name} (${state.export.formattedOutFileSize})\nGenerated in ${state.export.formattedElapsedMillis}`}
           // label={state.output.isPreview ? "preview.stl" : "render.stl"}
           iconPos='right'
           onClick={() => downloadOutput(state)} />
-      )}
+      )} */}
 
       {/* {state.output &&
         <span style={{color: 'blue'}}>
@@ -134,11 +153,9 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
       {/* <span style={{flex: 1}}></span> */}
       
-      <span style={{flex: 1}}></span>
+      {/* <span style={{flex: 1}}></span> */}
 
       <Toast ref={toast} />
-      
-      <HelpMenu />
     </div>
   </>
 }

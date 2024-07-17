@@ -6,16 +6,48 @@ import { ParameterSet } from './customizer-types';
 export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
 
+export const VALID_RENDER_FORMATS = {
+  'stl': true,
+  'glb': true,
+};
+export const VALID_EXPORT_FORMATS = {
+  'stl': true,
+  'off': true,
+  'glb': true,
+  '3mf': true,
+  'x3d': true,
+  'dae': true,
+};
+
+export type Source = {
+  // If path ends w/ /, it's a directory, and URL should contain a ZIP file that can be mounted
+  path: string,
+  url?: string,
+  content?: string,
+};
+
+export interface FileOutput {
+  outFile: File,
+  outFileURL: string,
+  elapsedMillis: number,
+  formattedElapsedMillis: string,
+  formattedOutFileSize: string,
+}
+
 export interface State {
   params: {
-    sourcePath: string,
-    source: string,
+    activePath: string,
+    sources: Source[],
     vars?: {[name: string]: any},
     features: string[],
+    renderFormat: keyof typeof VALID_RENDER_FORMATS,
+    exportFormat: keyof typeof VALID_EXPORT_FORMATS,
+    extruderColors?: string[],
   },
 
   view: {
     logs?: boolean,
+    extruderPicker?: boolean,
     layout: {
       mode: 'single',
       focus: SingleLayoutComponentId,
@@ -33,26 +65,19 @@ export interface State {
 
   lastCheckerRun?: {
     logText: string,
-    markers: monaco.editor.IMarkerData[]
+    markers: monaco.editor.IMarkerData[],
   }
   rendering?: boolean,
   previewing?: boolean,
+  exporting?: boolean,
   checkingSyntax?: boolean,
 
   parameterSet?: ParameterSet,
   error?: string,
-  output?: {
+  output?: FileOutput & {
     isPreview: boolean,
-    stlFile: File,
-    stlFileURL: string,
-    elapsedMillis: number,
-    formattedElapsedMillis: string,
-    formattedStlFileSize: string,
-    // path: string,
-    // timestamp: number,
-    // sizeBytes: number,
-    // formattedSize: string,
   },
+  export?: FileOutput,
 };
 
 export interface StatePersister {
