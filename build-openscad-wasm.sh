@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ -z "${OPENSCAD_DIR:-}" ]; then
-  OPENSCAD_DIR=/tmp/openscad-color
+  OPENSCAD_DIR=~/tmp/openscad-color
   if [ ! -d "$OPENSCAD_DIR" ]; then
       rm -fR "$OPENSCAD_DIR"
       git clone --recurse https://github.com/ochafik/openscad.git \
@@ -11,11 +11,10 @@ if [ -z "${OPENSCAD_DIR:-}" ]; then
   fi
 fi
 
-( cd "$OPENSCAD_DIR" && 
-  docker run --rm -it -v "$PWD":/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
-    emcmake cmake -B build -DEXPERIMENTAL=ON "$@" && \
-  docker run --rm -it -v "$PWD":/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
-    cmake --build build -j10 )
+docker run --rm -it -v "$OPENSCAD_DIR":/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
+  emcmake cmake -B build -DEXPERIMENTAL=ON "$@"
+docker run --rm -it -v "$OPENSCAD_DIR":/src:rw --platform=linux/amd64 openscad/wasm-base:latest \
+  cmake --build build -j10
 
 rm -fR libs/openscad-wasm
 mkdir -p libs/openscad-wasm
