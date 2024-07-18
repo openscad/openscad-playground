@@ -1,7 +1,6 @@
-// import typescript from 'rollup-plugin-typescript';
-import typescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript';
 import replace from '@rollup/plugin-replace';
-import packageConfig from './package.json'
+import packageConfig from './package.json' with {type: 'json'};
 
 const LOCAL_URL = process.env.LOCAL_URL ?? 'http://localhost:4000/';
 const PUBLIC_URL = process.env.PUBLIC_URL ?? packageConfig.homepage;

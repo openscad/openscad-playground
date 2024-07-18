@@ -1,8 +1,12 @@
-const CopyPlugin = require("copy-webpack-plugin");
+import CopyPlugin from 'copy-webpack-plugin';
+import path, {dirname} from 'path';
 
-const path = require('path');
+import {fileURLToPath} from 'url';
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const config = {
   entry: './src/index.tsx',
   // devtool: 'inline-source-map',
   module: {
@@ -43,16 +47,16 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { 
+        {
           from: path.resolve(__dirname, 'public'),
           toType: 'dir',
         },
-        { 
+        {
           from: path.resolve(__dirname, 'node_modules/primeicons/fonts'),
           to: path.resolve(__dirname, 'dist/fonts'),
           toType: 'dir',
         },
-        { 
+        {
           from: path.resolve(__dirname, 'src/wasm/openscad.js'),
           from: path.resolve(__dirname, 'src/wasm/openscad.wasm'),
         },
@@ -60,3 +64,5 @@ module.exports = {
     }),
   ],
 };
+
+export default config;
