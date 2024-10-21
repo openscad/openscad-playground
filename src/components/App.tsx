@@ -10,7 +10,7 @@ import { ModelContext, FSContext, FileSystemContext } from './contexts';
 import PanelSwitcher from './PanelSwitcher';
 import { ConfirmDialog } from 'primereact/confirmdialog';
 import CustomizerPanel from './CustomizerPanel';
-import { BaseFileSystem, DummyFileSystem } from '../fs/base-filesystem';
+import { BaseFileSystem, DummyFileSystem, LocalStorage } from '../fs/base-filesystem';
 
 
 // import "primereact/resources/themes/lara-light-indigo/theme.css";
@@ -19,7 +19,7 @@ import { BaseFileSystem, DummyFileSystem } from '../fs/base-filesystem';
 
 export function App({ initialState, statePersister, fs }: { initialState: State, statePersister: StatePersister, fs: FS }) {
   const [state, setState] = useState(initialState);
-  const [fileSystem, setFileSystem] = useState(new DummyFileSystem() as BaseFileSystem);
+  const [fileSystem, setFileSystem] = useState(new LocalStorage() as BaseFileSystem);
 
   const model = new Model(fs, fileSystem, state, setState, statePersister);
   useEffect(() => model.init());

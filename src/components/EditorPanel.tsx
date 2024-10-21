@@ -125,7 +125,8 @@ export default function EditorPanel({ className, style }: { className?: string, 
             separator: true
           },
           {
-            label: 'Use Local Filter System',
+            label: 'Use Local File System',
+            disabled: !('showOpenFilePicker' in self),
             command: () => { const fileSystem = new LocalFileSystem(); fileSystem.initialise().finally(() => fileSystemState?.setFileSystem(fileSystem)) },
           },
           // https://vscode-docs.readthedocs.io/en/stable/customization/keybindings/
