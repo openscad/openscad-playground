@@ -4,15 +4,18 @@ import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions
 import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { formatBytes, formatMillis } from '../utils'
+import { useContext, useState } from "react";
+import { FileSystemContext } from "../components/contexts";
+import { BaseFileSystem, FileSystemContextInterface } from "../fs/base-filesystem";
 
 export class Model {
-  constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
+  constructor(private fs: FS, private fileSystem: BaseFileSystem, public state: State, private setStateCallback?: (state: State) => void,
     private statePersister?: StatePersister) {
   }
-  
+
   init() {
     if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering &&
-        this.state.params.source.trim() != '') {
+      this.state.params.source.trim() != '') {
       this.processSource();
     }
   }
@@ -36,8 +39,8 @@ export class Model {
   }
 
   setVar(name: string, value: any) {
-    this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
-    this.render({isPreview: true, now: false});
+    this.mutate(s => s.params.vars = { ...s.params.vars ?? {}, [name]: value });
+    this.render({ isPreview: true, now: false });
   }
 
   set logsVisible(value: boolean) {
@@ -45,7 +48,7 @@ export class Model {
       if (this.state.view.layout.mode === 'single') {
         this.changeSingleVisibility('editor');
       } else {
-        this.changeMultiVisibility('editor', true);  
+        this.changeMultiVisibility('editor', true);
       }
     }
     this.mutate(s => s.view.logs = value);
@@ -100,10 +103,16 @@ export class Model {
     })
   }
 
-  openFile(path: string) {
+  async openFile(path: string) {
+    const fileSystem = this.fileSystem;
+    if (fileSystem === undefined) {
+      return;
+    }
+
+    let fileContent = await fileSystem.readFile(path);
     // alert(`TODO: open ${path}`);
     if (this.mutate(s => {
-      s.params.source = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
+      s.params.source = fileContent;
       if (s.params.sourcePath != path) {
         s.params.sourcePath = path;
         s.lastCheckerRun = undefined;
@@ -123,26 +132,29 @@ export class Model {
   private processSource() {
     const params = this.state.params;
     // if (isFileWritable(params.sourcePath)) {
-      // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
-      this.fs.writeFile(params.sourcePath, params.source);
+    // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
+    this.fileSystem.saveFile(params.sourcePath, params.source);
+    //this.fs.writeFile(params.sourcePath, params.source);
     // }
     this.checkSyntax();
-    this.render({isPreview: true, now: false});
+    this.render({ isPreview: true, now: false });
   }
   checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
-    checkSyntax(this.state.params.source, this.state.params.sourcePath)({now: false, callback: (checkerRun, err) => this.mutate(s => {
-      if (err != null) {
-        console.error('Error while checking syntax:', err)
-      } else {
-        s.lastCheckerRun = checkerRun;
-        s.parameterSet = checkerRun?.parameterSet;
-        s.checkingSyntax = false;
-      }
-    })});
+    checkSyntax(this.state.params.source, this.state.params.sourcePath)({
+      now: false, callback: (checkerRun, err) => this.mutate(s => {
+        if (err != null) {
+          console.error('Error while checking syntax:', err)
+        } else {
+          s.lastCheckerRun = checkerRun;
+          s.parameterSet = checkerRun?.parameterSet;
+          s.checkingSyntax = false;
+        }
+      })
+    });
   }
 
-  render({isPreview, now}: {isPreview: boolean, now: boolean}) {
+  render({ isPreview, now }: { isPreview: boolean, now: boolean }) {
     const setRendering = (s: State, value: boolean) => {
       if (isPreview) {
         s.previewing = value;
@@ -152,39 +164,41 @@ export class Model {
     }
     this.mutate(s => setRendering(s, true));
 
-    const {source, sourcePath, vars, features} = this.state.params;
-    
-    render({source, sourcePath, vars, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
-      this.mutate(s => {
-        setRendering(s, false);
-        if (err != null) {
-          console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
-          s.error = `${err}`;
-        } else if (output) {
-          s.error = undefined;
-          s.lastCheckerRun = {
-            logText: output.logText,
-            markers: output.markers,
-          }
-          if (s.output?.stlFileURL) {
-            URL.revokeObjectURL(s.output.stlFileURL);
-          }
+    const { source, sourcePath, vars, features } = this.state.params;
 
-          s.output = {
-            isPreview: isPreview,
-            stlFile: output.stlFile,
-            stlFileURL: URL.createObjectURL(output.stlFile),
-            elapsedMillis: output.elapsedMillis,
-            formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedStlFileSize: formatBytes(output.stlFile.size),
-          };
+    render({ source, sourcePath, vars, features, extraArgs: [], isPreview })({
+      now, callback: (output, err) => {
+        this.mutate(s => {
+          setRendering(s, false);
+          if (err != null) {
+            console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
+            s.error = `${err}`;
+          } else if (output) {
+            s.error = undefined;
+            s.lastCheckerRun = {
+              logText: output.logText,
+              markers: output.markers,
+            }
+            if (s.output?.stlFileURL) {
+              URL.revokeObjectURL(s.output.stlFileURL);
+            }
 
-          if (!isPreview) {
-            const audio = document.getElementById('complete-sound') as HTMLAudioElement;
-            audio?.play();
+            s.output = {
+              isPreview: isPreview,
+              stlFile: output.stlFile,
+              stlFileURL: URL.createObjectURL(output.stlFile),
+              elapsedMillis: output.elapsedMillis,
+              formattedElapsedMillis: formatMillis(output.elapsedMillis),
+              formattedStlFileSize: formatBytes(output.stlFile.size),
+            };
+
+            if (!isPreview) {
+              const audio = document.getElementById('complete-sound') as HTMLAudioElement;
+              audio?.play();
+            }
           }
-        }
-      });
-    }})
+        });
+      }
+    })
   }
 }

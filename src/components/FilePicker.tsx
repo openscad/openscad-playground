@@ -1,15 +1,15 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useContext } from 'react';
+import { CSSProperties, useContext, useEffect, useState } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
-import { ModelContext, FSContext } from './contexts';
+import { ModelContext, FSContext, FileSystemContext } from './contexts';
 // import { isFileWritable } from '../state/model';
 import { join } from '../fs/filesystem';
 import { defaultSourcePath } from '../state/initial-state';
 import { zipArchives } from '../fs/zip-archives';
 
-const biasedCompare = (a: string, b: string) => 
+const biasedCompare = (a: string, b: string) =>
   a === 'openscad' ? -1 : b === 'openscad' ? 1 : a.localeCompare(b);
 
 function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
@@ -82,34 +82,46 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
   return nodes;
 }
 
-export default function FilePicker({className, style}: {className?: string, style?: CSSProperties}) {
+export default function FilePicker({ className, style }: { className?: string, style?: CSSProperties }) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
 
   const fs = useContext(FSContext);
 
-  const fsItems = fs && listFilesAsNodes(fs, '/')
+  const fileSystem = useContext(FileSystemContext);
+
+  const [files, setFiles] = useState<TreeNode[]>([]);
+
+  useEffect(() => {
+    async function apiCall() {
+      const apiResponse = await fileSystem?.fileSystem.getFiles();
+      console.log(apiResponse);
+      // @ts-ignore
+      setFiles(apiResponse);
+    }
+    apiCall();
+  }, [files]);
 
   return (
-      <TreeSelect 
-          className={className}
-          title='OpenSCAD Playground Files'
-          value={state.params.sourcePath}
-          resetFilterOnHide={true}
-          filterBy="key"
-          onChange={e => {
-            const key = e.value;
-            if (typeof key === 'string') {
-              if (key.startsWith('https://')) {
-                window.open(key, '_blank')
-              } else {
-                model.openFile(key);
-              }
-            }
-          }}
-          filter
-          style={style}
-          options={fsItems} />
+    <TreeSelect
+      className={className}
+      title='OpenSCAD Playground Files'
+      value={state.params.sourcePath}
+      resetFilterOnHide={true}
+      filterBy="key"
+      onChange={e => {
+        const key = e.value;
+        if (typeof key === 'string') {
+          if (key.startsWith('https://')) {
+            window.open(key, '_blank')
+          } else {
+            model.openFile(key);
+          }
+        }
+      }}
+      filter
+      style={style}
+      options={files} />
   )
 }

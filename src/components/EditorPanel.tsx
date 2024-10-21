@@ -10,8 +10,9 @@ import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { buildUrlForStateParams } from '../state/fragment-state';
 import { blankProjectState, defaultSourcePath } from '../state/initial-state';
-import { ModelContext, FSContext } from './contexts';
-import FilePicker, {  } from './FilePicker';
+import { ModelContext, FSContext, FileSystemContext } from './contexts';
+import FilePicker, { } from './FilePicker';
+import { DummyFileSystem, LocalFileSystem } from '../fs/base-filesystem';
 
 // const isMonacoSupported = false;
 const isMonacoSupported = (() => {
@@ -25,10 +26,12 @@ if (isMonacoSupported) {
   loader.init().then(mi => monacoInstance = mi);
 }
 
-export default function EditorPanel({className, style}: {className?: string, style?: CSSProperties}) {
+export default function EditorPanel({ className, style }: { className?: string, style?: CSSProperties }) {
 
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
+
+  const fileSystemState = useContext(FileSystemContext);
 
   const menu = useRef<Menu>(null);
 
@@ -50,12 +53,12 @@ export default function EditorPanel({className, style}: {className?: string, sty
     editor.addAction({
       id: "openscad-render",
       label: "Render OpenSCAD",
-      run: () => model.render({isPreview: false, now: true})
+      run: () => model.render({ isPreview: false, now: true })
     });
     editor.addAction({
       id: "openscad-preview",
       label: "Preview OpenSCAD",
-      run: () => model.render({isPreview: true, now: true})
+      run: () => model.render({ isPreview: true, now: true })
     });
     setEditor(editor)
   }
@@ -72,7 +75,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
       <div className='flex flex-row gap-2' style={{
         margin: '5px',
       }}>
-          
+
         <Menu model={[
           {
             label: "New project",
@@ -89,12 +92,19 @@ export default function EditorPanel({className, style}: {className?: string, sty
           },
           {
             separator: true
-          },  
+          },
           {
             // TODO: popup to ask for file name
             label: "New file",
             icon: 'pi pi-plus',
-            disabled: true,
+            disabled: false,
+            command: async () => {
+              const name = window.prompt("New file name", "example.scad");
+              if (name !== null) {
+                await fileSystemState?.fileSystem.createFile(name);
+                await model.openFile(name);
+              }
+            },
           },
           {
             label: "Copy to new file",
@@ -113,6 +123,11 @@ export default function EditorPanel({className, style}: {className?: string, sty
           },
           {
             separator: true
+          },
+          {
+            label: 'Use Local File System',
+            disabled: !('showOpenFilePicker' in self),
+            command: () => { const fileSystem = new LocalFileSystem(); fileSystem.initialise().finally(() => fileSystemState?.setFileSystem(fileSystem)) },
           },
           // https://vscode-docs.readthedocs.io/en/stable/customization/keybindings/
           // {
@@ -137,49 +152,49 @@ export default function EditorPanel({className, style}: {className?: string, sty
           //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCopyAction', null),
           // },
           // {
-            //   label: 'Cut',
-            //   icon: 'pi pi-eraser',
-            //   // disabled: true,
-            //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCutAction', null),
-            // },
-            // {
-              //   label: 'Paste',
-              //   icon: 'pi pi-images',
-              //   // disabled: true,
-              //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardPasteAction', null),
-              // },
-              {
-                label: 'Select All',
-                icon: 'pi pi-info-circle',
-                // disabled: true,
-                command: () => editor?.trigger(state.params.sourcePath, 'editor.action.selectAll', null),
-              },
-              {
-                separator: true
-              },
-              {
-                label: 'Find',
-                icon: 'pi pi-search',
-                // disabled: true,
-                command: () => editor?.trigger(state.params.sourcePath, 'actions.find', null),
-              },
+          //   label: 'Cut',
+          //   icon: 'pi pi-eraser',
+          //   // disabled: true,
+          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCutAction', null),
+          // },
+          // {
+          //   label: 'Paste',
+          //   icon: 'pi pi-images',
+          //   // disabled: true,
+          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardPasteAction', null),
+          // },
+          {
+            label: 'Select All',
+            icon: 'pi pi-info-circle',
+            // disabled: true,
+            command: () => editor?.trigger(state.params.sourcePath, 'editor.action.selectAll', null),
+          },
+          {
+            separator: true
+          },
+          {
+            label: 'Find',
+            icon: 'pi pi-search',
+            // disabled: true,
+            command: () => editor?.trigger(state.params.sourcePath, 'actions.find', null),
+          },
         ] as MenuItem[]} popup ref={menu} />
         <Button title="Editor menu" rounded text icon="pi pi-ellipsis-h" onClick={(e) => menu.current && menu.current.toggle(e)} />
-        
-        <FilePicker 
-            style={{
-              flex: 1,
-            }}/>
 
-        {state.params.sourcePath !== defaultSourcePath && 
-          <Button icon="pi pi-chevron-left" 
-          text
-          onClick={() => model.openFile(defaultSourcePath)} 
-          title={`Go back to ${defaultSourcePath}`}/>}
+        <FilePicker
+          style={{
+            flex: 1,
+          }} />
+
+        {state.params.sourcePath !== defaultSourcePath &&
+          <Button icon="pi pi-chevron-left"
+            text
+            onClick={() => model.openFile(defaultSourcePath)}
+            title={`Go back to ${defaultSourcePath}`} />}
 
       </div>
 
-      
+
       <div style={{
         position: 'relative',
         flex: 1
@@ -201,12 +216,12 @@ export default function EditorPanel({className, style}: {className?: string, sty
           />
         )}
         {!isMonacoSupported && (
-          <InputTextarea 
+          <InputTextarea
             style={{
             }}
             className="openscad-editor absolute-fill"
             value={state.params.source}
-            onChange={s => model.source = s.target.value ?? ''}  
+            onChange={s => model.source = s.target.value ?? ''}
           />
         )}
       </div>
@@ -219,7 +234,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
         <pre><code id="logs" style={{
         }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre>
       </div>
-    
+
     </div>
   )
 }

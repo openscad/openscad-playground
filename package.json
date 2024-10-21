@@ -14,6 +14,7 @@
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
     "debug": "^4.3.4",
+    "file-system-access": "^1.0.4",
     "monaco-editor": "^0.36.1",
     "primeflex": "^3.3.1",
     "primeicons": "^6.0.1",
