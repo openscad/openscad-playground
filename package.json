@@ -24,9 +24,10 @@
     "react-widgets": "^5.8.4"
   },
   "scripts": {
-    "start": "concurrently 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
+    "start": "concurrently 'npm run generateSW' 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
     "start:prod": "PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
-    "build": "NODE_ENV=production npx rollup --config openscad-worker.rollup.config.js && webpack --mode=production"
+    "generateSW": "workbox generateSW workbox-config.js",
+    "build": "NODE_ENV=production npx rollup --config openscad-worker.rollup.config.js && webpack --mode=production && npm run generateSW"
   },
   "eslintConfig": {
     "extends": [
@@ -71,6 +72,7 @@
     "tslib": "^2.5.0",
     "webpack": "^5.76.3",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^4.15.2",
+    "workbox-cli": "^7.1.0"
   }
 }
