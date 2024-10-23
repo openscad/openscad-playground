@@ -226,8 +226,11 @@ export default function EditorPanel({className, style}: {className?: string, sty
         overflowY: 'scroll',
         height: 'calc(min(200px, 30vh))',
       }}>
-        <pre><code id="logs" style={{
-        }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre>
+        {(state.currentRunLogs ?? []).map(([type, text], i) => (
+          <pre key={i}>{text}</pre>
+        ))}
+        {/* <pre><code id="logs" style={{
+        }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre> */}
       </div>
     
     </div>

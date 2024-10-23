@@ -2,7 +2,7 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { getParentDir } from '../fs/filesystem';
-import { spawnOpenSCAD } from "./openscad-runner";
+import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 import { Source, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from '../state/app-state';
@@ -12,19 +12,30 @@ import { ParameterSet } from '../state/customizer-types';
 
 const syntaxDelay = 300;
 
+type SyntaxCheckArgs = {
+  activePath: string,
+  sources: Source[],
+}
 type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[], parameterSet?: ParameterSet};
 export const checkSyntax =
-  turnIntoDelayableExecution(syntaxDelay, (activePath: string, sources: Source[]) => {
+  turnIntoDelayableExecution(syntaxDelay, (sargs: SyntaxCheckArgs) => {
     // const timestamp = Date.now(); 
+    const {
+      activePath,
+      sources,
+    } = sargs;
     
     const content = '$preview=true;\n' + sources[0].content;
 
     const outFile = 'out.json';
     const job = spawnOpenSCAD({
+      mountArchives: true,
       inputs: sources,
       args: [activePath, "-o", outFile, "--export-format=param"],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
       outputPaths: [outFile],
+    }, (streams) => {
+      console.log(JSON.stringify(streams));
     });
 
     return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
@@ -77,8 +88,10 @@ export type RenderArgs = {
   features?: string[],
   extraArgs?: string[],
   isPreview: boolean,
+  mountArchives: boolean,
   renderFormat: keyof typeof VALID_EXPORT_FORMATS | keyof typeof VALID_RENDER_FORMATS,
-  extruderColors?: string[]
+  extruderColors?: string[],
+  streamsCallback: (ps: ProcessStreams) => void,
 }
 
 function formatValue(any: any): string {
@@ -91,16 +104,29 @@ function formatValue(any: any): string {
   }
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, ({scadPath, sources, isPreview, vars, features, extraArgs, renderFormat, extruderColors}: RenderArgs) => {
+ turnIntoDelayableExecution(renderDelay, (renderArgs: RenderArgs) => {
+    const {
+      scadPath,
+      sources,
+      isPreview,
+      mountArchives,
+      vars,
+      features: additionalFeatures,
+      extraArgs,
+      renderFormat,
+      extruderColors,
+      streamsCallback,
+    }  = renderArgs;
 
     const extruderRGBColors = renderFormat == '3mf' && extruderColors ? parseColors(extruderColors.join('\n')) : undefined;
 
     const prefixLines: string[] = [];
+    let features: string[]
     if (isPreview) {
       prefixLines.push('$preview=true;');
-      features = ['render-modifiers', ...(features ?? [])];
+      features = ['render-modifiers', ...(additionalFeatures ?? [])];
     } else {
-      features = (features ?? []).filter(f => f != 'render-modifiers');
+      features = (additionalFeatures ?? []).filter(f => f != 'render-modifiers');
     }
     if (!scadPath.endsWith('.scad')) throw new Error('First source must be a .scad file, got ' + sources[0].path + ' instead');
     
@@ -122,11 +148,12 @@ export const render =
     
     const job = spawnOpenSCAD({
       // wasmMemory,
+      mountArchives: mountArchives,
       inputs: sources.map(s => s.path === scadPath ? {path: s.path, content} : s),
       args,
       outputPaths: [outFile],
       // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
-    });
+    }, streamsCallback);
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {
       (async () => {
@@ -155,9 +182,10 @@ export const render =
           const fileName = filePathFragments[filePathFragments.length - 1];
 
           // TODO: have the runner accept and return files.
-          const blob = new Blob([content], { type: "application/octet-stream" });
-          // console.log(new TextDecoder().decode(content));
-          let outFile = new File([blob], fileName);
+          const type = filePath.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream';
+          const blob = new Blob([content]);
+          // console.log(new TextDecoder().decode(content as any));
+          let outFile = new File([blob], fileName, {type});
           if (extruderRGBColors) {
             try {
               outFile = await materialize3MFFile(outFile, extruderRGBColors);

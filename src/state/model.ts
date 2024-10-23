@@ -3,9 +3,11 @@
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
 import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
 import { bubbleUpDeepMutations } from "./deep-mutate";
-import { downloadUrl, fetchSource, formatBytes, formatMillis } from '../utils'
+import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils'
 
 import JSZip from 'jszip';
+import { ProcessStreams } from "../runner/openscad-runner";
+import { is2DFormatExtension } from "./formats";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -37,13 +39,19 @@ export class Model {
     return false;
   }
 
-  set renderFormat(format: keyof typeof VALID_RENDER_FORMATS) {
-    this.mutate(s => s.params.renderFormat = format);
+  setFormats(renderFormat: keyof typeof VALID_RENDER_FORMATS, exportFormat: keyof typeof VALID_EXPORT_FORMATS) {
+    this.mutate(s => {
+      s.params.renderFormat = renderFormat;
+      s.params.exportFormat = exportFormat;
+    });
   }
+  // set renderFormat(format: keyof typeof VALID_RENDER_FORMATS) {
+  //   this.mutate(s => s.params.renderFormat = format);
+  // }
 
-  set exportFormat(format: keyof typeof VALID_EXPORT_FORMATS) {
-    this.mutate(s => s.params.exportFormat = format);
-  }
+  // set exportFormat(format: keyof typeof VALID_EXPORT_FORMATS) {
+  //   this.mutate(s => s.params.exportFormat = format);
+  // }
   setVar(name: string, value: any) {
     this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
     this.render({isPreview: true, now: false});
@@ -147,24 +155,40 @@ export class Model {
       // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
     // this.fs.writeFile(params.sourcePath, params.source);
     // }
-    this.checkSyntax();
+    if (this.state.params.activePath.endsWith('.scad')) {
+      this.checkSyntax();
+    }
     this.render({isPreview: true, now: false});
   }
 
-  checkSyntax() {
+  async checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
-    checkSyntax(this.state.params.activePath, this.state.params.sources)({now: false, callback: (checkerRun, err) => this.mutate(s => {
-      if (err != null) {
-        console.error('Error while checking syntax:', err)
-      } else {
+    try {
+      const checkerRun = await checkSyntax({
+        activePath: this.state.params.activePath,
+        sources: this.state.params.sources,
+      })({now: false});
+      this.mutate(s => {
         s.lastCheckerRun = checkerRun;
         s.parameterSet = checkerRun?.parameterSet;
         s.checkingSyntax = false;
-      }
-    })});
+      });
+    } catch (err) {
+      console.error('Error while checking syntax:', err)
+    }
   }
 
-  export() {
+  rawStreamsCallback(ps: ProcessStreams) {
+    this.mutate(s => {
+      if ('stdout' in ps) {
+        s.currentRunLogs?.push(['stdout', ps.stdout]);
+      } else {
+        s.currentRunLogs?.push(['stderr', ps.stderr]);
+      }
+    });
+  }
+
+  async export() {
     if (this.state.output && (this.state.params.renderFormat === this.state.params.exportFormat)) {
       this.mutate(s => s.export = s.output);
       downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
@@ -174,7 +198,10 @@ export class Model {
       this.mutate(s => this.state.view.extruderPicker = true);
       return;
     }
-    this.mutate(s => s.exporting = true);
+    this.mutate(s => {
+      s.currentRunLogs ??= [];
+      s.exporting = true;
+    });
 
     const outFile = this.state.output?.outFile;
     const outFileURL = this.state.output?.outFileURL;
@@ -194,29 +221,44 @@ export class Model {
       }
     ];
     let {features, exportFormat, extruderColors} = this.state.params;
+
+    const renderArgs: RenderArgs = {
+      mountArchives: false,
+      scadPath,
+      sources,
+      extraArgs: [], isPreview: false,
+      features,
+      renderFormat: exportFormat,
+      extruderColors,
+      streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
+    };
     
-    render({scadPath, sources, features, extraArgs: [], isPreview: false, renderFormat: exportFormat, extruderColors})({now: true, callback: (output, err) => {
+    try {
+      const output = await render(renderArgs)({now: true});
+      const outFileURL = URL.createObjectURL(output.outFile);
+      // const outFileURL = await readFileAsDataURL(output.outFile);
       this.mutate(s => {
         s.exporting = false;
-        
-        if (err != null) {
-          console.error('Error while exporting:', err)
-          s.error = `${err}`;
-        } else if (output) {
-          if (s.export?.outFileURL) {
-            URL.revokeObjectURL(s.export.outFileURL);
-          }
-          s.export = {
-            outFile: output.outFile,
-            outFileURL: URL.createObjectURL(output.outFile),
-            elapsedMillis: output.elapsedMillis,
-            formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedOutFileSize: formatBytes(output.outFile.size),
-          };
-          downloadUrl(s.export.outFileURL, output.outFile.name);
+        if (s.export?.outFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.export!.outFileURL);
         }
+        s.export = {
+          outFile: output.outFile,
+          outFileURL,
+          // outFileURL: URL.createObjectURL(output.outFile),
+          elapsedMillis: output.elapsedMillis,
+          formattedElapsedMillis: formatMillis(output.elapsedMillis),
+          formattedOutFileSize: formatBytes(output.outFile.size),
+        };
+        downloadUrl(s.export.outFileURL, output.outFile.name);
       });
-    }})
+    } catch (err) {
+      this.mutate(s => {
+        s.exporting = false;
+        console.error('Error while exporting:', err)
+        s.error = `${err}`;
+      });
+    }
   }
 
   async saveProject() {
@@ -242,7 +284,9 @@ export class Model {
     }
   }
 
-  render({isPreview, now}: {isPreview: boolean, now: boolean}) {
+  async render({isPreview, mountArchives, now, retryInOtherDim}: {isPreview: boolean, mountArchives?: boolean, now: boolean, retryInOtherDim?: boolean}) {
+    mountArchives ??= true;
+    retryInOtherDim ??= true;
     const setRendering = (s: State, value: boolean) => {
       if (isPreview) {
         s.previewing = value;
@@ -250,41 +294,130 @@ export class Model {
         s.rendering = value;
       }
     }
-    this.mutate(s => setRendering(s, true));
+    this.mutate(s => {
+      s.currentRunLogs = [];
+      setRendering(s, true);
+    });
 
-    let {activePath, sources, vars, features, renderFormat, extruderColors} = this.state.params;
-    
-    render({scadPath: activePath, sources, vars, features, extraArgs: [], isPreview, renderFormat, extruderColors})({now, callback: (output, err) => {
+    let {
+      activePath,
+      sources,
+      vars,
+      features,
+      renderFormat,
+      extruderColors
+    } = this.state.params;
+
+    const extension = activePath.split('.').pop() ?? '';
+    if (!activePath.endsWith('.scad')) {
+      const resourcePath = activePath;
+      const loaderPath = '/load-resource.scad';
+      const is2D = is2DFormatExtension(extension);
+      
+      mountArchives = false;
+      activePath = loaderPath;
+      sources = [
+        {
+          path: activePath,
+          content: `${is2D ? 'linear_extrude(1) ' : ''} import("${resourcePath}");`,
+        },
+        ...sources.filter(s => s.path === resourcePath),
+      ];
+      renderFormat = 'glb';
+    }
+
+    const renderArgs: RenderArgs = {
+      mountArchives,
+      scadPath: activePath,
+      sources,
+      vars,
+      features,
+      isPreview,
+      renderFormat,
+      extruderColors,
+      streamsCallback: this.rawStreamsCallback.bind(this)
+    };
+    try {
+      let output = await render(renderArgs)({now});
+      if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
+        const fn = output.outFile.name;
+        const extrudedOutput = await render({
+          mountArchives: false,
+          scadPath: '/extruded.scad',
+          sources: [
+            {
+              path: '/extruded.scad',
+              content: `linear_extrude(1) import("${fn}");`,
+            },
+            {
+              path: `/${fn}`,
+              url: await readFileAsDataURL(output.outFile),
+            },
+          ],
+          vars: {},
+          features,
+          isPreview: false,
+          renderFormat: 'glb',
+          streamsCallback: this.rawStreamsCallback.bind(this)
+        })({now});
+        output.outFile = extrudedOutput.outFile;
+      }
+      const outFileURL = URL.createObjectURL(output.outFile);
+      // const outFileURL = await readFileAsDataURL(output.outFile);
       this.mutate(s => {
         setRendering(s, false);
-        if (err != null) {
-          console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
-          s.error = `${err}`;
-        } else if (output) {
-          s.error = undefined;
-          s.lastCheckerRun = {
-            logText: output.logText,
-            markers: output.markers,
-          }
-          if (s.output?.outFileURL) {
-            URL.revokeObjectURL(s.output.outFileURL);
-          }
+        s.error = undefined;
+        s.lastCheckerRun = {
+          logText: output.logText,
+          markers: output.markers,
+        }
+        if (s.output?.outFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.output!.outFileURL);
+        }
 
-          s.output = {
-            isPreview: isPreview,
-            outFile: output.outFile,
-            outFileURL: URL.createObjectURL(output.outFile),
-            elapsedMillis: output.elapsedMillis,
-            formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedOutFileSize: formatBytes(output.outFile.size),
-          };
+        s.output = {
+          isPreview: isPreview,
+          outFile: output.outFile,
+          outFileURL,
+          elapsedMillis: output.elapsedMillis,
+          formattedElapsedMillis: formatMillis(output.elapsedMillis),
+          formattedOutFileSize: formatBytes(output.outFile.size),
+        };
 
-          if (!isPreview) {
-            const audio = document.getElementById('complete-sound') as HTMLAudioElement;
-            audio?.play();
-          }
+        if (!isPreview) {
+          const audio = document.getElementById('complete-sound') as HTMLAudioElement;
+          audio?.play();
         }
       });
-    }})
+    } catch (err) {
+      this.mutate(s => {
+        setRendering(s, false);
+        console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
+        s.error = `${err}`;
+      });
+    }
+    if (retryInOtherDim) {
+      let is2D: boolean | undefined;
+      let is3D: boolean | undefined;
+      let isMixed: boolean | undefined;
+      for (const [pipe, line] of this.state.currentRunLogs ?? []) {
+        if (line == 'Current top level object is not a 3D object.') {
+          is3D = false;
+        } else if (line == 'Top level object is a 3D object:') {
+          is3D = true;
+        } else if (line == 'Current top level object is not a 2D object.') {
+          is2D = false;
+        } else if (line == 'Top level object is a 2D object:') {
+          is2D = true;
+        } else if (line.includes('WARNING: Mixing 2D and 3D objects is not supported')) {
+          isMixed = true;
+        }
+      }
+      if (is2D === false || is3D === false) {//} || isMixed !== undefined) {
+        this.mutate(s => s.params.renderFormat = is2D === false ? 'glb' : 'svg');
+        this.render({isPreview, now: true, retryInOtherDim: false});
+        return;
+      }
+    }
   }
 }

@@ -11,32 +11,32 @@ export async function writeStateInFragment(state: State) {
   window.location.hash = await encodeStateParamsAsFragment(state);
 }
 async function compressString(input: string): Promise<string> {
-  const stream = new ReadableStream<Uint8Array>({
+  return btoa(String.fromCharCode(...new Uint8Array(await new Response(new ReadableStream({
     start(controller) {
       controller.enqueue(new TextEncoder().encode(input));
       controller.close();
     }
-  });
   // @ts-ignore
-  const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
-  const compressedData = await new Response(compressedStream).arrayBuffer();
-  return btoa(String.fromCharCode(...new Uint8Array(compressedData)));
+  }).pipeThrough(new CompressionStream('gzip'))).arrayBuffer())));
 }
 
 async function decompressString(compressedInput: string): Promise<string> {
-  const compressedData = Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0));
-  const stream = new ReadableStream<Uint8Array>({
+  return new TextDecoder().decode(await new Response(new ReadableStream({
     start(controller) {
-      controller.enqueue(compressedData);
+      controller.enqueue(Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0)));
       controller.close();
     }
-  });
-
   // @ts-ignore
-  const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
-  const decompressedData = await new Response(decompressedStream).arrayBuffer();
-  return new TextDecoder().decode(decompressedData);
+  }).pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
 }
+
+// async function addFile(path: string, content: string) {
+//   const state = JSON.parse(await decompressString(window.location.hash.substring(1)));
+//   // console.log(JSON.stringify(state, null, 2)); // Put a breakpoint here if you wanna peek into the state
+//   state.params.sources.push({ path, content });
+//   window.history.pushState(state, '', '#' + await compressString(JSON.stringify(state)));
+//   window.location.reload();
+// }
 
 export function encodeStateParamsAsFragment(state: State) {
   const json = JSON.stringify({
