@@ -43,9 +43,7 @@ clean:
 	rm -fR src/wasm
 
 dist/index.js: public
-	npm run build2
-	# mkdir -f build/libraries
-	# cp -f public/libraries/*.zip build/libraries
+	npm run build
 
 dist/openscad-worker.js: src/openscad-worker.ts
 	npx rollup -c
