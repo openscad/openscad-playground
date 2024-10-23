@@ -65,8 +65,8 @@ export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/
         await createSymlink(target, source);
       }
     } else {
-      await createSymlink(`${prefix}/${n}`, `${cwd}/${n}`);
     }
+    await createSymlink(`${prefix}/${n}`, `${cwd}/${n}`);
   })()));
 }
 

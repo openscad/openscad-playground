@@ -2,22 +2,10 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { ParameterSet } from './customizer-types';
+import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
 
 export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
-
-export const VALID_RENDER_FORMATS = {
-  'stl': true,
-  'glb': true,
-};
-export const VALID_EXPORT_FORMATS = {
-  'stl': true,
-  'off': true,
-  'glb': true,
-  '3mf': true,
-  'x3d': true,
-  'dae': true,
-};
 
 export type Source = {
   // If path ends w/ /, it's a directory, and URL should contain a ZIP file that can be mounted
@@ -62,6 +50,8 @@ export interface State {
     showShadows?: boolean,
     lineNumbers?: boolean,
   }
+
+  currentRunLogs?: ['stderr'|'stdout', string][],
 
   lastCheckerRun?: {
     logText: string,

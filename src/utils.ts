@@ -30,33 +30,71 @@ export function turnIntoDelayableExecution<T extends any[], R>(
     job: (...args: T) => AbortablePromise<R>) {
   let pendingId: number | null;
   let runningJobKillSignal: (() => void) | null;
+  // return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
+  //   (async () => {
+  //     try {
+  //       const result = await job;
+  //       // console.log(result);
 
-  return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
-    const doExecute = async () => {
-      if (runningJobKillSignal) {
-        runningJobKillSignal();
-        runningJobKillSignal = null;
+  //       let parameterSet: ParameterSet | undefined = undefined;
+  //       if (result.outputs && result.outputs.length == 1) {
+  //         let [[, content]] = result.outputs;
+  //         content = new TextDecoder().decode(content as any);
+  //         try {
+  //           parameterSet = JSON.parse(content)
+  //           // console.log('PARAMETER SET', JSON.stringify(parameterSet, null, 2))
+  //         } catch (e) {
+  //           console.error(`Error while parsing parameter set: ${e}\n${content}`);
+  //         }
+  //       } else {
+  //         console.error('No output from runner!');
+  //       }
+
+  //       res({
+  //         ...processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
+  //           sourcePath: sources[0].path,
+  //           skipLines: 1,
+  //         }}),
+  //         parameterSet,
+  //       });
+  //     } catch (e) {
+  //       console.error(e);
+  //       rej(e);
+  //     }
+  //   })()
+  //   return () => job.kill();
+  // });
+  //return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
+  return (...args: T) => ({now}: {now: boolean}) => AbortablePromise<R>((resolve, reject) => {
+    let abortablePromise: AbortablePromise<R> | undefined = undefined;
+    (async () => {
+      const doExecute = async () => {
+        if (runningJobKillSignal) {
+          runningJobKillSignal();
+          runningJobKillSignal = null;
+        }
+        abortablePromise = job(...args);
+        runningJobKillSignal = abortablePromise.kill;
+        try {
+          resolve(await abortablePromise);
+        } catch (e) {
+          reject(e);
+        } finally {
+          runningJobKillSignal = null;
+        }
       }
-      const abortablePromise = job(...args);
-      runningJobKillSignal = abortablePromise.kill;
-      try {
-        callback(await abortablePromise);
-      } catch (e) {
-        callback(undefined, e);
-      } finally {
-        runningJobKillSignal = null;
+      if (pendingId) {
+        clearTimeout(pendingId);
+        pendingId = null;
       }
-    }
-    if (pendingId) {
-      clearTimeout(pendingId);
-      pendingId = null;
-    }
-    if (now) {
-      doExecute();
-    } else {
-      pendingId = window.setTimeout(doExecute, delay);
-    }
-  };
+      if (now) {
+        doExecute();
+      } else {
+        pendingId = window.setTimeout(doExecute, delay);
+      }
+    })();
+    return () => abortablePromise?.kill();
+  });
 }
 
 export function validateStringEnum<T extends string>(
@@ -130,4 +168,17 @@ export async function fetchSource({content, path, url}: Source) {
   } else {
     throw new Error('Invalid source: ' + JSON.stringify({path, content, url}));
   }
+}
+
+export function readFileAsDataURL(file: File) {
+  // TO data URI:
+  return new Promise<string>((res, rej) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      res(reader.result as string);
+    }
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+  // return URL.createObjectURL(file);
 }

@@ -24,37 +24,55 @@ export default function ExportButton({className, style}: {className?: string, st
         data: 'glb',
         label: 'glTF',
         icon: 'pi pi-download',
-        command: () => model!.exportFormat = 'glb',
+        command: () => model!.setFormats('glb', 'glb'),
       },
       {
         data: 'stl',
         label: 'STL',
         icon: 'pi pi-download',
-        command: () => model!.exportFormat = 'stl',
+        command: () => model!.setFormats('glb', 'stl'),
       },
       {
         data: 'off',
         label: 'OFF',
         icon: 'pi pi-download',
-        command: () => model!.exportFormat = 'off',
+        command: () => model!.setFormats('glb', 'off'),
       },
       // {
       //   data: 'stp',
       //   label: 'STEP',
       //   icon: 'pi pi-download',
-      //   command: () => model!.exportFormat = 'stp',
+      //   command: () => model!.setFormats('glb', 'stp'),
       // },
       {
         data: 'x3d',
         label: 'X3D',
         icon: 'pi pi-download',
-        command: () => model!.exportFormat = 'x3d',
+        command: () => model!.setFormats('glb', 'x3d'),
       },
       {
         data: '3mf',
         label: '3MF (Multi-material)',
         icon: 'pi pi-download',
-        command: () => model!.exportFormat = '3mf',
+        command: () => model!.setFormats('glb', '3mf'),
+      },
+      {
+        separator: true
+      },
+      {
+        data: 'svg',
+        label: 'SVG',
+        icon: 'pi pi-download',
+        command: () => model!.setFormats('svg', 'svg'),
+      },
+      {
+        data: 'dxf',
+        label: 'DXF',
+        icon: 'pi pi-download',
+        command: () => model!.setFormats('svg', 'dxf'),
+      },
+      {
+        separator: true
       },
       {
         label: 'Edit materials',

@@ -5,6 +5,7 @@ import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
 import { ColorPicker } from 'primereact/colorpicker';
 import { defaultModelColor } from '../state/initial-state';
+import { SVGViewer } from './SVGViewer';
 
 declare global {
   namespace JSX {
@@ -47,14 +48,22 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               }}
             />
       )}
+      {state.output?.outFile && state.output.outFile.name.endsWith('.svg') && state.output?.outFileURL && (
+        <SVGViewer url={state.output?.outFileURL ?? ''}
+          style={{
+            flex: 1,
+            width: '100%',
+            maxHeight: 'calc(100vh - 125px)',
+            overflow: 'hidden',
+          }} />
+        // <img src={state.output?.outFileURL ?? ''} style={{flex: 1, width: '100%'}} />
+      )}
       {state.output?.outFile && state.output.outFile.name.endsWith('.stl') && state.output?.outFileURL && (
         <>
          <StlViewer
-             className='absolute-fill'
              style={{
-               zIndex: 0,
-               // flex: 1,
-               // width: '100%'
+              width: '100%',
+              height: '100%',
              }}
              // ref={stlModelRef}
              showAxes={state.view.showAxes}
