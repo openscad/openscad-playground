@@ -1,5 +1,7 @@
-WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
-WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
+# Pinning WASM build to last good revision (https://github.com/openscad/openscad-playground/issues/60)
+WASM_BUILD_URL=https://files.openscad.org/snapshots/OpenSCAD-2024.09.27.wasm20596-WebAssembly.zip
+# WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
+# WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
 
 SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
