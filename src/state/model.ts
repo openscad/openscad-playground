@@ -1,7 +1,8 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister } from "./app-state";
+import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils'
 

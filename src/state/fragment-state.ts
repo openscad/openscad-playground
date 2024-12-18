@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { State, VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from "./app-state";
+import { State } from "./app-state";
+import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
 import { defaultModelColor, defaultSourcePath } from "./initial-state";
 
