@@ -114,7 +114,8 @@ NOTO_FONTS=\
 # libs/noto/NotoSansCJKtc-Regular.otf
 
 public/libraries/fonts.zip: $(NOTO_FONTS) libs/liberation
-	zip -r $@ -j fonts.conf libs/noto/{*.ttf,*.otf} libs/liberation/{*.ttf,LICENSE,AUTHORS}
+	mkdir -p public/libraries
+	zip -r $@ -j fonts.conf libs/noto/*.ttf libs/liberation/{*.ttf,LICENSE,AUTHORS}
 
 libs/noto/%.ttf:
 	mkdir -p libs/noto
