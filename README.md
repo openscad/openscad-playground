@@ -59,6 +59,7 @@ Local dev:
 
 ```bash
 make public
+npm install
 npm start
 # http://localhost:4000/
 ```
