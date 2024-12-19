@@ -32,7 +32,32 @@ if (process.env.NODE_ENV !== 'production') {
 declare var BrowserFS: BrowserFSInterface
 
 
-(async () => {
+
+window.addEventListener('load', async () => {
+  //*
+  if ('serviceWorker' in navigator) {
+      try {
+          const registration = await navigator.serviceWorker.register('./sw.js');
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+
+          registration.onupdatefound = () => {
+              const installingWorker = registration.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // Reload to activate the service worker and apply caching
+                        window.location.reload();
+                        return;
+                    }
+                };
+              }
+          };
+      } catch (err) {
+          console.log('ServiceWorker registration failed: ', err);
+      }
+  }
+  //*/
+  
   registerCustomAppHeightCSSProperty();
 
   const fs = await createEditorFS({prefix: '/', allowPersistence: isInStandaloneMode});
@@ -73,6 +98,6 @@ declare var BrowserFS: BrowserFSInterface
       <App initialState={initialState} statePersister={statePersister} fs={fs} />
     </React.StrictMode>
   );
-})();
+});
 
 
