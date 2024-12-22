@@ -2,11 +2,13 @@
 
 [Open the Demo](https://ochafik.com/openscad2)
 
-This is wrapping the headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)) into a lots of pretty [PrimeReact](https://github.com/primefaces/primereact) components, slapping in a [React Monaco editor](https://github.com/react-monaco-editor/react-monaco-editor) (VS Codesque power!), a [React STL viewer](https://github.com/gabotechs/react-stl-viewer) and a few tricks (of course, it's using the [experimental Manifold support](https://github.com/openscad/openscad/pull/4533) we've added recently, to make it super fast).
+<img width="1492" alt="image" src="https://github.com/user-attachments/assets/cee3aefc-c3b6-4f46-93fc-43db2d5cc673" />
+
+This is a limited port of OpenSCAD to WebAssembly, using at its core a headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)), wrapped in a UI made of pretty [PrimeReact](https://github.com/primefaces/primereact) components, a [React Monaco editor](https://github.com/react-monaco-editor/react-monaco-editor) (VS Codesque power!), a [<model-viewer>](https://modelviewer.dev/) [React STL viewer](https://github.com/gabotechs/react-stl-viewer) visualizer and a few tricks.
+
+It defaults to the [Manifold backend](https://github.com/openscad/openscad/pull/4533) so it's **super** fast.
 
 Enjoy!
-
-An [earlier iteration of this](https://ochafik.com/openscad) offered more control over the features that are enabled. This will come soon too.
 
 Licenses: see [LICENSES](./LICENSE).
 
@@ -18,26 +20,27 @@ Licenses: see [LICENSES](./LICENSE).
 - Ships with many standard SCAD libraries (can browse through them in the UI)
 - Autocomplete of imports
 - Autocomplete of symbols / function calls (pseudo-parses file and its transitive imports)
-- Responsive layout (but editing on iOS is still a pain, will address that soon). On small screens editor and viewer are stacked onto each other, while on larger screens they can be side-by-side
-- Installable as a PWA (then persists edits in localStorage instead of the hash fragment). On iOS just open the sharing panel and tap "Add to Home Screen".
+- Responsive layout. On small screens editor and viewer are stacked onto each other, while on larger screens they can be side-by-side
+- Installable as a PWA (then persists edits in localStorage instead of the hash fragment). On iOS just open the sharing panel and tap "Add to Home Screen". *Should not* require any internet connectivity once cached.
 
 ## Roadmap
 
-- Add tests!
-- Persist camera state
-- Support 2D somehow? (e.g. add option in OpenSCAD to output 2D geometry as non-closed polysets, or to auto-extrude by some height)
-- Rebuild w/ (and sync) ochafik@'s filtered kernel (https://github.com/openscad/openscad/pull/4160) to fix(ish) 2D operations
-- Replace Makefile w/ something that reads the libs metadata
-- Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
+- [x] Add tests!
+- [x] Persist camera state
+- [x] Support 2D somehow? (e.g. add option in OpenSCAD to output 2D geometry as non-closed polysets, or to auto-extrude by some height)
+- ~~Rebuild w/ (and sync) ochafik@'s filtered kernel (https://github.com/openscad/openscad/pull/4160) to fix(ish) 2D operations~~
+- [ ] Replace Makefile w/ something that reads the libs metadata
+- [ ] Merge modifiers rendering code to openscad
+- [x] Proper Preview rendering: have OpenSCAD export the preview scene to a rich format (e.g. glTF, with some parts being translucent when prefixed w/ % modifier) and display it using https://modelviewer.dev/ maybe)
 - Model /home fs in shared state. have two clear paths: /libraries for builtins, and /home for user data. State pointing to /libraries paths needs not store the data except if there's overrides (flagged as modifications in the file picker)
 - Drag and drop of files (SCAD, STL, etc) and Zip archives. For assets, auto insert the corresponding import.
 - Fuller PWA support w/ link Sharing, File opening / association to *.scad files... 
 - Look into accessibility
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples that include assets / import local files will run fine.
-- Bundle more examples (ask users to contribute)
+- [x] Bundle more examples (ask users to contribute)
 - Animation rendering (And other formats than STL)
-- Compress URL fragment
-- Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
+- [x] Compress URL fragment
+- [x] Mobile (iOS) editing support: switch to https://www.npmjs.com/package/react-codemirror ?
 - Detect which bundled libraries are included / used in the sources and only download these rather than wait for all of the zips. Means the file explorer would need to be more lazy or have some prebuilt hierarchy.
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
