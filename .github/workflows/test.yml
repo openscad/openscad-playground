@@ -12,7 +12,7 @@ jobs:
       matrix:
         node: [ 18, 20, 22 ]
         mode: [ 'dev', 'prod' ]
-    name: Node${{ matrix.node }}
+    name: Node ${{ matrix.node }} (${{ matrix.mode }})
     env:
       CI: true
       START_MODE: ${{ matrix.mode }}
