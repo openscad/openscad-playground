@@ -122,7 +122,6 @@ addEventListener('message', async (e) => {
       } catch (e) {
         console.trace(e);
         throw new Error(`Failed to read output file ${path}: ${e}`);
-        // console.trace(`Failed to read output file ${path}`, e);
       }
     }
     const result: OpenSCADInvocationResults = {
@@ -139,10 +138,9 @@ addEventListener('message', async (e) => {
     const end = performance.now();
     const elapsedMillis = end - start;
 
-    console.trace(e);//, e instanceof Error ? e.stack : '');
+    console.trace(e);
     const error = `${e}`;
     mergedOutputs.push({ error });
-    // callback({stderr: error})
     callback({
       result: {
         exitCode: undefined,

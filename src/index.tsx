@@ -32,7 +32,6 @@ if (process.env.NODE_ENV !== 'production') {
 declare var BrowserFS: BrowserFSInterface
 
 
-
 window.addEventListener('load', async () => {
   //*
   if (process.env.NODE_ENV === 'production') {

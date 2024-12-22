@@ -4,7 +4,6 @@ import { CSSProperties, useContext } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
 import { ModelContext, FSContext } from './contexts';
-// import { isFileWritable } from '../state/model';
 import { getParentDir, join } from '../fs/filesystem';
 import { defaultSourcePath } from '../state/initial-state';
 import { zipArchives } from '../fs/zip-archives';
@@ -69,7 +68,6 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
       }
 
       nodes.push({
-        // icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
         icon: isDirectory ? 'pi pi-folder' : path === defaultSourcePath ? 'pi pi-home' : 'pi pi-file',
         label,
         data: path,

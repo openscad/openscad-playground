@@ -45,7 +45,6 @@ export class Model {
       exportFormat2D: keyof typeof VALID_EXPORT_FORMATS_2D | undefined,
       exportFormat3D: keyof typeof VALID_EXPORT_FORMATS_3D | undefined) {
     this.mutate(s => {
-      // s.params.renderFormat = renderFormat;
       if (exportFormat2D != null) s.params.exportFormat2D = exportFormat2D;
       if (exportFormat3D != null) s.params.exportFormat3D = exportFormat3D;
     });
@@ -244,7 +243,6 @@ export class Model {
     try {
       const output = await render(renderArgs)({now: true});
       const outFileURL = URL.createObjectURL(output.outFile);
-      // const outFileURL = await readFileAsDataURL(output.outFile);
       this.mutate(s => {
         s.exporting = false;
         if (s.export?.outFileURL?.startsWith('blob:') ?? false) {
@@ -253,7 +251,6 @@ export class Model {
         s.export = {
           outFile: output.outFile,
           outFileURL,
-          // outFileURL: URL.createObjectURL(output.outFile),
           elapsedMillis: output.elapsedMillis,
           formattedElapsedMillis: formatMillis(output.elapsedMillis),
           formattedOutFileSize: formatBytes(output.outFile.size),

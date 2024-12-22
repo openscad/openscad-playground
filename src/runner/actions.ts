@@ -7,7 +7,6 @@ import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 import { Source } from '../state/app-state';
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from '../state/formats';
 import { ParameterSet } from '../state/customizer-types';
-import { convertOffToGlb, parseOff } from '../multimaterial/off2glb';
 
 const syntaxDelay = 300;
 
@@ -18,7 +17,6 @@ type SyntaxCheckArgs = {
 type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[], parameterSet?: ParameterSet};
 export const checkSyntax =
   turnIntoDelayableExecution(syntaxDelay, (sargs: SyntaxCheckArgs) => {
-    // const timestamp = Date.now(); 
     const {
       activePath,
       sources,
@@ -31,7 +29,6 @@ export const checkSyntax =
       mountArchives: true,
       inputs: sources,
       args: [activePath, "-o", outFile, "--export-format=param"],
-      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
       outputPaths: [outFile],
     }, (streams) => {
       console.log(JSON.stringify(streams));
@@ -144,12 +141,10 @@ export const render =
     ]
     
     const job = spawnOpenSCAD({
-      // wasmMemory,
       mountArchives: mountArchives,
       inputs: sources.map(s => s.path === scadPath ? {path: s.path, content} : s),
       args,
       outputPaths: [outFile],
-      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
     }, streamsCallback);
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {

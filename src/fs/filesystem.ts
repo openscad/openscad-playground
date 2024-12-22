@@ -45,13 +45,11 @@ export async function getBrowserFSLibrariesMounts(archiveNames: string[]) {
 
 export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/libraries', cwd='/tmp') {
   const createSymlink = async (target: string, source: string) => {
-    // console.log('symlink', target, source);
     try {
       await fs.symlink(target, source);
     } catch (e) {
       console.error(`symlink(${target}, ${source}) failed: `, e);
     }
-    // await symlink(target, source);
   };
 
   await Promise.all(archiveNames.map(n => (async () => {
@@ -111,8 +109,6 @@ export async function createEditorFS({prefix, allowPersistence}: {prefix: string
   });
 
   var fs = BrowserFS.BFSRequire('fs');
-  // const symlink = (target, source) => new Promise((res, rej) => fs.symlink(target, source, (err) => err ? rej(err) : res()));
 
-  // await setupLibraries(archiveNames, symlink, '/libraries', workingDir);
   return fs;
 }

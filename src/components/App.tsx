@@ -12,10 +12,6 @@ import { ConfirmDialog } from 'primereact/confirmdialog';
 import CustomizerPanel from './CustomizerPanel';
 
 
-// import "primereact/resources/themes/lara-light-indigo/theme.css";
-// import "primereact/resources/primereact.min.css";
-// import "primeicons/primeicons.css"; 
-
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
   const [state, setState] = useState(initialState);
   

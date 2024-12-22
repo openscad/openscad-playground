@@ -19,7 +19,6 @@ export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegab
 // Output is {outputs: [name, content][], mergedOutputs: [{(stderr|stdout|error)?: string}], exitCode: number}
 export type OpenSCADInvocation = {
   wasmMemory?: WebAssembly.Memory,
-  // workingDir: string,
   mountArchives: boolean,
   inputs?: Source[],
   args: string[],
@@ -48,12 +47,7 @@ export function spawnOpenSCAD(invocation: OpenSCADInvocation, streamsCallback: (
   }
     
   return AbortablePromise<OpenSCADInvocationResults>((resolve, reject) => {
-    worker = new Worker('./openscad-worker.js');//, {type: "module"})
-    // if (navigator.userAgent.indexOf(' Chrome/') < 0) {
-    //   worker = new Worker('./openscad-worker-firefox.js'); // {'type': 'module'}
-    // } else {
-    //   worker = new Worker('./openscad-worker.js', {'type': 'module'});
-    // }
+    worker = new Worker('./openscad-worker.js');
     rejection = reject;
     worker.onmessage = (e: {data: OpenSCADInvocationCallback}) => {
       if ('result' in e.data) {
@@ -66,7 +60,6 @@ export function spawnOpenSCAD(invocation: OpenSCADInvocation, streamsCallback: (
     worker.postMessage(invocation)
     
     return () => {
-      // rejection({error: 'Terminated'});
       terminate();
     };
   });

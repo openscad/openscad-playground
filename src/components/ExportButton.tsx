@@ -1,23 +1,13 @@
-import chroma from 'chroma-js';
-import React, { useContext, useState } from 'react';
-import { ColorPicker, ColorPickerHSBType, ColorPickerRGBType } from 'primereact/colorpicker';
-import { Button } from 'primereact/button';
-import { InputText } from 'primereact/inputtext';
+import React, { useContext } from 'react';
 import { ModelContext } from './contexts';
 
 import { SplitButton } from 'primereact/splitbutton';
-import { Dialog } from 'primereact/dialog';
-import { MenuItem, MenuItemCommandEvent } from 'primereact/menuitem';
-import { downloadUrl } from '../utils';
-import { is2DFormatExtension } from '../state/formats';
+import { MenuItem } from 'primereact/menuitem';
 
 export default function ExportButton({className, style}: {className?: string, style?: React.CSSProperties}) {
     const model = useContext(ModelContext);
     if (!model) throw new Error('No model');
     const state = model.state;
-
-    const [showMulticolorDialog, setShowMulticolorDialog] = useState(false);
-    const [dropdownVisible, setDropdownVisible] = useState(false);
 
     const dropdownModel: MenuItem[] = 
       state.is2D ? [
@@ -67,8 +57,6 @@ export default function ExportButton({className, style}: {className?: string, st
         severity="secondary"
         onClick={e => model!.export()}
         className="p-button-sm"
-        onShow={() => setDropdownVisible(true)}
-        onHide={() => setDropdownVisible(false)}
       />
     </div>
   );

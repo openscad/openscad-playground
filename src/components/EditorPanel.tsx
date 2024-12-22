@@ -126,55 +126,22 @@ export default function EditorPanel({className, style}: {className?: string, sty
           {
             separator: true
           },
-          // https://vscode-docs.readthedocs.io/en/stable/customization/keybindings/
-          // {
-          //   label: 'Undo',
-          //   icon: 'pi pi-undo',
-          //   // disabled: true,
-          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.undoAction', null),
-          // },
-          // {
-          //   label: 'Redo',
-          //   icon: 'pi pi-reply',
-          //   // disabled: true,
-          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.redoAction', null),
-          // },
           {
             separator: true
           },
-          // {
-          //   label: 'Copy',
-          //   icon: 'pi pi-copy',
-          //   // disabled: true,
-          //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCopyAction', null),
-          // },
-          // {
-            //   label: 'Cut',
-            //   icon: 'pi pi-eraser',
-            //   // disabled: true,
-            //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardCutAction', null),
-            // },
-            // {
-              //   label: 'Paste',
-              //   icon: 'pi pi-images',
-              //   // disabled: true,
-              //   command: () => editor?.trigger(state.params.sourcePath, 'editor.action.clipboardPasteAction', null),
-              // },
-              {
-                label: 'Select All',
-                icon: 'pi pi-info-circle',
-                // disabled: true,
-                command: () => editor?.trigger(state.params.activePath, 'editor.action.selectAll', null),
-              },
-              {
-                separator: true
-              },
-              {
-                label: 'Find',
-                icon: 'pi pi-search',
-                // disabled: true,
-                command: () => editor?.trigger(state.params.activePath, 'actions.find', null),
-              },
+          {
+            label: 'Select All',
+            icon: 'pi pi-info-circle',
+            command: () => editor?.trigger(state.params.activePath, 'editor.action.selectAll', null),
+          },
+          {
+            separator: true
+          },
+          {
+            label: 'Find',
+            icon: 'pi pi-search',
+            command: () => editor?.trigger(state.params.activePath, 'actions.find', null),
+          },
         ] as MenuItem[]} popup ref={menu} />
         <Button title="Editor menu" rounded text icon="pi pi-ellipsis-h" onClick={(e) => menu.current && menu.current.toggle(e)} />
         
@@ -208,7 +175,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
               ...openscadEditorOptions,
               fontSize: 16,
               lineNumbers: state.view.lineNumbers ? 'on' : 'off',
-              // readOnly: !isFileWritable(state.params.sourcePath)
             }}
           />
         )}
@@ -229,8 +195,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
         {(state.currentRunLogs ?? []).map(([type, text], i) => (
           <pre key={i}>{text}</pre>
         ))}
-        {/* <pre><code id="logs" style={{
-        }}>{state.lastCheckerRun?.logText ?? 'No log yet!'}</code></pre> */}
       </div>
     
     </div>

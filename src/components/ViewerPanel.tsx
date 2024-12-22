@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, forwardRef, useContext, useEffect, useRef, useState } from 'react';
+import { CSSProperties, useContext, useRef } from 'react';
 import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
 import { ColorPicker } from 'primereact/colorpicker';
@@ -54,7 +54,6 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               height: '100%',
              }}
-             // ref={stlModelRef}
              showAxes={state.view.showAxes}
              orbitControls
              shadows={state.view.showShadows}
