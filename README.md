@@ -2,7 +2,7 @@
 
 [Open the Demo](https://ochafik.com/openscad2)
 
-<img width="1492" alt="image" src="https://github.com/user-attachments/assets/cee3aefc-c3b6-4f46-93fc-43db2d5cc673" />
+<img width="684" alt="image" src="https://github.com/user-attachments/assets/71b1563e-b602-48ad-b849-ff25e5c5c043" />
 
 This is a limited port of OpenSCAD to WebAssembly, using at its core a headless WASM build of OpenSCAD ([done by @DSchroer](https://github.com/DSchroer/openscad-wasm)), wrapped in a UI made of pretty [PrimeReact](https://github.com/primefaces/primereact) components, a [React Monaco editor](https://github.com/react-monaco-editor/react-monaco-editor) (VS Codesque power!), a [<model-viewer>](https://modelviewer.dev/) [React STL viewer](https://github.com/gabotechs/react-stl-viewer) visualizer and a few tricks.
 
