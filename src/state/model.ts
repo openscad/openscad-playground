@@ -324,7 +324,7 @@ export class Model {
         },
         ...sources.filter(s => s.path === resourcePath),
       ];
-      renderFormat = 'glb';
+      renderFormat = 'off';
     }
 
     const renderArgs: RenderArgs = {
@@ -358,7 +358,7 @@ export class Model {
           vars: {},
           features,
           isPreview: false,
-          renderFormat: 'glb',
+          renderFormat: 'off',
           streamsCallback: this.rawStreamsCallback.bind(this)
         })({now});
         output.outFile = extrudedOutput.outFile;
@@ -415,7 +415,7 @@ export class Model {
         }
       }
       if (is2D === false || is3D === false) {//} || isMixed !== undefined) {
-        this.mutate(s => s.params.renderFormat = is2D === false ? 'glb' : 'svg');
+        this.mutate(s => s.params.renderFormat = is2D === false ? 'off' : 'svg');
         this.render({isPreview, now: true, retryInOtherDim: false});
         return;
       }

@@ -11,8 +11,8 @@ export const blankProjectState: State = {
     activePath: defaultSourcePath,
     sources: [{path: defaultSourcePath, content: ''}],
     features: [],
-    renderFormat: 'glb',
-    exportFormat: 'glb',
+    renderFormat: 'off',
+    exportFormat: 'off',
   },
   view: {
     color: defaultModelColor,
@@ -34,8 +34,8 @@ export function createInitialState(fs: any, state: State | null) {
       activePath: defaultSourcePath,
       sources: [{path: defaultSourcePath, content: defaultScad}],
       features: [],
-      renderFormat: 'glb',
-      exportFormat: 'glb',
+      renderFormat: 'off',
+      exportFormat: 'off',
       extruderColors: state?.params?.extruderColors,
     },
     view: {
@@ -77,7 +77,7 @@ export function createInitialState(fs: any, state: State | null) {
   //   fs.writeFile(defaultSourcePath, defaultScad);
   // }
   
-  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union', 'assimp', 'render-colors'];
+  const defaultFeatures = ['lazy-union', 'render-colors'];
   defaultFeatures.forEach(f => {
     if (initialState.params.features.indexOf(f) < 0)
     initialState.params.features.push(f);

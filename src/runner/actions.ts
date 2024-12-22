@@ -10,6 +10,7 @@ import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from '../state/formats';
 import { materialize3MFFile } from '../multimaterial/materialize';
 import { parseColors } from '../multimaterial/colors';
 import { ParameterSet } from '../state/customizer-types';
+import { convertOffToGlb, parseOff } from '../multimaterial/off2glb';
 
 const syntaxDelay = 300;
 
@@ -141,6 +142,7 @@ export const render =
     const args = [
       scadPath,
       "-o", outFile,
+      "--backend=manifold",
       "--export-format=" + (renderFormat == 'stl' ? 'binstl' : renderFormat),
       ...(Object.entries(vars ?? {}).flatMap(([k, v]) => [`-D${k}=${formatValue(v)}`])),
       ...(features ?? []).map(f => `--enable=${f}`),
@@ -180,11 +182,16 @@ export const render =
           }
           const [filePath, content] = output;
           const filePathFragments = filePath.split('/');
-          const fileName = filePathFragments[filePathFragments.length - 1];
+          let fileName = filePathFragments[filePathFragments.length - 1];
 
           // TODO: have the runner accept and return files.
           const type = filePath.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream';
-          const blob = new Blob([content]);
+          let blob = new Blob([content]);
+          if (renderFormat == 'off') {
+            const offData = parseOff(await blob.text());
+            blob = await convertOffToGlb(offData);
+            fileName = fileName.replace('.off', '.glb');
+          }
           // console.log(new TextDecoder().decode(content as any));
           let outFile = new File([blob], fileName, {type});
           if (extruderRGBColors) {

@@ -66,8 +66,8 @@ export async function readStateFromFragment(): Promise<State | null> {
           vars: params?.vars, // TODO: validate!
           // Source deserialization also handles legacy links (source + sourcePath)
           sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
-          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'glb'),
-          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'glb'),
+          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'off'),
+          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'off'),
           extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
