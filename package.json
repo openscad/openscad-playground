@@ -84,6 +84,7 @@
     "tslib": "^2.6.3",
     "webpack": "^5.76.3",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^4.15.2",
+    "workbox-webpack-plugin": "^7.1.0"
   }
 }
