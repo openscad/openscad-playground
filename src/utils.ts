@@ -1,5 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+import { Source } from "./state/app-state";
+
 export function mapObject(o: any, f: (key: string, value: any) => any, ifPred: (key: string) => boolean) {
   const ret = [];
   for (const key of Object.keys(o)) {
@@ -28,33 +30,71 @@ export function turnIntoDelayableExecution<T extends any[], R>(
     job: (...args: T) => AbortablePromise<R>) {
   let pendingId: number | null;
   let runningJobKillSignal: (() => void) | null;
+  // return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
+  //   (async () => {
+  //     try {
+  //       const result = await job;
+  //       // console.log(result);
 
-  return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
-    const doExecute = async () => {
-      if (runningJobKillSignal) {
-        runningJobKillSignal();
-        runningJobKillSignal = null;
+  //       let parameterSet: ParameterSet | undefined = undefined;
+  //       if (result.outputs && result.outputs.length == 1) {
+  //         let [[, content]] = result.outputs;
+  //         content = new TextDecoder().decode(content as any);
+  //         try {
+  //           parameterSet = JSON.parse(content)
+  //           // console.log('PARAMETER SET', JSON.stringify(parameterSet, null, 2))
+  //         } catch (e) {
+  //           console.error(`Error while parsing parameter set: ${e}\n${content}`);
+  //         }
+  //       } else {
+  //         console.error('No output from runner!');
+  //       }
+
+  //       res({
+  //         ...processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
+  //           sourcePath: sources[0].path,
+  //           skipLines: 1,
+  //         }}),
+  //         parameterSet,
+  //       });
+  //     } catch (e) {
+  //       console.error(e);
+  //       rej(e);
+  //     }
+  //   })()
+  //   return () => job.kill();
+  // });
+  //return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
+  return (...args: T) => ({now}: {now: boolean}) => AbortablePromise<R>((resolve, reject) => {
+    let abortablePromise: AbortablePromise<R> | undefined = undefined;
+    (async () => {
+      const doExecute = async () => {
+        if (runningJobKillSignal) {
+          runningJobKillSignal();
+          runningJobKillSignal = null;
+        }
+        abortablePromise = job(...args);
+        runningJobKillSignal = abortablePromise.kill;
+        try {
+          resolve(await abortablePromise);
+        } catch (e) {
+          reject(e);
+        } finally {
+          runningJobKillSignal = null;
+        }
       }
-      const abortablePromise = job(...args);
-      runningJobKillSignal = abortablePromise.kill;
-      try {
-        callback(await abortablePromise);
-      } catch (e) {
-        callback(undefined, e);
-      } finally {
-        runningJobKillSignal = null;
+      if (pendingId) {
+        clearTimeout(pendingId);
+        pendingId = null;
       }
-    }
-    if (pendingId) {
-      clearTimeout(pendingId);
-      pendingId = null;
-    }
-    if (now) {
-      doExecute();
-    } else {
-      pendingId = window.setTimeout(doExecute, delay);
-    }
-  };
+      if (now) {
+        doExecute();
+      } else {
+        pendingId = window.setTimeout(doExecute, delay);
+      }
+    })();
+    return () => abortablePromise?.kill();
+  });
 }
 
 export function validateStringEnum<T extends string>(
@@ -67,7 +107,7 @@ export const validateString = (s: string, orElse: () => string = () => '') => s 
 export const validateArray = <T>(a: Array<T>, validateElement: (e: T) => T, orElse: () => T[] = () => []) => {
   if (!(a instanceof Array)) return orElse();
   return a.map(validateElement);
-}
+};
 
 export function formatBytes(n: number) {
   if (n < 1024) {
@@ -102,4 +142,43 @@ export const isInStandaloneMode =
   // true
   Boolean(('standalone' in window.navigator) && (window.navigator.standalone));
 
-  
+export function downloadUrl(url: string, filename: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename)
+  document.body.appendChild(link);
+  link.click();
+  link.parentNode?.removeChild(link);
+}
+
+export async function fetchSource({content, path, url}: Source) {
+  if (content) {
+    return content;
+  } else if (url) {
+    if (path.endsWith('.scad') || path.endsWith('.json')) {
+      content = await (await fetch(url)).text();
+      return content;
+    } else {
+      // Fetch bytes
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const data = new Uint8Array(buffer);
+      return data;
+    }
+  } else {
+    throw new Error('Invalid source: ' + JSON.stringify({path, content, url}));
+  }
+}
+
+export function readFileAsDataURL(file: File) {
+  // TO data URI:
+  return new Promise<string>((res, rej) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      res(reader.result as string);
+    }
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+  // return URL.createObjectURL(file);
+}

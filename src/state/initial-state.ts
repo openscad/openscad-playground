@@ -6,22 +6,7 @@ import { State } from './app-state';
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
   
-export const blankProjectState: State = {
-  params: {
-    sourcePath: defaultSourcePath,
-    source: '',
-    features: [],
-  },
-  view: {
-    color: defaultModelColor,
-    layout: {
-      mode: 'single',
-      focus: 'editor'
-    }
-  }
-};
-
-export function createInitialState(fs: any, state: State | null) {
+export function createInitialState(state: State | null, content: string = defaultScad): State {
 
   type Mode = State['view']['layout']['mode'];
   const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
@@ -29,9 +14,11 @@ export function createInitialState(fs: any, state: State | null) {
 
   const initialState: State = {
     params: {
-      sourcePath: defaultSourcePath,
-      source: defaultScad,
+      activePath: defaultSourcePath,
+      sources: [{path: defaultSourcePath, content}],
       features: [],
+      exportFormat2D: 'svg',
+      exportFormat3D: 'glb',
     },
     view: {
       layout: {
@@ -67,12 +54,12 @@ export function createInitialState(fs: any, state: State | null) {
   initialState.view.showAxes ??= true
   initialState.view.showShadows ??= true
 
-  fs.writeFile(initialState.params.sourcePath, initialState.params.source);
-  if (initialState.params.sourcePath !== defaultSourcePath) {
-    fs.writeFile(defaultSourcePath, defaultScad);
-  }
+  // fs.writeFile(initialState.params.sourcePath, initialState.params.source);
+  // if (initialState.params.sourcePath !== defaultSourcePath) {
+  //   fs.writeFile(defaultSourcePath, defaultScad);
+  // }
   
-  const defaultFeatures = ['manifold', 'fast-csg', 'lazy-union'];
+  const defaultFeatures = ['lazy-union'];
   defaultFeatures.forEach(f => {
     if (initialState.params.features.indexOf(f) < 0)
     initialState.params.features.push(f);
@@ -81,3 +68,5 @@ export function createInitialState(fs: any, state: State | null) {
   return initialState;
 }
 
+
+export const blankProjectState: State = createInitialState(null, '');

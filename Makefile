@@ -1,5 +1,5 @@
-# Pinning WASM build to last good revision (https://github.com/openscad/openscad-playground/issues/60)
-WASM_BUILD_URL=https://files.openscad.org/snapshots/OpenSCAD-2024.09.27.wasm20596-WebAssembly.zip
+# Pin WASM build to a version known to work
+WASM_BUILD_URL=https://output.circle-artifacts.com/output/job/fdf49786-06c1-4775-aaa3-15dc089efc12/artifacts/0/wasm/OpenSCAD-2024.12.22.wasm21804-WebAssembly-web.zip
 # WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
 # WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
 
@@ -47,12 +47,20 @@ clean:
 dist/index.js: public
 	npm run build
 
-dist/openscad-worker.js: src/openscad-worker.ts
+dist/openscad-worker.js: src/openscad-worker.ts src/wasm/openscad.js
 	npx rollup -c
 
 src/wasm: libs/openscad-wasm
 	rm -f src/wasm
 	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
+
+# libs/openscad/build/openscad.js: libs/openscad
+# 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=1 )
+# 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh /bin/bash -c "cmake --build build -j || cmake --build build -j2 || cmake --build build" )
+
+# libs/openscad-wasm: libs/openscad/build/openscad.js
+# 	mkdir -p libs/openscad-wasm
+# 	cp libs/openscad/build/openscad.* libs/openscad-wasm/
 
 libs/openscad-wasm:
 	mkdir -p libs/openscad-wasm
@@ -116,7 +124,8 @@ NOTO_FONTS=\
 # libs/noto/NotoSansCJKtc-Regular.otf
 
 public/libraries/fonts.zip: $(NOTO_FONTS) libs/liberation
-	zip -r $@ -j fonts.conf libs/noto/{*.ttf,*.otf} libs/liberation/{*.ttf,LICENSE,AUTHORS}
+	mkdir -p public/libraries
+	zip -r $@ -j fonts.conf libs/noto/*.ttf libs/liberation/{*.ttf,LICENSE,AUTHORS}
 
 libs/noto/%.ttf:
 	mkdir -p libs/noto
@@ -130,7 +139,7 @@ libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
 libs/openscad:
-	git clone https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
+	git clone --recurse https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
 public/libraries/openscad.zip: libs/openscad
 	mkdir -p public/libraries
@@ -176,7 +185,7 @@ libs/YAPP_Box:
 
 public/libraries/YAPP_Box.zip: libs/YAPP_Box
 	mkdir -p public/libraries
-	( cd libs/YAPP_Box ; zip -r ../../public/libraries/YAPP_Box.zip *.scad LICENSE )
+	( cd libs/YAPP_Box ; zip -r ../../public/libraries/YAPP_Box.zip `find . -name '*.scad'` LICENSE )
 
 libs/MCAD:
 	git clone --recurse https://github.com/openscad/MCAD.git ${SHALLOW} ${SINGLE_BRANCH} $@

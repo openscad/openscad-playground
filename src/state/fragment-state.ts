@@ -1,8 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { State } from "./app-state";
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
-import { defaultModelColor } from "./initial-state";
+import { defaultModelColor, defaultSourcePath } from "./initial-state";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -11,32 +12,32 @@ export async function writeStateInFragment(state: State) {
   window.location.hash = await encodeStateParamsAsFragment(state);
 }
 async function compressString(input: string): Promise<string> {
-  const stream = new ReadableStream<Uint8Array>({
+  return btoa(String.fromCharCode(...new Uint8Array(await new Response(new ReadableStream({
     start(controller) {
       controller.enqueue(new TextEncoder().encode(input));
       controller.close();
     }
-  });
   // @ts-ignore
-  const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
-  const compressedData = await new Response(compressedStream).arrayBuffer();
-  return btoa(String.fromCharCode(...new Uint8Array(compressedData)));
+  }).pipeThrough(new CompressionStream('gzip'))).arrayBuffer())));
 }
 
 async function decompressString(compressedInput: string): Promise<string> {
-  const compressedData = Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0));
-  const stream = new ReadableStream<Uint8Array>({
+  return new TextDecoder().decode(await new Response(new ReadableStream({
     start(controller) {
-      controller.enqueue(compressedData);
+      controller.enqueue(Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0)));
       controller.close();
     }
-  });
-
   // @ts-ignore
-  const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
-  const decompressedData = await new Response(decompressedStream).arrayBuffer();
-  return new TextDecoder().decode(decompressedData);
+  }).pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
 }
+
+// async function addFile(path: string, content: string) {
+//   const state = JSON.parse(await decompressString(window.location.hash.substring(1)));
+//   // console.log(JSON.stringify(state, null, 2)); // Put a breakpoint here if you wanna peek into the state
+//   state.params.sources.push({ path, content });
+//   window.history.pushState(state, '', '#' + await compressString(JSON.stringify(state)));
+//   window.location.reload();
+// }
 
 export function encodeStateParamsAsFragment(state: State) {
   const json = JSON.stringify({
@@ -60,12 +61,17 @@ export async function readStateFromFragment(): Promise<State | null> {
       const {params, view} = obj;
       return {
         params: {
-          sourcePath: validateString(params?.sourcePath),
-          source: validateString(params?.source),
+          activePath: validateString(params?.activePath, () => defaultSourcePath),
           features: validateArray(params?.features, validateString),
           vars: params?.vars, // TODO: validate!
+          // Source deserialization also handles legacy links (source + sourcePath)
+          sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
+          exportFormat2D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_2D), s => 'svg'),
+          exportFormat3D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'off'),
         },
         view: {
+          logs: validateBoolean(view?.logs),
+          extruderPicker: validateBoolean(view?.extruderPicker),
           layout: {
             mode: validateStringEnum(view?.layout?.mode, ['multi', 'single']),
             focus: validateStringEnum(view?.layout?.focus, ['editor', 'viewer', 'customizer'], s => false),

@@ -1,25 +1,25 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { useRef } from 'react';
+import { CSSProperties, useRef } from 'react';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 
-export default function HelpMenu() {
+export default function HelpMenu({className, style}: {className?: string, style?: CSSProperties}) {
   const menuRef = useRef<Menu>(null);
   return (
     <>
-      <Menu model={[
+      <Menu style={style} className={className}  model={[
         {
           label: "openscad-playground",
           icon: 'pi pi-github',
-          url: 'https://github.com/openscad/openscad-playground',
+          url: 'https://github.com/ochafik/openscad-playground/tree/color-assimp2',
           target: '_blank'
         },
         {
           label: 'LICENSES',
           icon: 'pi pi-info-circle',
-          url: 'https://github.com/openscad/openscad-playground/blob/main/LICENSE.md',
+          url: 'https://github.com/ochafik/openscad-playground/blob/color-assimp2/LICENSE.md',
           target: '_blank'
         },
         {
@@ -48,7 +48,12 @@ export default function HelpMenu() {
           target: '_blank'
         },
       ] as MenuItem[]} popup ref={menuRef} />
-      <Button title="Help & Licenses" rounded icon="pi pi-question-circle" onClick={(e) => menuRef.current && menuRef.current.toggle(e)} />
+
+      <Button title="Help & Licenses"
+        rounded
+        text
+        icon="pi pi-question-circle"
+        onClick={(e) => menuRef.current && menuRef.current.toggle(e)} />
     </>
   );
 }

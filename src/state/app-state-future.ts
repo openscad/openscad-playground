@@ -45,7 +45,6 @@ export interface PlaygroundState {
   fileExplorerPath?: string,
   scadInputPath?: string,
   outputLogs?: {
-    // sourceLastModified: number,
     stdout: string,
     stderr: string,
     errors: {

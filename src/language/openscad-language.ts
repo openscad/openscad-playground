@@ -21,7 +21,6 @@ const builtInModuleNames = [
   'render', 'resize', 'rotate', 'round', 'scale', 
   'sphere', 'square', 'surface', 'translate', 
   'union', 'use', 'value', 'version', 
-  // 'center', 'width', 'height', 
 ];
 const builtInVarNames = [
   'false', 'true', 'PI', 'undef', '$children',

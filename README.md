@@ -47,11 +47,17 @@ Prerequisites:
 *   wget
 *   GNU make
 *   npm
+*   Docker able to run amd64 containers. If running on a different platform (including Silicon Mac), you can add support for amd64 images through QEMU with:
+
+  ```bash
+  docker run --privileged --rm tonistiigi/binfmt --install all
+  ```
 
 Local dev:
 
 ```bash
 make public
+npm install
 npm start
 # http://localhost:4000/
 ```
@@ -60,6 +66,7 @@ Local prod (test both the different inlining and serving under a prefix):
 
 ```bash
 make public
+npm install
 npm run start:prod
 # http://localhost:3000/dist/
 ```
@@ -68,7 +75,8 @@ Deployment (edit "homepage" in `package.json` to match your deployment root!):
 
 ```bash
 make public
-npm run build
+npm install
+NODE_ENV=production npm run build
 
 rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
 # Now commit and push changes, wait for site update and enjoy!

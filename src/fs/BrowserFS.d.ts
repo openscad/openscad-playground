@@ -1,7 +1,5 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-// import { FS } from "./filesystem";
-
 declare interface FS {
   writeFile(path: string, content: string): void;
   readdir(path: string, cb: (err: any, files: string[]) => void): void;

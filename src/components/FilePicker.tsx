@@ -4,8 +4,7 @@ import { CSSProperties, useContext } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import TreeNode from 'primereact/treenode';
 import { ModelContext, FSContext } from './contexts';
-// import { isFileWritable } from '../state/model';
-import { join } from '../fs/filesystem';
+import { getParentDir, join } from '../fs/filesystem';
 import { defaultSourcePath } from '../state/initial-state';
 import { zipArchives } from '../fs/zip-archives';
 
@@ -69,7 +68,6 @@ function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boole
       }
 
       nodes.push({
-        // icon: isDirectory ? 'pi pi-folder' : isFileWritable(path) ? 'pi pi-file' : 'pi pi-lock',
         icon: isDirectory ? 'pi pi-folder' : path === defaultSourcePath ? 'pi pi-home' : 'pi pi-file',
         label,
         data: path,
@@ -89,13 +87,28 @@ export default function FilePicker({className, style}: {className?: string, styl
 
   const fs = useContext(FSContext);
 
-  const fsItems = fs && listFilesAsNodes(fs, '/')
+  const fsItems: TreeNode[] = [];
+  for (const {path} of state.params.sources) {
+    const parent = getParentDir(path);
+    if (parent === '/') {
+      fsItems.push({
+        icon: 'pi pi-home',
+        label: path.split('/').pop(),
+        data: path,
+        key: path,
+        selectable: true,
+      });
+    }
+  }
+  if (fs) {
+    fsItems.push(...listFilesAsNodes(fs, '/'));
+  }
 
   return (
       <TreeSelect 
           className={className}
           title='OpenSCAD Playground Files'
-          value={state.params.sourcePath}
+          value={state.params.activePath}
           resetFilterOnHide={true}
           filterBy="key"
           onChange={e => {

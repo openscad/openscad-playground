@@ -2,6 +2,7 @@
 
 import { MergedOutputs } from "./openscad-worker";
 import { AbortablePromise } from "../utils";
+import { Source } from "../state/app-state";
 
 export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegabytes: number, maximumBytes: number}) {
   const pageSize = 64 * 1024; // 64KB
@@ -18,20 +19,22 @@ export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegab
 // Output is {outputs: [name, content][], mergedOutputs: [{(stderr|stdout|error)?: string}], exitCode: number}
 export type OpenSCADInvocation = {
   wasmMemory?: WebAssembly.Memory,
-  // workingDir: string,
-  inputs?: [string, string][],
+  mountArchives: boolean,
+  inputs?: Source[],
   args: string[],
   outputPaths?: string[],
 }
 export type OpenSCADInvocationResults = {
-  exitCode: number,
+  exitCode?: number,
   error?: string,
   outputs?: [string, string][],
   mergedOutputs: MergedOutputs,
   elapsedMillis: number,
-}
+};
+export type ProcessStreams = {stderr: string} | {stdout: string}
+export type OpenSCADInvocationCallback = {result: OpenSCADInvocationResults} | ProcessStreams;
 
-export function spawnOpenSCAD(invocation: OpenSCADInvocation): AbortablePromise<OpenSCADInvocationResults> {
+export function spawnOpenSCAD(invocation: OpenSCADInvocation, streamsCallback: (ps: ProcessStreams) => void): AbortablePromise<OpenSCADInvocationResults> {
   var worker: Worker | null;
   var rejection: (err: any) => void;
 
@@ -44,21 +47,19 @@ export function spawnOpenSCAD(invocation: OpenSCADInvocation): AbortablePromise<
   }
     
   return AbortablePromise<OpenSCADInvocationResults>((resolve, reject) => {
-    worker = new Worker('./openscad-worker.js');//, {type: "module"})
-    // if (navigator.userAgent.indexOf(' Chrome/') < 0) {
-    //   worker = new Worker('./openscad-worker-firefox.js'); // {'type': 'module'}
-    // } else {
-    //   worker = new Worker('./openscad-worker.js', {'type': 'module'});
-    // }
+    worker = new Worker('./openscad-worker.js');
     rejection = reject;
-    worker.onmessage = (e: {data: OpenSCADInvocationResults}) => {
-      resolve(e.data);
-      terminate();
+    worker.onmessage = (e: {data: OpenSCADInvocationCallback}) => {
+      if ('result' in e.data) {
+        resolve(e.data.result);
+        terminate();
+      } else {
+        streamsCallback(e.data);
+      }
     }
     worker.postMessage(invocation)
     
     return () => {
-      // rejection({error: 'Terminated'});
       terminate();
     };
   });

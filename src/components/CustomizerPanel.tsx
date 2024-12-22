@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { CSSProperties, useContext } from 'react';
-import { ModelContext, FSContext } from './contexts';
+import { ModelContext } from './contexts';
 
 import { Dropdown } from 'primereact/dropdown';
 import { Slider } from 'primereact/slider';
@@ -48,6 +48,7 @@ export default function CustomizerPanel({className, style}: {className?: string,
         style={{
           display: 'flex',
           flexDirection: 'column',
+          maxHeight: '80vh',
           overflow: 'scroll',
           ...style,
           bottom: 'unset',
@@ -81,8 +82,6 @@ export default function CustomizerPanel({className, style}: {className?: string,
 function ParameterInput({param, value, className, style, handleChange}: {param: Parameter, value: any, className?: string, style?: CSSProperties, handleChange: (key: string, value: any) => void}) {
   return (
     <div 
-      // ref={ref} 
-      // onClick={state.view.layout.mode === 'single' ? handleClick : undefined}
       style={{
         flex: 1,
         ...style,
@@ -99,7 +98,6 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           justifyContent: 'space-between',
         }}>
         <div 
-          // onClick={swallowClick}
           style={{
             flex: 1,
             display: 'flex',
@@ -109,10 +107,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           <div>{param.caption}</div>
         </div>
         <div 
-          // onClick={swallowClick}
           style={{
-            // flex: 1,
-            // margin: '10px',
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'center',
@@ -130,7 +125,6 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           )}
           {param.type === 'string' && param.options && (
             <Dropdown
-              // style={{flex: 1}}
               value={value || param.initial}
               options={param.options}
               onChange={(e) => handleChange(param.name, e.value)}
@@ -140,18 +134,15 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           )}
           {param.type === 'boolean' && (
             <Checkbox
-              // style={{flex: 1}}
               checked={value ?? param.initial}
               onChange={(e) => handleChange(param.name, e.checked)}
             />
           )}
           {!Array.isArray(param.initial) && param.type === 'number' && !('options' in param) && (
             <InputNumber
-              // style={{flex: 1}}
               value={value || param.initial}
               showButtons
               size={5}
-              // buttonLayout='horizontal'
               onValueChange={(e) => handleChange(param.name, e.value)}
             />
           )}
@@ -176,7 +167,6 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
                   min={param.min}
                   max={param.max}
                   showButtons
-                  // buttonLayout='horizontal'
                   size={5}
                   step={param.step}
                   onValueChange={(e) => {
@@ -194,7 +184,6 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
               marginRight: '0',
               visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
             }}
-            // tooltip={`Reset to default value (${JSON.stringify(param.initial)})`}
             tooltipOptions={{position: 'left'}}
             icon='pi pi-refresh'
             className='p-button-text'/>

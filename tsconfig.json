@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
+    "target": "ES2022",
     "lib": [
       "dom",
       "dom.iterable",
-      "ES2021",
+      "ES2022",
       "WebWorker",
     ],
     "rootDir": "src",
@@ -28,5 +28,9 @@
     "src/**/*.tsx",
     "src/**/*.js",
     // "public"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/wasm/*.js"
   ]
 }

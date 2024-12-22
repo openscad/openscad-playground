@@ -1,27 +1,37 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getParentDir } from '../fs/filesystem';
-import { spawnOpenSCAD } from "./openscad-runner";
+import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
+import { Source } from '../state/app-state';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from '../state/formats';
 import { ParameterSet } from '../state/customizer-types';
 
 const syntaxDelay = 300;
 
+type SyntaxCheckArgs = {
+  activePath: string,
+  sources: Source[],
+}
 type SyntaxCheckOutput = {logText: string, markers: monaco.editor.IMarkerData[], parameterSet?: ParameterSet};
 export const checkSyntax =
-  turnIntoDelayableExecution(syntaxDelay, (source: string, sourcePath: string) => {
-    // const timestamp = Date.now(); 
+  turnIntoDelayableExecution(syntaxDelay, (sargs: SyntaxCheckArgs) => {
+    const {
+      activePath,
+      sources,
+    } = sargs;
     
-    source = '$preview=true;\n' + source;
+    const content = '$preview=true;\n' + sources[0].content;
 
     const outFile = 'out.json';
     const job = spawnOpenSCAD({
-      inputs: [[sourcePath, source + '\n']],
-      args: [sourcePath, "-o", outFile, "--export-format=param"],
-      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
+      mountArchives: true,
+      inputs: sources,
+      args: [activePath, "-o", outFile, "--export-format=param"],
       outputPaths: [outFile],
+    }, (streams) => {
+      console.log(JSON.stringify(streams));
     });
 
     return AbortablePromise<SyntaxCheckOutput>((res, rej) => {
@@ -46,7 +56,7 @@ export const checkSyntax =
 
           res({
             ...processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
-              sourcePath,
+              sourcePath: sources[0].path,
               skipLines: 1,
             }}),
             parameterSet,
@@ -61,15 +71,22 @@ export const checkSyntax =
   });
 
 var renderDelay = 1000;
-export type RenderOutput = {stlFile: File, logText: string, markers: monaco.editor.IMarkerData[], elapsedMillis: number}
+export type RenderOutput = {
+  outFile: File,
+  logText: string,
+  markers: monaco.editor.IMarkerData[],
+  elapsedMillis: number}
 
 export type RenderArgs = {
-  source: string,
-  sourcePath: string,
+  scadPath: string,
+  sources: Source[],
   vars?: {[name: string]: any},
   features?: string[],
   extraArgs?: string[],
-  isPreview: boolean
+  isPreview: boolean,
+  mountArchives: boolean,
+  renderFormat: keyof typeof VALID_EXPORT_FORMATS_2D | keyof typeof VALID_EXPORT_FORMATS_3D | keyof typeof VALID_RENDER_FORMATS,
+  streamsCallback: (ps: ProcessStreams) => void,
 }
 
 function formatValue(any: any): string {
@@ -82,40 +99,63 @@ function formatValue(any: any): string {
   }
 }
 export const render =
- turnIntoDelayableExecution(renderDelay, ({sourcePath, source, isPreview, vars, features, extraArgs}: RenderArgs) => {
+ turnIntoDelayableExecution(renderDelay, (renderArgs: RenderArgs) => {
+    const {
+      scadPath,
+      sources,
+      isPreview,
+      mountArchives,
+      vars,
+      features: additionalFeatures,
+      extraArgs,
+      renderFormat,
+      streamsCallback,
+    }  = renderArgs;
 
     const prefixLines: string[] = [];
+    let features: string[]
     if (isPreview) {
       prefixLines.push('$preview=true;');
+      features = ['render-modifiers', ...(additionalFeatures ?? [])];
+    } else {
+      features = (additionalFeatures ?? []).filter(f => f != 'render-modifiers');
     }
-    source = [...prefixLines, source].join('\n');
+    if (!scadPath.endsWith('.scad')) throw new Error('First source must be a .scad file, got ' + sources[0].path + ' instead');
+    
+    const source = sources.filter(s => s.path === scadPath)[0];
+    if (!source) throw new Error('Active path not found in sources!');
 
+    if (source.content == null) throw new Error('Source content is null!');
+    const content = [...prefixLines, source.content].join('\n');
+
+    const actualRenderFormat = renderFormat == 'glb' ? 'off' : renderFormat;
+    const outFile = 'out.' + actualRenderFormat;
     const args = [
-      sourcePath,
-      "-o", "out.stl",
-      "--export-format=binstl",
+      scadPath,
+      "-o", outFile,
+      "--backend=manifold",
+      "--export-format=" + (actualRenderFormat == 'stl' ? 'binstl' : actualRenderFormat),
       ...(Object.entries(vars ?? {}).flatMap(([k, v]) => [`-D${k}=${formatValue(v)}`])),
       ...(features ?? []).map(f => `--enable=${f}`),
       ...(extraArgs ?? [])
     ]
     
     const job = spawnOpenSCAD({
-      // wasmMemory,
-      inputs: [[sourcePath, source]],
+      mountArchives: mountArchives,
+      inputs: sources.map(s => s.path === scadPath ? {path: s.path, content} : s),
       args,
-      outputPaths: ['out.stl'],
-      // workingDir: sourcePath.startsWith('/') ? getParentDir(sourcePath) : '/home'
-    });
+      outputPaths: [outFile],
+    }, streamsCallback);
 
     return AbortablePromise<RenderOutput>((resolve, reject) => {
       (async () => {
         try {
           const result = await job;
-          console.log(result);
+          // console.log(result);
 
           const {logText, markers} = processMergedOutputs(result.mergedOutputs, {
             shiftSourceLines: {
-              sourcePath: sourcePath,
+              sourcePath: source.path,
               skipLines: prefixLines.length
             }
           });
@@ -131,13 +171,13 @@ export const render =
           }
           const [filePath, content] = output;
           const filePathFragments = filePath.split('/');
-          const fileName = filePathFragments[filePathFragments.length - 1];
+          let fileName = filePathFragments[filePathFragments.length - 1];
 
           // TODO: have the runner accept and return files.
-          const blob = new Blob([content], { type: "application/octet-stream" });
-          // console.log(new TextDecoder().decode(content));
-          const stlFile = new File([blob], fileName);
-          resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
+          const type = filePath.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream';
+          let blob = new Blob([content]);
+          let outFile = new File([blob], fileName, {type});
+          resolve({outFile, logText, markers, elapsedMillis: result.elapsedMillis});
         } catch (e) {
           console.error(e);
           reject(e);
@@ -147,3 +187,4 @@ export const render =
       return () => job.kill()
     });
   });
+

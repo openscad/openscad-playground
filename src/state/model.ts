@@ -1,9 +1,15 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state";
+import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister } from "./app-state";
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 import { bubbleUpDeepMutations } from "./deep-mutate";
-import { formatBytes, formatMillis } from '../utils'
+import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils'
+
+import JSZip from 'jszip';
+import { ProcessStreams } from "../runner/openscad-runner";
+import { is2DFormatExtension } from "./formats";
+import { convertOffToGlb, parseOff } from "../multimaterial/off2glb";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -12,7 +18,7 @@ export class Model {
   
   init() {
     if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering &&
-        this.state.params.source.trim() != '') {
+        this.source.trim() != '') {
       this.processSource();
     }
   }
@@ -35,6 +41,14 @@ export class Model {
     return false;
   }
 
+  setFormats(
+      exportFormat2D: keyof typeof VALID_EXPORT_FORMATS_2D | undefined,
+      exportFormat3D: keyof typeof VALID_EXPORT_FORMATS_3D | undefined) {
+    this.mutate(s => {
+      if (exportFormat2D != null) s.params.exportFormat2D = exportFormat2D;
+      if (exportFormat3D != null) s.params.exportFormat3D = exportFormat3D;
+    });
+  }
   setVar(name: string, value: any) {
     this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
     this.render({isPreview: true, now: false});
@@ -103,46 +117,181 @@ export class Model {
   openFile(path: string) {
     // alert(`TODO: open ${path}`);
     if (this.mutate(s => {
-      s.params.source = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
-      if (s.params.sourcePath != path) {
-        s.params.sourcePath = path;
+      if (s.params.activePath != path) {
+        s.params.activePath = path;
+        if (!s.params.sources.find(src => src.path === path)) {
+          let content = '';
+          try {
+            content = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
+          } catch (e) {
+            console.error('Error while reading file:', e);
+          }
+          s.params.sources = [...s.params.sources, {path, content}];
+        }
         s.lastCheckerRun = undefined;
         s.output = undefined;
+        s.export = undefined;
       }
     })) {
       this.processSource();
     }
   }
 
+  get source(): string {
+    return this.state.params.sources.find(src => src.path === this.state.params.activePath)?.content ?? '';
+  }
   set source(source: string) {
-    if (this.mutate(s => { s.params.source = source; })) {
+    if (this.mutate(s => s.params.sources = s.params.sources.map(src => src.path === s.params.activePath ? {path: src.path, content: source} : src))) {
       this.processSource();
     }
   }
 
   private processSource() {
-    const params = this.state.params;
+    // const params = this.state.params;
     // if (isFileWritable(params.sourcePath)) {
       // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
-      this.fs.writeFile(params.sourcePath, params.source);
+    // this.fs.writeFile(params.sourcePath, params.source);
     // }
-    this.checkSyntax();
+    if (this.state.params.activePath.endsWith('.scad')) {
+      this.checkSyntax();
+    }
     this.render({isPreview: true, now: false});
   }
-  checkSyntax() {
+
+  async checkSyntax() {
     this.mutate(s => s.checkingSyntax = true);
-    checkSyntax(this.state.params.source, this.state.params.sourcePath)({now: false, callback: (checkerRun, err) => this.mutate(s => {
-      if (err != null) {
-        console.error('Error while checking syntax:', err)
-      } else {
+    try {
+      const checkerRun = await checkSyntax({
+        activePath: this.state.params.activePath,
+        sources: this.state.params.sources,
+      })({now: false});
+      this.mutate(s => {
         s.lastCheckerRun = checkerRun;
         s.parameterSet = checkerRun?.parameterSet;
         s.checkingSyntax = false;
-      }
-    })});
+      });
+    } catch (err) {
+      console.error('Error while checking syntax:', err)
+    }
   }
 
-  render({isPreview, now}: {isPreview: boolean, now: boolean}) {
+  rawStreamsCallback(ps: ProcessStreams) {
+    this.mutate(s => {
+      if ('stdout' in ps) {
+        s.currentRunLogs?.push(['stdout', ps.stdout]);
+      } else {
+        s.currentRunLogs?.push(['stderr', ps.stderr]);
+      }
+    });
+  }
+
+  async export() {
+    if (this.state.output) {
+      const normalPassThrough = 
+        (this.state.is2D && this.state.params.exportFormat2D === 'svg')
+        || (!this.state.is2D && this.state.params.exportFormat3D === 'off');
+
+      const glbPassThrough =
+        (!this.state.is2D && this.state.params.exportFormat3D === 'glb')
+        && (this.state.output.displayFile?.name.endsWith('.glb') ?? false)
+        && (this.state.output.displayFileURL != null);
+
+      if (normalPassThrough || glbPassThrough) {
+        this.mutate(s => s.export = s.output);
+        if (glbPassThrough) {
+          downloadUrl(this.state.output.displayFileURL!, this.state.output.displayFile!.name);
+        } else {
+          downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
+        }
+        return;
+      }
+    }
+    this.mutate(s => {
+      s.currentRunLogs ??= [];
+      s.exporting = true;
+    });
+
+    const outFile = this.state.output?.outFile;
+    const outFileURL = this.state.output?.outFileURL;
+    if (!outFile || !outFileURL) {
+      throw new Error('No output file to export');
+    }
+
+    const scadPath = '/export.scad'
+    const sources: Source[] = [
+      {
+        path: scadPath,
+        content: `import("${outFile.name}");`
+      },
+      {
+        path: outFile.name,
+        url: outFileURL,
+      }
+    ];
+    let {features, exportFormat2D, exportFormat3D} = this.state.params;
+
+    const renderArgs: RenderArgs = {
+      mountArchives: false,
+      scadPath,
+      sources,
+      extraArgs: [], isPreview: false,
+      features,
+      renderFormat: this.state.is2D ? exportFormat2D : exportFormat3D,
+      streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
+    };
+    
+    try {
+      const output = await render(renderArgs)({now: true});
+      const outFileURL = URL.createObjectURL(output.outFile);
+      this.mutate(s => {
+        s.exporting = false;
+        if (s.export?.outFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.export!.outFileURL);
+        }
+        s.export = {
+          outFile: output.outFile,
+          outFileURL,
+          elapsedMillis: output.elapsedMillis,
+          formattedElapsedMillis: formatMillis(output.elapsedMillis),
+          formattedOutFileSize: formatBytes(output.outFile.size),
+        };
+        downloadUrl(s.export.outFileURL, output.outFile.name);
+      });
+    } catch (err) {
+      this.mutate(s => {
+        s.exporting = false;
+        console.error('Error while exporting:', err)
+        s.error = `${err}`;
+      });
+    }
+  }
+
+  async saveProject() {
+    if (this.state.params.sources.length == 1) {
+      const content = this.state.params.sources[0].content;
+      const contentBytes = new TextEncoder().encode(content);
+      const blob = new Blob([contentBytes], {type: 'text/plain'});
+      const file = new File([blob], this.state.params.activePath.split('/').pop()!);
+      downloadUrl(URL.createObjectURL(file), file.name);
+    } else {
+      const zip = new JSZip();
+      for (const source of this.state.params.sources) {
+        let path = source.path
+        if (path.startsWith('/')) {
+          path = path.substring(1);
+        }
+        zip.file(path, await fetchSource(source));
+      }
+      zip.generateAsync({type: 'blob'}).then(blob => {
+        const file = new File([blob], 'project.zip');
+        downloadUrl(URL.createObjectURL(file), file.name);
+      });
+    }
+  }
+
+  async render({isPreview, mountArchives, now, retryInOtherDim}: {isPreview: boolean, mountArchives?: boolean, now: boolean, retryInOtherDim?: boolean}) {
+    mountArchives ??= true;
+    retryInOtherDim ??= true;
     const setRendering = (s: State, value: boolean) => {
       if (isPreview) {
         s.previewing = value;
@@ -150,41 +299,142 @@ export class Model {
         s.rendering = value;
       }
     }
-    this.mutate(s => setRendering(s, true));
+    this.mutate(s => {
+      s.currentRunLogs = [];
+      setRendering(s, true);
+    });
 
-    const {source, sourcePath, vars, features} = this.state.params;
-    
-    render({source, sourcePath, vars, features, extraArgs: [], isPreview})({now, callback: (output, err) => {
+    let {
+      activePath,
+      sources,
+      vars,
+      features,
+    } = this.state.params;
+
+    let is2D = this.state.is2D;
+
+    const extension = activePath.split('.').pop() ?? '';
+    if (!activePath.endsWith('.scad')) {
+      const resourcePath = activePath;
+      const loaderPath = '/load-resource.scad';
+      is2D = is2DFormatExtension(extension);
+      
+      mountArchives = false;
+      activePath = loaderPath;
+      sources = [
+        {
+          path: activePath,
+          content: `${is2D ? 'linear_extrude(1) ' : ''} import("${resourcePath}");`,
+        },
+        ...sources.filter(s => s.path === resourcePath),
+      ];
+    }
+
+    const renderArgs: RenderArgs = {
+      mountArchives,
+      scadPath: activePath,
+      sources,
+      vars,
+      features,
+      isPreview,
+      renderFormat: this.state.is2D ? 'svg' : 'off',
+      streamsCallback: this.rawStreamsCallback.bind(this)
+    };
+    try {
+      let output = await render(renderArgs)({now});
+      let displayFile = output.outFile;
+      if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
+        is2D = true;
+        const fn = output.outFile.name;
+        const extrudedOutput = await render({
+          mountArchives: false,
+          scadPath: '/extruded.scad',
+          sources: [
+            {
+              path: '/extruded.scad',
+              content: `linear_extrude(0.1) import("${fn}");`,
+            },
+            {
+              path: `/${fn}`,
+              url: await readFileAsDataURL(output.outFile),
+            },
+          ],
+          vars: {},
+          features,
+          isPreview: false,
+          renderFormat: 'off',
+          streamsCallback: this.rawStreamsCallback.bind(this)
+        })({now});
+        displayFile = extrudedOutput.outFile;
+      } else {
+        is2D = false;
+      }
+      if (displayFile.name.endsWith('.off')) {
+        const offData = parseOff(await displayFile.text());
+        displayFile = new File([await convertOffToGlb(offData)], displayFile.name.replace('.off', '.glb'));
+      }
+      const outFileURL = URL.createObjectURL(output.outFile);
+      const displayFileURL = displayFile && await readFileAsDataURL(displayFile);
       this.mutate(s => {
         setRendering(s, false);
-        if (err != null) {
-          console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
-          s.error = `${err}`;
-        } else if (output) {
-          s.error = undefined;
-          s.lastCheckerRun = {
-            logText: output.logText,
-            markers: output.markers,
-          }
-          if (s.output?.stlFileURL) {
-            URL.revokeObjectURL(s.output.stlFileURL);
-          }
+        s.error = undefined;
+        s.is2D = is2D;
+        s.lastCheckerRun = {
+          logText: output.logText,
+          markers: output.markers,
+        }
+        if (s.output?.outFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.output!.outFileURL);
+        }
+        if (s.output?.displayFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.output!.displayFileURL!);
+        }
 
-          s.output = {
-            isPreview: isPreview,
-            stlFile: output.stlFile,
-            stlFileURL: URL.createObjectURL(output.stlFile),
-            elapsedMillis: output.elapsedMillis,
-            formattedElapsedMillis: formatMillis(output.elapsedMillis),
-            formattedStlFileSize: formatBytes(output.stlFile.size),
-          };
+        s.output = {
+          isPreview: isPreview,
+          outFile: output.outFile,
+          outFileURL,
+          displayFile,
+          displayFileURL,
+          elapsedMillis: output.elapsedMillis,
+          formattedElapsedMillis: formatMillis(output.elapsedMillis),
+          formattedOutFileSize: formatBytes(output.outFile.size),
+        };
 
-          if (!isPreview) {
-            const audio = document.getElementById('complete-sound') as HTMLAudioElement;
-            audio?.play();
-          }
+        if (!isPreview) {
+          const audio = document.getElementById('complete-sound') as HTMLAudioElement;
+          audio?.play();
         }
       });
-    }})
+    } catch (err) {
+      this.mutate(s => {
+        setRendering(s, false);
+        console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)
+        s.error = `${err}`;
+      });
+    }
+    if (retryInOtherDim) {
+      let is2D: boolean | undefined;
+      let is3D: boolean | undefined;
+      let isMixed: boolean | undefined;
+      for (const [pipe, line] of this.state.currentRunLogs ?? []) {
+        if (line == 'Current top level object is not a 3D object.') {
+          is3D = false;
+        } else if (line == 'Top level object is a 3D object:') {
+          is3D = true;
+        } else if (line == 'Current top level object is not a 2D object.') {
+          is2D = false;
+        } else if (line == 'Top level object is a 2D object:') {
+          is2D = true;
+        } else if (line.includes('WARNING: Mixing 2D and 3D objects is not supported')) {
+          isMixed = true;
+        }
+      }
+      if (is2D === false || is3D === false) {//} || isMixed !== undefined) {
+        this.mutate(s => s.is2D = !(is2D === false));
+        this.render({isPreview, now: true, retryInOtherDim: false});
+        return;
+      }
+    }
   }
 }

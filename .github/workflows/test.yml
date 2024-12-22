@@ -9,21 +9,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node: [ 18, 20, 22 ]
-    name: Node${{ matrix.node }}
+        node: [
+          {"name": "LTS", "version": "lts/-2"},
+          {"name": "latest", "version": "latest"}
+        ]
+    name: Node ${{ matrix.node.name }}
+    env:
+      CI: true
     steps:
       - uses: actions/checkout@v4
-      - name: Setup node ${{ matrix.node }}
+      - name: Setup node ${{ matrix.node.name }}
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.node.version }}
       - run: npm install
       - run: make public
       - run: npm run build
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-node${{ matrix.node }}
+          name: dist-node-${{ matrix.node.name }}
           path: dist
           retention-days: 30
+      - run: NODE_ENV=development npm run test:e2e
+      - run: NODE_ENV=production  npm run test:e2e
