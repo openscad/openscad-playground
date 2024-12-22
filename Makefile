@@ -138,12 +138,8 @@ libs/noto/%.otf:
 libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
-# libs/openscad:
-# 	git clone --recurse https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
-
 libs/openscad:
-	git clone --recurse https://github.com/ochafik/openscad.git ${SHALLOW} --branch fix-wasm-text --single-branch $@
-
+	git clone --recurse https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
 public/libraries/openscad.zip: libs/openscad
 	mkdir -p public/libraries
