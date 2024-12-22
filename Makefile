@@ -1,5 +1,5 @@
-WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
-WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
+# WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
+# WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
 
 SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
@@ -52,10 +52,18 @@ src/wasm: libs/openscad-wasm
 	rm -f src/wasm
 	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
 
-libs/openscad-wasm:
+libs/openscad/build/openscad.js: libs/openscad
+	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=1 )
+	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh cmake --build build )
+
+libs/openscad-wasm: libs/openscad/build/openscad.js
 	mkdir -p libs/openscad-wasm
-	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
-	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
+	cp libs/openscad/build/openscad.* libs/openscad-wasm/
+
+# libs/openscad-wasm:
+# 	mkdir -p libs/openscad-wasm
+# 	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
+# 	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
 	
 public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
 	ln -sf libs/openscad-wasm/openscad.js public/openscad.js
@@ -129,7 +137,7 @@ libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
 libs/openscad:
-	git clone https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
+	git clone --recurse https://github.com/openscad/openscad.git ${SHALLOW} ${SINGLE_BRANCH} $@
 
 public/libraries/openscad.zip: libs/openscad
 	mkdir -p public/libraries

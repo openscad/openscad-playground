@@ -49,12 +49,6 @@ Prerequisites:
 *   npm
 *   docker
 
-First, you need a WASM build of [a branch](https://github.com/openscad/openscad/pull/5180) that handles colors & exports to GLTF (will take a while):
-
-```bash
-./build-openscad-wasm.sh -DCMAKE_BUILD_TYPE=Release
-```
-
 Local dev:
 
 ```bash
@@ -68,6 +62,7 @@ Local prod (test both the different inlining and serving under a prefix):
 
 ```bash
 make public
+npm install
 npm run start:prod
 # http://localhost:3000/dist/
 ```
@@ -76,6 +71,7 @@ Deployment (edit "homepage" in `package.json` to match your deployment root!):
 
 ```bash
 make public
+npm install
 npm run build
 
 rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
