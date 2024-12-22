@@ -1,5 +1,5 @@
-# Pinning WASM build to https://github.com/openscad/openscad/pull/5515
-WASM_BUILD_URL=https://output.circle-artifacts.com/output/job/9c136acb-541d-4f67-969c-fff96963c8aa/artifacts/0/wasm/OpenSCAD-2024.12.22.wasm21798_PR5515-WebAssembly-web.zip
+# Pin WASM build to a version known to work
+WASM_BUILD_URL=https://output.circle-artifacts.com/output/job/fdf49786-06c1-4775-aaa3-15dc089efc12/artifacts/0/wasm/OpenSCAD-2024.12.22.wasm21804-WebAssembly-web.zip
 # WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
 # WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
 
