@@ -1,49 +1,57 @@
 import { Document, NodeIO, Accessor, Primitive } from '@gltf-transform/core';
 import { Light as LightDef, KHRLightsPunctual } from '@gltf-transform/extensions';
 
-interface Vertex {
+type Vertex = {
     x: number;
     y: number;
     z: number;
 }
 
-interface Face {
+type SolidColor = [number, number, number];
+
+type Face = {
     vertices: number[];
-    color?: [number, number, number];
+    color?: SolidColor;
 }
 
-interface IndexedPolyhedron {
+type IndexedPolyhedron = {
     vertices: Vertex[];
     faces: Face[];
 }
 
-export async function convertOffToGlb(data: IndexedPolyhedron): Promise<Blob> {
+const DEFAULT_FACE_COLOR: SolidColor = [0xf9 / 255, 0xd7 / 255, 0x2c / 255];
+
+export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: SolidColor = DEFAULT_FACE_COLOR): Promise<Blob> {
     // Note: GLTF doesn't seem to support per-face colors, so we duplicate vertices
     // and provide per-vertex colors (all the same for each face).
-    const positions = new Float32Array(data.faces.length * 3 * 3);
-    const colors = new Float32Array(data.faces.length * 3 * 3);
-    const indices = new Uint32Array(data.faces.length * 3);
+
+    const numVertices = data.faces.reduce((acc, face) => acc + face.vertices.length, 0);
+    const positions = new Float32Array(numVertices * 3);
+    const colors = new Float32Array(numVertices * 3);
+    const indices = new Uint32Array(numVertices);
+
+    let verticesAdded = 0;
+    const addVertex = (vertex: Vertex, color: [number, number, number]) => {
+        const offset = verticesAdded * 3;
+        positions[offset] = vertex.x;
+        positions[offset + 1] = vertex.y;
+        positions[offset + 2] = vertex.z;
+        colors[offset] = color[0];
+        colors[offset + 1] = color[1];
+        colors[offset + 2] = color[2];
+        return verticesAdded++;
+    };
 
     data.faces.forEach((face, i) => {
         const { vertices, color } = face;
-        if (vertices.length != 3) throw new Error('Face must have at 3 vertices');
+        if (vertices.length < 3) throw new Error('Face must have at least 3 vertices');
 
-        const faceColor = color ?? [1, 1, 1];
+        const faceColor = color ?? defaultColor;
         
         const offset = i * 3;
-        indices[offset] = offset;
-        indices[offset + 1] = offset + 1;
-        indices[offset + 2] = offset + 2;
-
-        const voffset = offset * 3;
-        for (let j = 0; j < 3; j++) {
-            positions[voffset + j * 3] = data.vertices[vertices[j]].x;
-            positions[voffset + j * 3 + 1] = data.vertices[vertices[j]].y;
-            positions[voffset + j * 3 + 2] = data.vertices[vertices[j]].z;
-            colors[voffset + j * 3] = faceColor[0];
-            colors[voffset + j * 3 + 1] = faceColor[1];
-            colors[voffset + j * 3 + 2] = faceColor[2];
-        }
+        indices[offset] = addVertex(data.vertices[vertices[0]], faceColor);
+        indices[offset + 1] = addVertex(data.vertices[vertices[1]], faceColor);
+        indices[offset + 2] = addVertex(data.vertices[vertices[2]], faceColor);
     });
 
     const doc = new Document();
@@ -126,12 +134,19 @@ export function parseOff(content: string): IndexedPolyhedron {
     for (let i = 0; i < numFaces; i++) {
         const parts = lines[currentLine + i].split(/\s+/).map(Number);
         const numVerts = parts[0];
-        faces.push({
-            vertices: parts.slice(1, numVerts + 1),
-            color: parts.length >= numVerts + 4
-                ? parts.slice(numVerts + 1, numVerts + 4).map(c => c / 255) as [number, number, number]
-                : undefined
-        });
+        const vertices = parts.slice(1, numVerts + 1);
+        const color = parts.length >= numVerts + 4
+            ? parts.slice(numVerts + 1, numVerts + 4).map(c => c / 255) as [number, number, number]
+            : undefined;
+        if (vertices.length < 3) throw new Error(`Invalid OFF file: face at line ${currentLine + i + 1} must have at least 3 vertices`);
+        else if (vertices.length == 3) {
+            faces.push({ vertices, color });
+        } else {
+            // Triangulate the face
+            for (let j = 1; j < vertices.length - 1; j++) {
+                faces.push({ vertices: [vertices[0], vertices[j], vertices[j + 1]], color });
+            }   
+        }
     }
 
     return { vertices, faces };
