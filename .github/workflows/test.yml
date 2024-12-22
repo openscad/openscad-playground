@@ -11,11 +11,9 @@ jobs:
     strategy:
       matrix:
         node: [ 18, 20, 22 ]
-        mode: [ 'dev', 'prod' ]
-    name: Node ${{ matrix.node }} (${{ matrix.mode }})
+    name: Node ${{ matrix.node }}
     env:
       CI: true
-      START_MODE: ${{ matrix.mode }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup node ${{ matrix.node }}
@@ -28,7 +26,8 @@ jobs:
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-node${{ matrix.node }}
+          name: dist-node-${{ matrix.node }}
           path: dist
           retention-days: 30
-      - run: npm run test:e2e
+      - run: START_MODE=dev npm run test:e2e
+      - run: START_MODE=prod npm run test:e2e
