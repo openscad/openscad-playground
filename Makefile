@@ -1,7 +1,7 @@
-# # Pinning WASM build to last good revision (https://github.com/openscad/openscad-playground/issues/60)
-# WASM_BUILD_URL=https://files.openscad.org/snapshots/OpenSCAD-2024.09.27.wasm20596-WebAssembly.zip
-# # WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
-# # WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
+# Pinning WASM build to https://github.com/openscad/openscad/pull/5515
+WASM_BUILD_URL=https://output.circle-artifacts.com/output/job/9c136acb-541d-4f67-969c-fff96963c8aa/artifacts/0/wasm/OpenSCAD-2024.12.22.wasm21798_PR5515-WebAssembly-web.zip
+# WASM_SNAPSHOT_JS_URL=https://files.openscad.org/snapshots/.snapshot_wasm.js
+# WASM_BUILD_URL=$(shell curl ${WASM_SNAPSHOT_JS_URL} 2>/dev/null | grep https | sed -E "s/.*(https:[^']+)'.*/\1/" )
 
 SINGLE_BRANCH_MAIN=--branch main --single-branch
 SINGLE_BRANCH=--branch master --single-branch
@@ -54,18 +54,18 @@ src/wasm: libs/openscad-wasm
 	rm -f src/wasm
 	ln -sf "$(shell pwd)/libs/openscad-wasm" src/wasm
 
-libs/openscad/build/openscad.js: libs/openscad
-	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=1 )
-	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh /bin/bash -c "cmake --build build -j || cmake --build build -j2 || cmake --build build" )
+# libs/openscad/build/openscad.js: libs/openscad
+# 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=1 )
+# 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh /bin/bash -c "cmake --build build -j || cmake --build build -j2 || cmake --build build" )
 
-libs/openscad-wasm: libs/openscad/build/openscad.js
-	mkdir -p libs/openscad-wasm
-	cp libs/openscad/build/openscad.* libs/openscad-wasm/
-
-# libs/openscad-wasm:
+# libs/openscad-wasm: libs/openscad/build/openscad.js
 # 	mkdir -p libs/openscad-wasm
-# 	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
-# 	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
+# 	cp libs/openscad/build/openscad.* libs/openscad-wasm/
+
+libs/openscad-wasm:
+	mkdir -p libs/openscad-wasm
+	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
+	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
 	
 public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
 	ln -sf libs/openscad-wasm/openscad.js public/openscad.js
