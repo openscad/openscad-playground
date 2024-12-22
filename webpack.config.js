@@ -1,5 +1,6 @@
 const CopyPlugin = require("copy-webpack-plugin");
 const WorkboxPlugin = require('workbox-webpack-plugin');
+const webpack = require('webpack');
 
 const path = require('path');
 
@@ -42,6 +43,10 @@ module.exports = [{
     port: 4000,
   },
   plugins: [
+    new webpack.EnvironmentPlugin({
+      'NODE_ENV': 'development',
+    }),
+    ...(process.env.NODE_ENV === 'production' ? [
     new WorkboxPlugin.GenerateSW({ 
         // these options encourage the ServiceWorkers to get in there fast     
         // and not allow any straggling "old" SWs to hang around     
@@ -61,6 +66,7 @@ module.exports = [{
           },
         }],
     }),
+    ] : []),
     new CopyPlugin({
       patterns: [
         { 

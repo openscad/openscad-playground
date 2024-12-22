@@ -35,26 +35,28 @@ declare var BrowserFS: BrowserFSInterface
 
 window.addEventListener('load', async () => {
   //*
-  if ('serviceWorker' in navigator) {
-      try {
-          const registration = await navigator.serviceWorker.register('./sw.js');
-          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+  if (process.env.NODE_ENV === 'production') {
+    if ('serviceWorker' in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.register('./sw.js');
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
 
-          registration.onupdatefound = () => {
-              const installingWorker = registration.installing;
-              if (installingWorker) {
-                installingWorker.onstatechange = () => {
-                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // Reload to activate the service worker and apply caching
-                        window.location.reload();
-                        return;
-                    }
-                };
-              }
-          };
-      } catch (err) {
-          console.log('ServiceWorker registration failed: ', err);
-      }
+            registration.onupdatefound = () => {
+                const installingWorker = registration.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                      if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                          // Reload to activate the service worker and apply caching
+                          window.location.reload();
+                          return;
+                      }
+                  };
+                }
+            };
+        } catch (err) {
+            console.log('ServiceWorker registration failed: ', err);
+        }
+    }
   }
   //*/
   
