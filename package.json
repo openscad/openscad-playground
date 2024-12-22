@@ -35,9 +35,9 @@
   },
   "scripts": {
     "test:e2e": "jest",
-    "start:dev": "concurrently 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
-    "start:prod": "PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
-    "start": "npm run start:dev",
+    "start:development": "concurrently 'npx webpack serve --mode=development' 'NODE_ENV=development npx rollup --config openscad-worker.rollup.config.js --watch'",
+    "start:production": "NODE_ENV=production PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
+    "start": "npm run start:development",
     "build": "NODE_ENV=production npx rollup --config openscad-worker.rollup.config.js && webpack --mode=production"
   },
   "eslintConfig": {

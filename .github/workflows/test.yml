@@ -33,5 +33,5 @@ jobs:
           name: dist-node-${{ matrix.node.name }}
           path: dist
           retention-days: 30
-      - run: START_MODE=dev npm run test:e2e
-      - run: START_MODE=prod npm run test:e2e
+      - run: NODE_ENV=development npm run test:e2e
+      - run: NODE_ENV=production  npm run test:e2e

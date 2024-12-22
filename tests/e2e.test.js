@@ -1,6 +1,6 @@
 const longTimeout = 60000;
 
-const isProd = process.env.START_MODE === 'prod';
+const isProd = process.env.NODE_ENV === 'production';
 const url = isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000';
 
 describe('e2e', () => {
