@@ -47,7 +47,12 @@ module.exports = [{
       'process.env.NODE_ENV': 'development',
     }),
     ...(process.env.NODE_ENV === 'production' ? [
-      new WorkboxPlugin.GenerateSW({ 
+      new WorkboxPlugin.GenerateSW({
+          exclude: [
+            /\.map$/,
+            /^manifest.*\.js$/,
+            /.*?\.DS_Store$/,
+          ],
           // these options encourage the ServiceWorkers to get in there fast     
           // and not allow any straggling "old" SWs to hang around     
           swDest: path.join(__dirname, "dist", 'sw.js'),
