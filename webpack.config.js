@@ -44,28 +44,28 @@ module.exports = [{
   },
   plugins: [
     new webpack.EnvironmentPlugin({
-      'NODE_ENV': 'development',
+      'process.env.NODE_ENV': 'development',
     }),
     ...(process.env.NODE_ENV === 'production' ? [
-    new WorkboxPlugin.GenerateSW({ 
-        // these options encourage the ServiceWorkers to get in there fast     
-        // and not allow any straggling "old" SWs to hang around     
-        swDest: path.join(__dirname, "dist", 'sw.js'),
-        maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
-        clientsClaim: true,
-        skipWaiting: true,
-        runtimeCaching: [{
-          urlPattern: ({request, url}) => true,
-          handler: 'StaleWhileRevalidate',
-          options: {
-            cacheName: 'all',
-            expiration: {
-              maxEntries: 1000,
-              purgeOnQuotaError: true,
+      new WorkboxPlugin.GenerateSW({ 
+          // these options encourage the ServiceWorkers to get in there fast     
+          // and not allow any straggling "old" SWs to hang around     
+          swDest: path.join(__dirname, "dist", 'sw.js'),
+          maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
+          clientsClaim: true,
+          skipWaiting: true,
+          runtimeCaching: [{
+            urlPattern: ({request, url}) => true,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'all',
+              expiration: {
+                maxEntries: 1000,
+                purgeOnQuotaError: true,
+              },
             },
-          },
-        }],
-    }),
+          }],
+      }),
     ] : []),
     new CopyPlugin({
       patterns: [
