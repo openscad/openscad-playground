@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [ 18, 22 ]
+        node: [ lts/-2, latest ]
     name: Node ${{ matrix.node }}
     env:
       CI: true
