@@ -6,24 +6,7 @@ import { State } from './app-state';
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
   
-export const blankProjectState: State = {
-  params: {
-    activePath: defaultSourcePath,
-    sources: [{path: defaultSourcePath, content: ''}],
-    features: [],
-    renderFormat: 'off',
-    exportFormat: 'glb',
-  },
-  view: {
-    color: defaultModelColor,
-    layout: {
-      mode: 'single',
-      focus: 'editor'
-    }
-  }
-};
-
-export function createInitialState(fs: any, state: State | null) {
+export function createInitialState(state: State | null, content: string = defaultScad): State {
 
   type Mode = State['view']['layout']['mode'];
   const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
@@ -32,10 +15,10 @@ export function createInitialState(fs: any, state: State | null) {
   const initialState: State = {
     params: {
       activePath: defaultSourcePath,
-      sources: [{path: defaultSourcePath, content: defaultScad}],
+      sources: [{path: defaultSourcePath, content}],
       features: [],
-      renderFormat: 'off',
-      exportFormat: 'glb',
+      exportFormat2D: 'svg',
+      exportFormat3D: 'glb',
     },
     view: {
       layout: {
@@ -85,3 +68,5 @@ export function createInitialState(fs: any, state: State | null) {
   return initialState;
 }
 
+
+export const blankProjectState: State = createInitialState(null, '');

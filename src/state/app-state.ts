@@ -2,7 +2,7 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { ParameterSet } from './customizer-types';
-import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 
 export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
@@ -17,8 +17,8 @@ export type Source = {
 export interface FileOutput {
   outFile: File,
   outFileURL: string,
-  glbFile?: File,
-  glbFileURL?: string,
+  displayFile?: File,
+  displayFileURL?: string,
   elapsedMillis: number,
   formattedElapsedMillis: string,
   formattedOutFileSize: string,
@@ -30,8 +30,8 @@ export interface State {
     sources: Source[],
     vars?: {[name: string]: any},
     features: string[],
-    renderFormat: keyof typeof VALID_RENDER_FORMATS,
-    exportFormat: keyof typeof VALID_EXPORT_FORMATS,
+    exportFormat2D: keyof typeof VALID_EXPORT_FORMATS_2D,
+    exportFormat3D: keyof typeof VALID_EXPORT_FORMATS_3D,
   },
 
   view: {
@@ -65,6 +65,7 @@ export interface State {
 
   parameterSet?: ParameterSet,
   error?: string,
+  is2D?: boolean,
   output?: FileOutput & {
     isPreview: boolean,
   },

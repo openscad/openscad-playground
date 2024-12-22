@@ -2,7 +2,7 @@
 
 import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
 import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister } from "./app-state";
-import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 import { bubbleUpDeepMutations } from "./deep-mutate";
 import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils'
 
@@ -41,10 +41,13 @@ export class Model {
     return false;
   }
 
-  setFormats(renderFormat: keyof typeof VALID_RENDER_FORMATS, exportFormat: keyof typeof VALID_EXPORT_FORMATS) {
+  setFormats(
+      exportFormat2D: keyof typeof VALID_EXPORT_FORMATS_2D | undefined,
+      exportFormat3D: keyof typeof VALID_EXPORT_FORMATS_3D | undefined) {
     this.mutate(s => {
-      s.params.renderFormat = renderFormat;
-      s.params.exportFormat = exportFormat;
+      // s.params.renderFormat = renderFormat;
+      if (exportFormat2D != null) s.params.exportFormat2D = exportFormat2D;
+      if (exportFormat3D != null) s.params.exportFormat3D = exportFormat3D;
     });
   }
   setVar(name: string, value: any) {
@@ -185,11 +188,19 @@ export class Model {
 
   async export() {
     if (this.state.output) {
-      if (this.state.params.renderFormat === this.state.params.exportFormat ||
-          this.state.params.exportFormat === 'glb' && this.state.output.glbFileURL) {
+      const normalPassThrough = 
+        (this.state.is2D && this.state.params.exportFormat2D === 'svg')
+        || (!this.state.is2D && this.state.params.exportFormat3D === 'off');
+
+      const glbPassThrough =
+        (!this.state.is2D && this.state.params.exportFormat3D === 'glb')
+        && (this.state.output.displayFile?.name.endsWith('.glb') ?? false)
+        && (this.state.output.displayFileURL != null);
+
+      if (normalPassThrough || glbPassThrough) {
         this.mutate(s => s.export = s.output);
-        if (this.state.params.exportFormat === 'glb' && this.state.output.glbFile && this.state.output.glbFileURL) {
-          downloadUrl(this.state.output.glbFileURL, this.state.output.glbFile.name);
+        if (glbPassThrough) {
+          downloadUrl(this.state.output.displayFileURL!, this.state.output.displayFile!.name);
         } else {
           downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
         }
@@ -218,7 +229,7 @@ export class Model {
         url: outFileURL,
       }
     ];
-    let {features, exportFormat} = this.state.params;
+    let {features, exportFormat2D, exportFormat3D} = this.state.params;
 
     const renderArgs: RenderArgs = {
       mountArchives: false,
@@ -226,7 +237,7 @@ export class Model {
       sources,
       extraArgs: [], isPreview: false,
       features,
-      renderFormat: exportFormat,
+      renderFormat: this.state.is2D ? exportFormat2D : exportFormat3D,
       streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
     };
     
@@ -301,14 +312,15 @@ export class Model {
       sources,
       vars,
       features,
-      renderFormat
     } = this.state.params;
+
+    let is2D = this.state.is2D;
 
     const extension = activePath.split('.').pop() ?? '';
     if (!activePath.endsWith('.scad')) {
       const resourcePath = activePath;
       const loaderPath = '/load-resource.scad';
-      const is2D = is2DFormatExtension(extension);
+      is2D = is2DFormatExtension(extension);
       
       mountArchives = false;
       activePath = loaderPath;
@@ -319,7 +331,6 @@ export class Model {
         },
         ...sources.filter(s => s.path === resourcePath),
       ];
-      renderFormat = is2D ? 'svg' : 'off';
     }
 
     const renderArgs: RenderArgs = {
@@ -329,13 +340,14 @@ export class Model {
       vars,
       features,
       isPreview,
-      renderFormat,
+      renderFormat: this.state.is2D ? 'svg' : 'off',
       streamsCallback: this.rawStreamsCallback.bind(this)
     };
     try {
-      let glbFile: File | undefined;
       let output = await render(renderArgs)({now});
+      let displayFile = output.outFile;
       if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
+        is2D = true;
         const fn = output.outFile.name;
         const extrudedOutput = await render({
           mountArchives: false,
@@ -356,17 +368,20 @@ export class Model {
           renderFormat: 'off',
           streamsCallback: this.rawStreamsCallback.bind(this)
         })({now});
-        output.outFile = extrudedOutput.outFile;
+        displayFile = extrudedOutput.outFile;
+      } else {
+        is2D = false;
       }
-      if (output.outFile.name.endsWith('.off')) {
-        const offData = parseOff(await output.outFile.text());
-        glbFile = new File([await convertOffToGlb(offData)], output.outFile.name.replace('.off', '.glb'));
+      if (displayFile.name.endsWith('.off')) {
+        const offData = parseOff(await displayFile.text());
+        displayFile = new File([await convertOffToGlb(offData)], displayFile.name.replace('.off', '.glb'));
       }
       const outFileURL = URL.createObjectURL(output.outFile);
-      const glbFileURL = glbFile && await readFileAsDataURL(glbFile);
+      const displayFileURL = displayFile && await readFileAsDataURL(displayFile);
       this.mutate(s => {
         setRendering(s, false);
         s.error = undefined;
+        s.is2D = is2D;
         s.lastCheckerRun = {
           logText: output.logText,
           markers: output.markers,
@@ -374,16 +389,16 @@ export class Model {
         if (s.output?.outFileURL?.startsWith('blob:') ?? false) {
           URL.revokeObjectURL(s.output!.outFileURL);
         }
-        if (s.output?.glbFileURL?.startsWith('blob:') ?? false) {
-          URL.revokeObjectURL(s.output!.glbFileURL!);
+        if (s.output?.displayFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.output!.displayFileURL!);
         }
 
         s.output = {
           isPreview: isPreview,
           outFile: output.outFile,
           outFileURL,
-          glbFile,
-          glbFileURL,
+          displayFile,
+          displayFileURL,
           elapsedMillis: output.elapsedMillis,
           formattedElapsedMillis: formatMillis(output.elapsedMillis),
           formattedOutFileSize: formatBytes(output.outFile.size),
@@ -419,7 +434,7 @@ export class Model {
         }
       }
       if (is2D === false || is3D === false) {//} || isMixed !== undefined) {
-        this.mutate(s => s.params.renderFormat = is2D === false ? 'off' : 'svg');
+        this.mutate(s => s.is2D = !(is2D === false));
         this.render({isPreview, now: true, retryInOtherDim: false});
         return;
       }

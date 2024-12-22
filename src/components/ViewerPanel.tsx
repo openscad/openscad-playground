@@ -5,7 +5,6 @@ import { ModelContext } from './contexts';
 import { StlViewer} from "react-stl-viewer";
 import { ColorPicker } from 'primereact/colorpicker';
 import { defaultModelColor } from '../state/initial-state';
-import { SVGViewer } from './SVGViewer';
 
 declare global {
   namespace JSX {
@@ -31,9 +30,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
-      {(state.output?.glbFileURL || state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL) && (
+      {(state.output?.displayFileURL || state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL) && (
             <model-viewer
-              src={state.output?.glbFileURL ?? state.output?.outFileURL ?? ''}
+              src={state.output?.displayFileURL ?? state.output?.outFileURL ?? ''}
               style={{
                 width: '100%',
                 height: '100%',
@@ -47,16 +46,6 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 modelRef.current = ref;
               }}
             />
-      )}
-      {state.output?.outFile && state.output.outFile.name.endsWith('.svg') && state.output?.outFileURL && (
-        <SVGViewer url={state.output?.outFileURL ?? ''}
-          style={{
-            flex: 1,
-            width: '100%',
-            maxHeight: 'calc(100vh - 125px)',
-            overflow: 'hidden',
-          }} />
-        // <img src={state.output?.outFileURL ?? ''} style={{flex: 1, width: '100%'}} />
       )}
       {state.output?.outFile && state.output.outFile.name.endsWith('.stl') && state.output?.outFileURL && (
         <>

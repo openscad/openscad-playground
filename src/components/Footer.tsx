@@ -19,7 +19,8 @@ import ExportButton from './ExportButton';
 function downloadOutput(state: State) {
   if (!state.output) return;
   const sourcePathParts = state.params.activePath.split('/');
-  const sourceFileName = sourcePathParts.slice(-1)[0] + '.' + state.params.exportFormat;
+  const exportFormat = state.is2D ? state.params.exportFormat2D : state.params.exportFormat3D;
+  const sourceFileName = sourcePathParts.slice(-1)[0] + '.' + exportFormat;
   // const fileName = [
   //   sourceFileName,
   //   state.output!.isPreview ? 'preview.glb' : 'render.' + state.params.renderFormat

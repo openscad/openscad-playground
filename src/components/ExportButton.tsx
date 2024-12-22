@@ -19,44 +19,43 @@ export default function ExportButton({className, style}: {className?: string, st
     const [showMulticolorDialog, setShowMulticolorDialog] = useState(false);
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    const is2D = is2DFormatExtension(state.params.renderFormat);
-
     const dropdownModel: MenuItem[] = 
-      is2D ? [
+      state.is2D ? [
         {
           data: 'svg',
           label: 'SVG',
           icon: 'pi pi-download',
-          command: () => model!.setFormats('svg', 'svg'),
+          command: () => model!.setFormats('svg', undefined),
         },
         {
           data: 'dxf',
           label: 'DXF',
           icon: 'pi pi-download',
-          command: () => model!.setFormats('svg', 'dxf'),
+          command: () => model!.setFormats('dxf', undefined),
         },
       ] : [
         {
           data: 'glb',
           label: 'GLB (glTF)',
           icon: 'pi pi-download',
-          command: () => model!.setFormats('off', 'glb'),
+          command: () => model!.setFormats(undefined, 'glb'),
         },
         {
           data: 'stl',
           label: 'STL',
           icon: 'pi pi-download',
-          command: () => model!.setFormats('off', 'stl'),
+          command: () => model!.setFormats(undefined, 'stl'),
         },
         {
           data: 'off',
           label: 'OFF',
           icon: 'pi pi-download',
-          command: () => model!.setFormats('off', 'off'),
+          command: () => model!.setFormats(undefined, 'off'),
         },
       ];
 
-    const selectedItem = dropdownModel.filter(item => item.data === state.params.exportFormat)[0] || dropdownModel[0]!;
+    const exportFormat = state.is2D ? state.params.exportFormat2D : state.params.exportFormat3D;
+    const selectedItem = dropdownModel.filter(item => item.data === exportFormat)[0] || dropdownModel[0]!;
 
   return (
     <div className={className} style={style}>

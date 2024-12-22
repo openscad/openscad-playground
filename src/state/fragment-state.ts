@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { State } from "./app-state";
-import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from './formats';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
 import { defaultModelColor, defaultSourcePath } from "./initial-state";
 
@@ -66,8 +66,8 @@ export async function readStateFromFragment(): Promise<State | null> {
           vars: params?.vars, // TODO: validate!
           // Source deserialization also handles legacy links (source + sourcePath)
           sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
-          renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'off'),
-          exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'off'),
+          exportFormat2D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_2D), s => 'svg'),
+          exportFormat3D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'off'),
         },
         view: {
           logs: validateBoolean(view?.logs),

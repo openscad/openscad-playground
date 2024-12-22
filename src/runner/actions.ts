@@ -5,7 +5,7 @@ import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 import { Source } from '../state/app-state';
-import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from '../state/formats';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from '../state/formats';
 import { ParameterSet } from '../state/customizer-types';
 import { convertOffToGlb, parseOff } from '../multimaterial/off2glb';
 
@@ -88,7 +88,7 @@ export type RenderArgs = {
   extraArgs?: string[],
   isPreview: boolean,
   mountArchives: boolean,
-  renderFormat: keyof typeof VALID_EXPORT_FORMATS | keyof typeof VALID_RENDER_FORMATS,
+  renderFormat: keyof typeof VALID_EXPORT_FORMATS_2D | keyof typeof VALID_EXPORT_FORMATS_3D | keyof typeof VALID_RENDER_FORMATS,
   streamsCallback: (ps: ProcessStreams) => void,
 }
 

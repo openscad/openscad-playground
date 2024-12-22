@@ -28,5 +28,9 @@
     "src/**/*.tsx",
     "src/**/*.js",
     // "public"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/wasm/*.js"
   ]
 }

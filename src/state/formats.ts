@@ -3,13 +3,15 @@ export const VALID_RENDER_FORMATS = {
   'off': true,
   'svg': true,
 };
-export const VALID_EXPORT_FORMATS = {
+export const VALID_EXPORT_FORMATS_2D = {
+  'svg': true,
+  'dxf': true,
+};
+export const VALID_EXPORT_FORMATS_3D = {
   'stl': true,
   'off': true,
   'glb': true,
   '3mf': true,
-  'svg': true,
-  'dxf': true,
 };
 
 export function is2DFormatExtension(ext: string) {
