@@ -31,9 +31,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
-      {state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL && (
+      {(state.output?.glbFileURL || state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL) && (
             <model-viewer
-              src={state.output?.outFileURL ?? ''}
+              src={state.output?.glbFileURL ?? state.output?.outFileURL ?? ''}
               style={{
                 width: '100%',
                 height: '100%',

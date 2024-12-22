@@ -68,7 +68,6 @@ export async function readStateFromFragment(): Promise<State | null> {
           sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
           renderFormat: validateStringEnum(params?.renderFormat, Object.keys(VALID_RENDER_FORMATS), s => 'off'),
           exportFormat: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS), s => 'off'),
-          extruderColors: validateArray(params?.extruderColors, validateString),
         },
         view: {
           logs: validateBoolean(view?.logs),

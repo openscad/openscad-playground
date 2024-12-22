@@ -7,9 +7,9 @@ import { ModelContext } from './contexts';
 
 import { SplitButton } from 'primereact/splitbutton';
 import { Dialog } from 'primereact/dialog';
-import ExtruderColors from './ExtruderColors';
 import { MenuItem, MenuItemCommandEvent } from 'primereact/menuitem';
 import { downloadUrl } from '../utils';
+import { is2DFormatExtension } from '../state/formats';
 
 export default function ExportButton({className, style}: {className?: string, style?: React.CSSProperties}) {
     const model = useContext(ModelContext);
@@ -19,55 +19,45 @@ export default function ExportButton({className, style}: {className?: string, st
     const [showMulticolorDialog, setShowMulticolorDialog] = useState(false);
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    const dropdownModel: MenuItem[] = [
-      {
-        data: 'stl',
-        label: 'STL',
-        icon: 'pi pi-download',
-        command: () => model!.setFormats('stl', 'stl'),
-      },
-      {
-        data: 'off',
-        label: 'OFF',
-        icon: 'pi pi-download',
-        command: () => model!.setFormats('off', 'off'),
-      },
-      // {
-      //   data: 'stp',
-      //   label: 'STEP',
-      //   icon: 'pi pi-download',
-      //   command: () => model!.setFormats('glb', 'stp'),
-      // },
-      {
-        separator: true
-      },
-      {
-        data: 'svg',
-        label: 'SVG',
-        icon: 'pi pi-download',
-        command: () => model!.setFormats('svg', 'svg'),
-      },
-      {
-        data: 'dxf',
-        label: 'DXF',
-        icon: 'pi pi-download',
-        command: () => model!.setFormats('svg', 'dxf'),
-      },
-      {
-        separator: true
-      },
-      {
-        label: 'Edit materials',
-        icon: 'pi pi-cog',
-        command: () => model!.mutate(s => s.view.extruderPicker = true),
-      }
-    ];
+    const is2D = is2DFormatExtension(state.params.renderFormat);
+
+    const dropdownModel: MenuItem[] = 
+      is2D ? [
+        {
+          data: 'svg',
+          label: 'SVG',
+          icon: 'pi pi-download',
+          command: () => model!.setFormats('svg', 'svg'),
+        },
+        {
+          data: 'dxf',
+          label: 'DXF',
+          icon: 'pi pi-download',
+          command: () => model!.setFormats('svg', 'dxf'),
+        },
+      ] : [
+        {
+          data: 'glb',
+          label: 'GLB (glTF)',
+          icon: 'pi pi-download',
+          command: () => model!.setFormats('off', 'glb'),
+        },
+        {
+          data: 'stl',
+          label: 'STL',
+          icon: 'pi pi-download',
+          command: () => model!.setFormats('off', 'stl'),
+        },
+        {
+          data: 'off',
+          label: 'OFF',
+          icon: 'pi pi-download',
+          command: () => model!.setFormats('off', 'off'),
+        },
+      ];
 
     const selectedItem = dropdownModel.filter(item => item.data === state.params.exportFormat)[0] || dropdownModel[0]!;
 
-  const hideExtruderPicker = () => {
-    model!.mutate(s => s.view.extruderPicker = false);
-  };
   return (
     <div className={className} style={style}>
       <SplitButton 
@@ -81,28 +71,6 @@ export default function ExportButton({className, style}: {className?: string, st
         onShow={() => setDropdownVisible(true)}
         onHide={() => setDropdownVisible(false)}
       />
-      <Dialog 
-          header="Export 3MF (Multicolor)" 
-          visible={state.view.extruderPicker} 
-          onHide={hideExtruderPicker}
-          footer={
-              <div>
-                  <Button label="Cancel" icon="pi pi-times" onClick={hideExtruderPicker} className="p-button-text" />
-                  <Button label="Export" icon="pi pi-check" onClick={e => {
-                    hideExtruderPicker();
-                    model!.export();
-                  }} autoFocus />
-              </div>
-          }
-      >
-          <div className="flex flex-column align-items-center">
-              <h3 className="mb-3">Choose a color for 3MF export:</h3>
-              <ExtruderColors 
-                extruderColors={state.params.extruderColors ?? []}
-                setExtruderColors={colors => model!.mutate(s => s.params.extruderColors = colors)}
-                />
-          </div>
-      </Dialog>
     </div>
   );
 }

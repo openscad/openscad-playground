@@ -17,6 +17,8 @@ export type Source = {
 export interface FileOutput {
   outFile: File,
   outFileURL: string,
+  glbFile?: File,
+  glbFileURL?: string,
   elapsedMillis: number,
   formattedElapsedMillis: string,
   formattedOutFileSize: string,
@@ -30,7 +32,6 @@ export interface State {
     features: string[],
     renderFormat: keyof typeof VALID_RENDER_FORMATS,
     exportFormat: keyof typeof VALID_EXPORT_FORMATS,
-    extruderColors?: string[],
   },
 
   view: {

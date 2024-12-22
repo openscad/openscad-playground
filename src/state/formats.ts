@@ -1,14 +1,12 @@
 
 export const VALID_RENDER_FORMATS = {
-  'stl': true,
   'off': true,
-  // 'glb': true,
   'svg': true,
-  'dxf': true,
 };
 export const VALID_EXPORT_FORMATS = {
   'stl': true,
   'off': true,
+  'glb': true,
   '3mf': true,
   'svg': true,
   'dxf': true,

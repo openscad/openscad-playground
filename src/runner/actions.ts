@@ -1,14 +1,11 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { getParentDir } from '../fs/filesystem';
 import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner";
 import { processMergedOutputs } from "./output-parser";
 import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
 import { Source } from '../state/app-state';
 import { VALID_EXPORT_FORMATS, VALID_RENDER_FORMATS } from '../state/formats';
-import { materialize3MFFile } from '../multimaterial/materialize';
-import { parseColors } from '../multimaterial/colors';
 import { ParameterSet } from '../state/customizer-types';
 import { convertOffToGlb, parseOff } from '../multimaterial/off2glb';
 
@@ -92,7 +89,6 @@ export type RenderArgs = {
   isPreview: boolean,
   mountArchives: boolean,
   renderFormat: keyof typeof VALID_EXPORT_FORMATS | keyof typeof VALID_RENDER_FORMATS,
-  extruderColors?: string[],
   streamsCallback: (ps: ProcessStreams) => void,
 }
 
@@ -116,11 +112,8 @@ export const render =
       features: additionalFeatures,
       extraArgs,
       renderFormat,
-      extruderColors,
       streamsCallback,
     }  = renderArgs;
-
-    const extruderRGBColors = renderFormat == '3mf' && extruderColors ? parseColors(extruderColors.join('\n')) : undefined;
 
     const prefixLines: string[] = [];
     let features: string[]
@@ -138,12 +131,13 @@ export const render =
     if (source.content == null) throw new Error('Source content is null!');
     const content = [...prefixLines, source.content].join('\n');
 
-    const outFile = 'out.' + renderFormat;
+    const actualRenderFormat = renderFormat == 'glb' ? 'off' : renderFormat;
+    const outFile = 'out.' + actualRenderFormat;
     const args = [
       scadPath,
       "-o", outFile,
       "--backend=manifold",
-      "--export-format=" + (renderFormat == 'stl' ? 'binstl' : renderFormat),
+      "--export-format=" + (actualRenderFormat == 'stl' ? 'binstl' : actualRenderFormat),
       ...(Object.entries(vars ?? {}).flatMap(([k, v]) => [`-D${k}=${formatValue(v)}`])),
       ...(features ?? []).map(f => `--enable=${f}`),
       ...(extraArgs ?? [])
@@ -187,23 +181,8 @@ export const render =
           // TODO: have the runner accept and return files.
           const type = filePath.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream';
           let blob = new Blob([content]);
-          if (renderFormat == 'off') {
-            const offData = parseOff(await blob.text());
-            blob = await convertOffToGlb(offData);
-            fileName = fileName.replace('.off', '.glb');
-          }
-          // console.log(new TextDecoder().decode(content as any));
           let outFile = new File([blob], fileName, {type});
-          if (extruderRGBColors) {
-            try {
-              outFile = await materialize3MFFile(outFile, extruderRGBColors);
-            } catch (e) {
-              console.error('Error while materializing 3MF file:', e);
-            }
-          }
           resolve({outFile, logText, markers, elapsedMillis: result.elapsedMillis});
-          // const stlFile = new File([blob], fileName);
-          // resolve({stlFile, logText, markers, elapsedMillis: result.elapsedMillis});
         } catch (e) {
           console.error(e);
           reject(e);

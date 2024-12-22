@@ -9,6 +9,7 @@ import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL 
 import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner";
 import { is2DFormatExtension } from "./formats";
+import { convertOffToGlb, parseOff } from "../multimaterial/off2glb";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -46,13 +47,6 @@ export class Model {
       s.params.exportFormat = exportFormat;
     });
   }
-  // set renderFormat(format: keyof typeof VALID_RENDER_FORMATS) {
-  //   this.mutate(s => s.params.renderFormat = format);
-  // }
-
-  // set exportFormat(format: keyof typeof VALID_EXPORT_FORMATS) {
-  //   this.mutate(s => s.params.exportFormat = format);
-  // }
   setVar(name: string, value: any) {
     this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
     this.render({isPreview: true, now: false});
@@ -190,14 +184,17 @@ export class Model {
   }
 
   async export() {
-    if (this.state.output && (this.state.params.renderFormat === this.state.params.exportFormat)) {
-      this.mutate(s => s.export = s.output);
-      downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
-      return;
-    }
-    if (this.state.params.exportFormat == '3mf' && (this.state.view.extruderPicker || (this.state.params.extruderColors ?? []).length === 0)) {
-      this.mutate(s => this.state.view.extruderPicker = true);
-      return;
+    if (this.state.output) {
+      if (this.state.params.renderFormat === this.state.params.exportFormat ||
+          this.state.params.exportFormat === 'glb' && this.state.output.glbFileURL) {
+        this.mutate(s => s.export = s.output);
+        if (this.state.params.exportFormat === 'glb' && this.state.output.glbFile && this.state.output.glbFileURL) {
+          downloadUrl(this.state.output.glbFileURL, this.state.output.glbFile.name);
+        } else {
+          downloadUrl(this.state.output.outFileURL, this.state.output.outFile.name);
+        }
+        return;
+      }
     }
     this.mutate(s => {
       s.currentRunLogs ??= [];
@@ -221,7 +218,7 @@ export class Model {
         url: outFileURL,
       }
     ];
-    let {features, exportFormat, extruderColors} = this.state.params;
+    let {features, exportFormat} = this.state.params;
 
     const renderArgs: RenderArgs = {
       mountArchives: false,
@@ -230,7 +227,6 @@ export class Model {
       extraArgs: [], isPreview: false,
       features,
       renderFormat: exportFormat,
-      extruderColors,
       streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
     };
     
@@ -305,8 +301,7 @@ export class Model {
       sources,
       vars,
       features,
-      renderFormat,
-      extruderColors
+      renderFormat
     } = this.state.params;
 
     const extension = activePath.split('.').pop() ?? '';
@@ -324,7 +319,7 @@ export class Model {
         },
         ...sources.filter(s => s.path === resourcePath),
       ];
-      renderFormat = 'off';
+      renderFormat = is2D ? 'svg' : 'off';
     }
 
     const renderArgs: RenderArgs = {
@@ -335,10 +330,10 @@ export class Model {
       features,
       isPreview,
       renderFormat,
-      extruderColors,
       streamsCallback: this.rawStreamsCallback.bind(this)
     };
     try {
+      let glbFile: File | undefined;
       let output = await render(renderArgs)({now});
       if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
         const fn = output.outFile.name;
@@ -348,7 +343,7 @@ export class Model {
           sources: [
             {
               path: '/extruded.scad',
-              content: `linear_extrude(1) import("${fn}");`,
+              content: `linear_extrude(0.1) import("${fn}");`,
             },
             {
               path: `/${fn}`,
@@ -363,8 +358,12 @@ export class Model {
         })({now});
         output.outFile = extrudedOutput.outFile;
       }
+      if (output.outFile.name.endsWith('.off')) {
+        const offData = parseOff(await output.outFile.text());
+        glbFile = new File([await convertOffToGlb(offData)], output.outFile.name.replace('.off', '.glb'));
+      }
       const outFileURL = URL.createObjectURL(output.outFile);
-      // const outFileURL = await readFileAsDataURL(output.outFile);
+      const glbFileURL = glbFile && await readFileAsDataURL(glbFile);
       this.mutate(s => {
         setRendering(s, false);
         s.error = undefined;
@@ -375,11 +374,16 @@ export class Model {
         if (s.output?.outFileURL?.startsWith('blob:') ?? false) {
           URL.revokeObjectURL(s.output!.outFileURL);
         }
+        if (s.output?.glbFileURL?.startsWith('blob:') ?? false) {
+          URL.revokeObjectURL(s.output!.glbFileURL!);
+        }
 
         s.output = {
           isPreview: isPreview,
           outFile: output.outFile,
           outFileURL,
+          glbFile,
+          glbFileURL,
           elapsedMillis: output.elapsedMillis,
           formattedElapsedMillis: formatMillis(output.elapsedMillis),
           formattedOutFileSize: formatBytes(output.outFile.size),
