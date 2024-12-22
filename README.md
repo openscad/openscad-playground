@@ -47,7 +47,11 @@ Prerequisites:
 *   wget
 *   GNU make
 *   npm
-*   docker
+*   Docker able to run amd64 containers. If running on a different platform (including Silicon Mac), you can add support for amd64 images through QEMU with:
+
+  ```bash
+  docker run --privileged --rm tonistiigi/binfmt --install all
+  ```
 
 Local dev:
 
