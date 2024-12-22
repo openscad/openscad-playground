@@ -76,7 +76,7 @@ Deployment (edit "homepage" in `package.json` to match your deployment root!):
 ```bash
 make public
 npm install
-npm run build
+NODE_ENV=production npm run build
 
 rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/openscad2 
 # Now commit and push changes, wait for site update and enjoy!
