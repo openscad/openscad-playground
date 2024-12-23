@@ -30,15 +30,9 @@ export default function SettingsMenu({className, style}: {className?: string, st
         },  
         {
           label: state.view.showAxes ? 'Hide axes' : 'Show axes',
-          icon: 'pi pi-box',
+          icon: 'pi pi-asterisk',
           // disabled: true,
           command: () => model.mutate(s => s.view.showAxes = !s.view.showAxes)
-        },
-        {
-          label: state.view.showShadows ? 'Hide shadows' : 'Add shadows',
-          icon: 'pi pi-box',
-          // disabled: true,
-          command: () => model.mutate(s => s.view.showShadows = !s.view.showShadows)
         },
         {
           label: state.view.lineNumbers ? 'Hide line numbers' : 'Show line numbers',

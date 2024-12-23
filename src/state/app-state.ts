@@ -48,7 +48,6 @@ export interface State {
     
     color: string,
     showAxes?: boolean,
-    showShadows?: boolean,
     lineNumbers?: boolean,
   }
 

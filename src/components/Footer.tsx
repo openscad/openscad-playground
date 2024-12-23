@@ -10,6 +10,7 @@ import { Menu } from 'primereact/menu';
 import { Toast } from 'primereact/toast';
 import HelpMenu from './HelpMenu';
 import ExportButton from './ExportButton';
+import SettingsMenu from './SettingsMenu';
 
 
 export default function Footer({style}: {style?: CSSProperties}) {
@@ -75,6 +76,8 @@ export default function Footer({style}: {style?: CSSProperties}) {
         </Button>}
 
       <div style={{flex: 1}}></div>
+
+      <SettingsMenu />
 
       <HelpMenu style={{
           position: 'absolute',

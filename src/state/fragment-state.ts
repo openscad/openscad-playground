@@ -82,7 +82,6 @@ export async function readStateFromFragment(): Promise<State | null> {
           collapsedCustomizerTabs: validateArray(view?.collapsedCustomizerTabs, validateString),
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis, () => true),
-          showShadows: validateBoolean(view?.layout?.showShadow, () => true),
           lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false)
         }
       };
