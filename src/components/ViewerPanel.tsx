@@ -32,6 +32,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           }}>
       {(state.output?.displayFileURL || state.output?.outFile && state.output.outFile.name.endsWith('.glb') && state.output?.outFileURL) && (
             <model-viewer
+              orientation="0deg -90deg 0deg"
               src={state.output?.displayFileURL ?? state.output?.outFileURL ?? ''}
               style={{
                 width: '100%',

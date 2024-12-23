@@ -20,11 +20,12 @@ export default `/*
 title = "OpenSCAD";
 
 color("gray")
-    translate([0, debug ? -60 : -20, 0])
-    linear_extrude(1)
-        text(title,
-            halign="center",
-            valign="center");
+    rotate([90, 0, 0])
+        translate([0, debug ? -60 : -20, 0])
+            linear_extrude(1)
+                text(title,
+                    halign="center",
+                    valign="center");
 
 // You can find the original for the following example in the file explorer above,
 // under openscad / examples / Basic / CSG-modules.scad
@@ -38,19 +39,17 @@ debug = true;
 $fs=$preview ? 1 : 0.1;  // Don't generate smaller facets than 0.1 mm
 $fa=$preview ? 15 : 5;    // Don't generate larger angles than 5 degrees
 
-rotate([-90, 0, 0]) {
-  // Main geometry
-  difference() {
-      intersection() {
-          body();
-          intersector();
-      }
-      holes();
-  }
-
-  // Helpers
-  if (debug) helpers();
+// Main geometry
+difference() {
+    intersection() {
+        body();
+        intersector();
+    }
+    holes();
 }
+
+// Helpers
+if (debug) helpers();
 
 // Core geometric primitives.
 // These can be modified to create variations of the final object
