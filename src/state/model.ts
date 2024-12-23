@@ -9,7 +9,8 @@ import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL 
 import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner";
 import { is2DFormatExtension } from "./formats";
-import { convertOffToGlb, parseOff } from "../multimaterial/off2glb";
+import { parseOff } from "../io/import_off";
+import { convertOffToGlb } from "../io/export_glb";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
