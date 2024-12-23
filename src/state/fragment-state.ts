@@ -67,7 +67,7 @@ export async function readStateFromFragment(): Promise<State | null> {
           // Source deserialization also handles legacy links (source + sourcePath)
           sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
           exportFormat2D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_2D), s => 'svg'),
-          exportFormat3D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'off'),
+          exportFormat3D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'glb'),
         },
         view: {
           logs: validateBoolean(view?.logs),
