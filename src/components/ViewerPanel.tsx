@@ -47,6 +47,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           }}>
       <model-viewer
         orientation="0deg -90deg 0deg"
+        class="main-viewer"
         src={state.output?.displayFileURL ?? state.output?.outFileURL ?? ''}
         style={{
           width: '100%',
