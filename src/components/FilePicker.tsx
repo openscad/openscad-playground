@@ -2,7 +2,7 @@
 
 import { CSSProperties, useContext } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
-import TreeNode from 'primereact/treenode';
+import { TreeNode } from 'primereact/treenode';
 import { ModelContext, FSContext } from './contexts';
 import { getParentDir, join } from '../fs/filesystem';
 import { defaultSourcePath } from '../state/initial-state';
