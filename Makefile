@@ -142,7 +142,7 @@ libs/openscad:
 
 public/libraries/openscad.zip: libs/openscad
 	mkdir -p public/libraries
-	( cd libs/openscad ; zip -r ../../public/libraries/openscad.zip `find examples -name '*.scad' | grep -v tests` )
+	( cd libs/openscad ; zip -r - `find examples -name '*.scad' | grep -v tests` ) > public/libraries/openscad.zip 
 
 libs/BOSL2: 
 	git clone --recurse https://github.com/BelfrySCAD/BOSL2.git ${SHALLOW} ${SINGLE_BRANCH} $@
