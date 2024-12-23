@@ -15,6 +15,7 @@
     "@types/jest": "^27.5.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "chroma-js": "^3.1.2",
     "debug": "^4.4.0",
     "jszip": "^3.10.1",
     "monaco-editor": "^0.36.1",
@@ -22,7 +23,9 @@
     "primeicons": "^7.0.0",
     "primereact": "^10.8.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "uuid": "^11.0.3",
+    "uzip": "^0.20201231.0"
   },
   "scripts": {
     "test:e2e": "jest",
@@ -54,8 +57,10 @@
     "@rollup/plugin-node-resolve": "^15.3.1",
     "@rollup/plugin-replace": "^5.0.7",
     "@rollup/plugin-typescript": "^11.1.6",
+    "@types/chroma-js": "^2.4.5",
     "@types/filesystem": "^0.0.32",
     "@types/node": "^18.19.68",
+    "@types/uzip": "^0.20201231.2",
     "@web/rollup-plugin-html": "^1.11.1",
     "concurrently": "^7.6.0",
     "copy-webpack-plugin": "^11.0.0",
