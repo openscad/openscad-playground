@@ -216,15 +216,15 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
               const isFolder = !file.endsWith('.scad');
               const completion = file + (isFolder ? '' : '>\n'); // don't append '/' as it's a useful trigger char
 
-              console.log(JSON.stringify({
-                prefix,
-                folder,
-                filePrefix,
-                folderPrefix,
-                // files,
-                completion,
-                file,
-              }, null, 2));
+              // console.log(JSON.stringify({
+              //   prefix,
+              //   folder,
+              //   filePrefix,
+              //   folderPrefix,
+              //   // files,
+              //   completion,
+              //   file,
+              // }, null, 2));
 
               suggestions.push({
                 label: file,
