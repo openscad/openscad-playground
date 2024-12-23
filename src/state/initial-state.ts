@@ -52,7 +52,6 @@ export function createInitialState(state: State | null, content: string = defaul
   }
 
   initialState.view.showAxes ??= true
-  initialState.view.showShadows ??= true
 
   // fs.writeFile(initialState.params.sourcePath, initialState.params.source);
   // if (initialState.params.sourcePath !== defaultSourcePath) {
