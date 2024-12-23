@@ -10,6 +10,11 @@ describe('e2e', () => {
     page.goto(url);
     await page.waitForSelector('model-viewer');
 
+    await page.waitForFunction(() => {
+      const viewer = document.querySelector('model-viewer.main-viewer');
+      return viewer && viewer.src !== '';
+    });
+
     console.log('Messages:', JSON.stringify(messages, null, 2));
     
     const errors = messages.filter(msg => msg.type === 'error');

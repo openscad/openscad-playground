@@ -7,11 +7,11 @@ type Vertex = {
     z: number;
 }
 
-type SolidColor = [number, number, number];
+type Color = [number, number, number, number];
 
 type Face = {
     vertices: number[];
-    color?: SolidColor;
+    color?: Color;
 }
 
 type IndexedPolyhedron = {
@@ -19,10 +19,41 @@ type IndexedPolyhedron = {
     faces: Face[];
 }
 
-const DEFAULT_FACE_COLOR: SolidColor = [0xf9 / 255, 0xd7 / 255, 0x2c / 255];
+type Geom = {
+    positions: Float32Array;
+    indices: Uint32Array;
+    colors?: Float32Array;
+};
 
-export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: SolidColor = DEFAULT_FACE_COLOR): Promise<Blob> {
-    // Note: GLTF doesn't seem to support per-face colors, so we duplicate vertices
+const DEFAULT_FACE_COLOR: Color = [0xf9 / 255, 0xd7 / 255, 0x2c / 255, 1];
+
+function createPrimitive(doc: Document, baseColorFactor: Color, {positions, indices, colors}: Geom): Primitive {
+    const prim = doc.createPrimitive()
+        .setMode(Primitive.Mode.TRIANGLES)
+        .setMaterial(
+            doc.createMaterial()
+                .setDoubleSided(true)
+                .setAlphaMode(baseColorFactor[3] < 1 ? 'BLEND' : 'OPAQUE')
+                .setBaseColorFactor(baseColorFactor))
+        .setAttribute('POSITION',
+            doc.createAccessor()
+                .setType(Accessor.Type.VEC3)
+                .setArray(positions))
+        .setIndices(
+            doc.createAccessor()
+                .setType(Accessor.Type.SCALAR)
+                .setArray(indices));
+    if (colors) {
+        prim.setAttribute('COLOR_0',
+            doc.createAccessor()
+                .setType(Accessor.Type.VEC3)
+                .setArray(colors));
+    }
+    return prim;
+}
+
+function getColoredGeom(data: IndexedPolyhedron, defaultColor: Color = DEFAULT_FACE_COLOR): Geom {
+    // Note: GLTF doesn't support per-face colors, so we duplicate vertices
     // and provide per-vertex colors (all the same for each face).
 
     const numVertices = data.faces.reduce((acc, face) => acc + face.vertices.length, 0);
@@ -31,7 +62,7 @@ export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: Sol
     const indices = new Uint32Array(numVertices);
 
     let verticesAdded = 0;
-    const addVertex = (vertex: Vertex, color: [number, number, number]) => {
+    const addVertex = (vertex: Vertex, color: Color) => {
         const offset = verticesAdded * 3;
         positions[offset] = vertex.x;
         positions[offset + 1] = vertex.y;
@@ -53,34 +84,49 @@ export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: Sol
         indices[offset + 1] = addVertex(data.vertices[vertices[1]], faceColor);
         indices[offset + 2] = addVertex(data.vertices[vertices[2]], faceColor);
     });
+    return { positions, indices, colors };
+}
+function getGeom(data: IndexedPolyhedron): Geom {
+    let positions = new Float32Array(data.vertices.length * 3);
+    const indices = new Uint32Array(data.faces.length * 3);
 
+    const addedVertices = new Map<number, number>();
+    let verticesAdded = 0;
+    const addVertex = (i: number) => {
+        let index = addedVertices.get(i);
+        if (index === undefined) {
+            const offset = verticesAdded * 3;
+            const vertex = data.vertices[i];
+            positions[offset] = vertex.x;
+            positions[offset + 1] = vertex.y;
+            positions[offset + 2] = vertex.z;
+            index = verticesAdded++;
+            addedVertices.set(i, index);
+        }
+        return index;
+    };
+
+    data.faces.forEach((face, i) => {
+        const { vertices, color } = face;
+        if (vertices.length < 3) throw new Error('Face must have at least 3 vertices');
+
+        const offset = i * 3;
+        indices[offset] = addVertex(vertices[0]);
+        indices[offset + 1] = addVertex(vertices[1]);
+        indices[offset + 2] = addVertex(vertices[2]);
+    });
+    return {
+        positions: positions.slice(0, verticesAdded * 3),
+        indices
+    };
+}
+
+export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: Color = DEFAULT_FACE_COLOR): Promise<Blob> {
     const doc = new Document();
     const lightExt = doc.createExtension(KHRLightsPunctual);
     const buffer = doc.createBuffer();
-    doc.createScene()
-        .addChild(doc.createNode().setMesh(
-            doc.createMesh().addPrimitive(
-                doc.createPrimitive()
-                    .setMode(Primitive.Mode.TRIANGLES)
-                    .setMaterial(
-                        doc.createMaterial()
-                            .setDoubleSided(true)
-                            .setBaseColorFactor([1,1,1,1]))
-                    .setAttribute('POSITION',
-                        doc.createAccessor()
-                            .setType(Accessor.Type.VEC3)
-                            .setArray(positions)
-                            .setBuffer(buffer))
-                    .setIndices(
-                        doc.createAccessor()
-                            .setType(Accessor.Type.SCALAR)
-                            .setArray(indices)
-                            .setBuffer(buffer))
-                    .setAttribute('COLOR_0',
-                        doc.createAccessor()
-                            .setType(Accessor.Type.VEC3)
-                            .setArray(colors)
-                            .setBuffer(buffer)))))
+
+    const scene = doc.createScene()
         .addChild(doc.createNode()
             .setExtension('KHR_lights_punctual', lightExt
                 .createLight()
@@ -95,6 +141,45 @@ export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: Sol
                 .setIntensity(8.0)
                 .setColor([1.0, 1.0, 1.0]))
             .setRotation([0.6279631, 0.6279631, 0, 0.4597009]));
+
+    const mesh = doc.createMesh();
+
+    if (true) {
+        const facesByColor = new Map<string, Face[]>();
+        const getRGBA = (color?: Color) => color ? color.join(',') : '';
+        data.faces.forEach(face => {
+            const color = getRGBA(face.color);
+            let faces = facesByColor.get(color);
+            if (!faces) facesByColor.set(color, faces = []);
+            faces.push(face);
+        });
+        for (let [rgba, faces] of facesByColor.entries()) {
+            let color;
+            if (rgba === '') {
+                color = defaultColor;
+            } else {
+                color = rgba.split(',').map(Number) as Color;
+            }
+            const [r, g, b, a] = color;
+            mesh.addPrimitive(
+                createPrimitive(doc, [r, g, b, a ?? 1], getGeom({ vertices: data.vertices, faces })));
+        }
+    } else if (true) {
+        const facesByAlpha = new Map<number, Face[]>();
+        data.faces.forEach(face => {
+            const alpha = face.color ? face.color[3] : 1;
+            const faces = facesByAlpha.get(alpha) ?? [];
+            faces.push(face);
+            facesByAlpha.set(alpha, faces);
+        });
+        for (const [alpha, faces] of facesByAlpha.entries()) {
+            mesh.addPrimitive(
+                createPrimitive(doc, [1, 1, 1, alpha], getColoredGeom({ vertices: data.vertices, faces }, defaultColor)));
+        }
+    } else {
+        mesh.addPrimitive(createPrimitive(doc, [1, 1, 1, 1], getColoredGeom(data, defaultColor)));
+    }
+    scene.addChild(doc.createNode().setMesh(mesh));
 
     const glb = await new NodeIO().registerExtensions([KHRLightsPunctual]).writeBinary(doc);
     return new Blob([glb], { type: 'model/gltf-binary' });
@@ -136,7 +221,7 @@ export function parseOff(content: string): IndexedPolyhedron {
         const numVerts = parts[0];
         const vertices = parts.slice(1, numVerts + 1);
         const color = parts.length >= numVerts + 4
-            ? parts.slice(numVerts + 1, numVerts + 4).map(c => c / 255) as [number, number, number]
+            ? parts.slice(numVerts + 1, numVerts + 5).map(c => c / 255) as [number, number, number, number]
             : undefined;
         if (vertices.length < 3) throw new Error(`Invalid OFF file: face at line ${currentLine + i + 1} must have at least 3 vertices`);
         else if (vertices.length == 3) {
