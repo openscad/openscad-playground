@@ -4,42 +4,49 @@ import { ModelContext } from './contexts';
 import { SplitButton } from 'primereact/splitbutton';
 import { MenuItem } from 'primereact/menuitem';
 
+type ExtendedMenuItem = MenuItem & { buttonLabel: string };
+
 export default function ExportButton({className, style}: {className?: string, style?: React.CSSProperties}) {
     const model = useContext(ModelContext);
     if (!model) throw new Error('No model');
     const state = model.state;
 
-    const dropdownModel: MenuItem[] = 
+    const dropdownModel: ExtendedMenuItem[] = 
       state.is2D ? [
         {
           data: 'svg',
-          label: 'SVG',
+          buttonLabel: 'SVG',
+          label: 'SVG (Simple Vector Graphics)',
           icon: 'pi pi-download',
           command: () => model!.setFormats('svg', undefined),
         },
         {
           data: 'dxf',
-          label: 'DXF',
+          buttonLabel: 'DXF',
+          label: 'DXF (Drawing Exchange Format)',
           icon: 'pi pi-download',
           command: () => model!.setFormats('dxf', undefined),
         },
       ] : [
         {
           data: 'glb',
-          label: 'GLB (glTF)',
-          icon: 'pi pi-download',
+          buttonLabel: 'GLB',
+          label: 'GLB (binary glTF)',
+          icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'glb'),
         },
         {
           data: 'stl',
-          label: 'STL',
-          icon: 'pi pi-download',
+          buttonLabel: 'STL',
+          label: 'STL (binary)',
+          icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'stl'),
         },
         {
           data: 'off',
-          label: 'OFF',
-          icon: 'pi pi-download',
+          buttonLabel: 'OFF',
+          label: 'OFF (Object File Format)',
+          icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'off'),
         },
       ];
@@ -50,7 +57,7 @@ export default function ExportButton({className, style}: {className?: string, st
   return (
     <div className={className} style={style}>
       <SplitButton 
-        label={selectedItem.label}
+        label={selectedItem.buttonLabel}
         disabled={!state.output || state.output.isPreview || state.rendering || state.exporting}
         icon="pi pi-download" 
         model={dropdownModel}
