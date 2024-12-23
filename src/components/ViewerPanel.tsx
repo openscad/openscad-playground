@@ -71,8 +71,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                   bottom: 0,
                   right: 0,
                   zIndex: 10,
-                  height: '200px',
-                  width: '200px',
+                  height: '100px',
+                  width: '100px',
                 }}
                 loading="eager"
                 interpolation-decay="0"
