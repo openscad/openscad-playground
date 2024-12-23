@@ -9,7 +9,7 @@ export function buildUrlForStateParams(state: State) {//partialState: {params: S
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
 }
 export async function writeStateInFragment(state: State) {
-  window.location.hash = await encodeStateParamsAsFragment(state);
+  history.replaceState(state, '', '#' + await encodeStateParamsAsFragment(state));
 }
 async function compressString(input: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(await new Response(new ReadableStream({
