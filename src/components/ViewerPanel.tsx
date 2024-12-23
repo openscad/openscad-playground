@@ -22,7 +22,10 @@ export default function ViewerPanel({className, style}: {className?: string, sty
   for (const ref of [modelViewerRef, axesViewerRef]) {
     const otherRef = ref === modelViewerRef ? axesViewerRef : modelViewerRef;
     useEffect(() => {
+      if (!ref.current) return;
+
       function handleCameraChange(e: any) {
+        if (!otherRef.current) return;
         if (e.detail.source === 'user-interaction') {
           const cameraOrbit = ref.current.getCameraOrbit();
           cameraOrbit.radius = otherRef.current.getCameraOrbit().radius;
@@ -30,8 +33,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           otherRef.current.cameraOrbit = cameraOrbit.toString();
         }
       }
-      ref.current.addEventListener('camera-change', handleCameraChange);
-      return () => ref.current.removeEventListener('camera-change', handleCameraChange);
+      const element = ref.current;
+      element.addEventListener('camera-change', handleCameraChange);
+      return () => element.removeEventListener('camera-change', handleCameraChange);
     }, [ref.current, otherRef.current]);
   }
   
@@ -69,7 +73,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 style={{
                   position: 'absolute',
                   bottom: 0,
-                  right: 0,
+                  left: 0,
                   zIndex: 10,
                   height: '100px',
                   width: '100px',
