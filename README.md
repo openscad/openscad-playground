@@ -82,6 +82,33 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 # Now commit and push changes, wait for site update and enjoy!
 ```
 
+## Build your own WASM binary
+
+[Makefile](./Makefile) fetches a prebuilt OpenSCAD web WASM binary, but you can build your own in a couple of minutes:
+
+- **Optional**: use your own openscad fork / branch:
+
+  ```bash
+  rm -fR libs/openscad
+  ln -s $PWD/../absolute/path/to/your/openscad libs/openscad
+  
+  # If you had a native build directory, delete it.
+  rm -fR libs/openscad/build
+  ```
+
+- Build WASM binary (add `WASM_BUILD=Debug` argument if you'd like to debug any cryptic crashes):
+
+  ```bash
+  make wasm
+  ```
+
+- Then continue the build:
+
+  ```bash
+  make public
+  npm start
+  ```
+
 ## Adding OpenSCAD libraries
 
 You'll need to update 3 files (search for BOSL2 for an example):
