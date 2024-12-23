@@ -58,7 +58,6 @@ src/wasm: libs/openscad-wasm
 wasm: libs/openscad
 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh emcmake cmake -B build -DCMAKE_BUILD_TYPE=$(WASM_BUILD) -DEXPERIMENTAL=1 )
 	( cd libs/openscad && ./scripts/wasm-base-docker-run.sh /bin/bash -c "cmake --build build -j || cmake --build build -j2 || cmake --build build" )
-	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
 	mkdir -p libs/openscad-wasm
 	cp libs/openscad/build/openscad.* libs/openscad-wasm/
 
