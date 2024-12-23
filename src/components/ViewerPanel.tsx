@@ -48,33 +48,6 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               }}
             />
       )}
-      {state.output?.outFile && state.output.outFile.name.endsWith('.stl') && state.output?.outFileURL && (
-        <>
-         <StlViewer
-             style={{
-              width: '100%',
-              height: '100%',
-             }}
-             showAxes={state.view.showAxes}
-             orbitControls
-             shadows={state.view.showShadows}
-             modelProps={{
-               color: model.state.view.color,
-             }}
-             url={state.output?.outFileURL ?? ''}
-             />
-            <ColorPicker
-              className={`opacity-animated ${!model.isComponentFullyVisible('viewer') ? 'opacity-0' : ''}`}
-              value={model.state.view.color}
-              style={{
-                position: 'absolute',
-                top: '12px',
-                left: '12px',
-              }}
-              onChange={(e) => model.mutate(s => s.view.color = `#${e.value ?? defaultModelColor}`)}
-            />
-            </>
-        )}
     </div>
   )
 }
