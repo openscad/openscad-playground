@@ -11,7 +11,8 @@ import { ProcessStreams } from "../runner/openscad-runner";
 import { is2DFormatExtension } from "./formats";
 import { parseOff } from "../io/import_off";
 import { exportGlb } from "../io/export_glb";
-import { exportOffTo3MF as export3MF } from "../io/export_3mf";
+import { export3MF } from "../io/export_3mf";
+import chroma from "chroma-js";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -208,6 +209,10 @@ export class Model {
         return;
       }
     }
+    if (!this.state.is2D && this.state.params.exportFormat3D == '3mf' && !this.state.params.extruderColors) {
+      this.mutate(s => this.state.view.extruderPickerVisibility = 'exporting');
+      return;
+    }
     this.mutate(s => {
       s.currentRunLogs ??= [];
       s.exporting = true;
@@ -225,7 +230,7 @@ export class Model {
       if (exportFormat === '3mf') {
         const start = performance.now();
         const data = parseOff(await this.state.output.outFile.text());
-        const exportedData = export3MF(data);
+        const exportedData = export3MF(data, this.state.params.extruderColors?.map(c => chroma(c)));
         const elapsedMillis = performance.now() - start;
         output = {
           outFile: new File([exportedData], this.state.output.outFile.name.replace('.off', '.3mf')),

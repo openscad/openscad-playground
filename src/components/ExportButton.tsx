@@ -1,10 +1,10 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { ModelContext } from './contexts';
 
 import { SplitButton } from 'primereact/splitbutton';
 import { MenuItem } from 'primereact/menuitem';
 
-type ExtendedMenuItem = MenuItem & { buttonLabel: string };
+type ExtendedMenuItem = MenuItem & { buttonLabel?: string };
 
 export default function ExportButton({className, style}: {className?: string, style?: React.CSSProperties}) {
     const model = useContext(ModelContext);
@@ -56,6 +56,14 @@ export default function ExportButton({className, style}: {className?: string, st
           icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, '3mf'),
         },
+        {
+          separator: true
+        },
+        {
+          label: 'Edit materials' + ((state.params.extruderColors ?? []).length > 0 ? ` (${(state.params.extruderColors ?? []).length})` : ''),
+          icon: 'pi pi-cog',
+          command: () => model!.mutate(s => s.view.extruderPickerVisibility = 'editing'),
+        }
       ];
 
     const exportFormat = state.is2D ? state.params.exportFormat2D : state.params.exportFormat3D;

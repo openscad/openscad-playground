@@ -28,11 +28,28 @@ function getColorMapping(colors: chroma.Color[], projectedColors: chroma.Color[]
 // Reverse-engineered from PrusaSlicer / BambuStudio's output.
 const PAINT_COLOR_MAP = ['', '8', '0C', '1C', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', 'AC', 'BC', 'CC', 'DC'];
 
-export function exportOffTo3MF(data: IndexedPolyhedron, extruderColors?: chroma.Color[]): Blob {
+export function export3MF(data: IndexedPolyhedron, extruderColors?: chroma.Color[]): Blob {
     const objectUuid = uuidv4();
     const buildUuid = uuidv4();
-    const paintColorByColorIndex = extruderColors &&
-        getColorMapping(data.colors.map(c => chroma.rgb(...c)), extruderColors).map(i => PAINT_COLOR_MAP[i]);
+
+    const dataColors = data.colors.map(([r, g, b, a]) => chroma.rgb(r*255, g*255, b*255, a*255));
+    const extruderIndexByColorIndex = extruderColors &&
+        getColorMapping(dataColors, extruderColors);
+
+    if (extruderColors) {
+        console.log('Extruder colors:');
+        for (const c of extruderColors) {
+            console.log(`- ${c.name()}`);
+        }
+        console.log('Model color mapping:');
+        dataColors.forEach((from, i) => {
+            const extruderIndex = extruderIndexByColorIndex![i];
+            const to = extruderColors[extruderIndex];
+            console.log(`- ${from.name()} -> ${to?.name()} (${PAINT_COLOR_MAP[extruderIndex]})`);
+        });
+    }
+
+    const paintColorByColorIndex = extruderIndexByColorIndex?.map(i => PAINT_COLOR_MAP[i]);
     
     const archive = {
         '3D/3dmodel.model': new TextEncoder().encode([

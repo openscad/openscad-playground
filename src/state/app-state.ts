@@ -32,11 +32,12 @@ export interface State {
     features: string[],
     exportFormat2D: keyof typeof VALID_EXPORT_FORMATS_2D,
     exportFormat3D: keyof typeof VALID_EXPORT_FORMATS_3D,
+    extruderColors?: string[],
   },
 
   view: {
     logs?: boolean,
-    extruderPicker?: boolean,
+    extruderPickerVisibility?: 'editing' | 'exporting',
     layout: {
       mode: 'single',
       focus: SingleLayoutComponentId,

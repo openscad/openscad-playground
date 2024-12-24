@@ -66,12 +66,13 @@ export async function readStateFromFragment(): Promise<State | null> {
           vars: params?.vars, // TODO: validate!
           // Source deserialization also handles legacy links (source + sourcePath)
           sources: params?.sources ?? (params?.source ? [{path: params?.sourcePath, content: params?.source}] : undefined), // TODO: validate!
-          exportFormat2D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_2D), s => 'svg'),
-          exportFormat3D: validateStringEnum(params?.exportFormat, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'glb'),
+          exportFormat2D: validateStringEnum(params?.exportFormat2D, Object.keys(VALID_EXPORT_FORMATS_2D), s => 'svg'),
+          exportFormat3D: validateStringEnum(params?.exportFormat3D, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'glb'),
+          extruderColors: validateArray(params?.extruderColors, validateString, () => undefined as any as []),
         },
         view: {
           logs: validateBoolean(view?.logs),
-          extruderPicker: validateBoolean(view?.extruderPicker),
+          extruderPickerVisibility: validateStringEnum(view?.extruderPickerVisibility, ['editing', 'exporting'], s => undefined),
           layout: {
             mode: validateStringEnum(view?.layout?.mode, ['multi', 'single']),
             focus: validateStringEnum(view?.layout?.focus, ['editor', 'viewer', 'customizer'], s => false),
