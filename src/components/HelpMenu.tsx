@@ -13,13 +13,13 @@ export default function HelpMenu({className, style}: {className?: string, style?
         {
           label: "openscad-playground",
           icon: 'pi pi-github',
-          url: 'https://github.com/ochafik/openscad-playground/tree/color-assimp2',
+          url: 'https://github.com/openscad/openscad-playground/',
           target: '_blank'
         },
         {
           label: 'LICENSES',
           icon: 'pi pi-info-circle',
-          url: 'https://github.com/ochafik/openscad-playground/blob/color-assimp2/LICENSE.md',
+          url: 'https://github.com/openscad/openscad-playground/blob/main/LICENSE.md',
           target: '_blank'
         },
         {
