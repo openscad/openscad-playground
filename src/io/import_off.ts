@@ -47,7 +47,8 @@ export function parseOff(content: string): IndexedPolyhedron {
         let colorIndex = colorMap.get(colorKey);
         if (colorIndex == null) {
             colorIndex = colors.length;
-            colors.push(color);
+            const [r, g, b, a] = color;
+            colors.push([r, g, b, a ?? 1]);
             colorMap.set(colorKey, colorIndex);
         }
 

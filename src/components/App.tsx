@@ -26,6 +26,9 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
       } else if (event.key === 'F6') {
         event.preventDefault();
         model.render({isPreview: false, now: true})
+      } else if (event.key === 'F7') {
+        event.preventDefault();
+        model.export();
       }
     };
     window.addEventListener('keydown', handleKeyDown);

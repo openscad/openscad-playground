@@ -10,6 +10,7 @@ import { Toast } from 'primereact/toast';
 import HelpMenu from './HelpMenu';
 import ExportButton from './ExportButton';
 import SettingsMenu from './SettingsMenu';
+import MultimaterialColorsDialog from './MultimaterialColorsDialog';
 
 
 export default function Footer({style}: {style?: CSSProperties}) {
@@ -19,7 +20,6 @@ export default function Footer({style}: {style?: CSSProperties}) {
   
   const toast = useRef<Toast>(null);
 
-  
   const severityByMarkerSeverity = new Map<monaco.MarkerSeverity, 'danger' | 'warning' | 'info'>([
     [monaco.MarkerSeverity.Error, 'danger'],
     [monaco.MarkerSeverity.Warning, 'warning'],
@@ -72,7 +72,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
               />
         ) : undefined
       }
-      {/* <RenderExportButton /> */}
+      <MultimaterialColorsDialog />
       {/* <Button
         icon="pi pi-bolt"
         onClick={() => model.render({isPreview: false, now: true})}
