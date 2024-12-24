@@ -68,7 +68,7 @@ function getGeom(data: IndexedPolyhedron): Geom {
     };
 }
 
-export async function convertOffToGlb(data: IndexedPolyhedron, defaultColor: Color = DEFAULT_FACE_COLOR): Promise<Blob> {
+export async function exportGlb(data: IndexedPolyhedron, defaultColor: Color = DEFAULT_FACE_COLOR): Promise<Blob> {
     const doc = new Document();
     const lightExt = doc.createExtension(KHRLightsPunctual);
     const buffer = doc.createBuffer();

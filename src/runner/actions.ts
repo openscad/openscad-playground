@@ -128,7 +128,7 @@ export const render =
     if (source.content == null) throw new Error('Source content is null!');
     const content = [...prefixLines, source.content].join('\n');
 
-    const actualRenderFormat = renderFormat == 'glb' ? 'off' : renderFormat;
+    const actualRenderFormat = renderFormat == 'glb' || renderFormat == '3mf' ? 'off' : renderFormat;
     const outFile = 'out.' + actualRenderFormat;
     const args = [
       scadPath,

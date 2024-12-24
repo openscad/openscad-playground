@@ -10,7 +10,8 @@ import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner";
 import { is2DFormatExtension } from "./formats";
 import { parseOff } from "../io/import_off";
-import { convertOffToGlb } from "../io/export_glb";
+import { exportGlb } from "../io/export_glb";
+import { exportOffTo3MF as export3MF } from "../io/export_3mf";
 
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
@@ -212,37 +213,47 @@ export class Model {
       s.exporting = true;
     });
 
-    const outFile = this.state.output?.outFile;
-    const outFileURL = this.state.output?.outFileURL;
-    if (!outFile || !outFileURL) {
+    if (!this.state.output?.outFile || !this.state.output?.outFileURL) {
       throw new Error('No output file to export');
     }
 
-    const scadPath = '/export.scad'
-    const sources: Source[] = [
-      {
-        path: scadPath,
-        content: `import("${outFile.name}");`
-      },
-      {
-        path: outFile.name,
-        url: outFileURL,
-      }
-    ];
-    let {features, exportFormat2D, exportFormat3D} = this.state.params;
+    const {features, exportFormat2D, exportFormat3D} = this.state.params;
+    const exportFormat = this.state.is2D ? exportFormat2D : exportFormat3D;
 
-    const renderArgs: RenderArgs = {
-      mountArchives: false,
-      scadPath,
-      sources,
-      extraArgs: [], isPreview: false,
-      features,
-      renderFormat: this.state.is2D ? exportFormat2D : exportFormat3D,
-      streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
-    };
-    
     try {
-      const output = await render(renderArgs)({now: true});
+      let output: RenderOutput;
+      if (exportFormat === '3mf') {
+        const start = performance.now();
+        const data = parseOff(await this.state.output.outFile.text());
+        const exportedData = export3MF(data);
+        const elapsedMillis = performance.now() - start;
+        output = {
+          outFile: new File([exportedData], this.state.output.outFile.name.replace('.off', '.3mf')),
+          elapsedMillis,
+          logText: '',
+          markers: [],
+        };
+      } else {
+        output = await render({
+          mountArchives: false,
+          scadPath: '/export.scad',
+          sources: [
+            {
+              path: '/export.scad',
+              content: `import("${this.state.output?.outFile.name}");`
+            },
+            {
+              path: this.state.output?.outFile.name,
+              url: this.state.output?.outFileURL,
+            }
+          ],
+          extraArgs: [], isPreview: false,
+          features,
+          renderFormat: exportFormat,
+          streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
+        })({now: true});
+      }
+      
       const outFileURL = URL.createObjectURL(output.outFile);
       this.mutate(s => {
         s.exporting = false;
@@ -372,7 +383,7 @@ export class Model {
       }
       if (displayFile.name.endsWith('.off')) {
         const offData = parseOff(await displayFile.text());
-        displayFile = new File([await convertOffToGlb(offData)], displayFile.name.replace('.off', '.glb'));
+        displayFile = new File([await exportGlb(offData)], displayFile.name.replace('.off', '.glb'));
       }
       const outFileURL = URL.createObjectURL(output.outFile);
       const displayFileURL = displayFile && await readFileAsDataURL(displayFile);

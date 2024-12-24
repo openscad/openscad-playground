@@ -6,7 +6,6 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
 import { Badge } from 'primereact/badge';
-import { Menu } from 'primereact/menu';
 import { Toast } from 'primereact/toast';
 import HelpMenu from './HelpMenu';
 import ExportButton from './ExportButton';
@@ -53,14 +52,35 @@ export default function Footer({style}: {style?: CSSProperties}) {
         margin: '5px',
         ...(style ?? {})
     }}>
-      <Button
+      {state.output && !state.output.isPreview
+        ? (
+            <ExportButton />
+        ) : state.previewing ? (
+          <Button
+            icon="pi pi-bolt"
+            disabled
+            className="p-button-sm"
+            label="Previewing..."
+            />
+        ) : state.output && state.output.isPreview ? (
+            <Button
+              icon="pi pi-bolt"
+              onClick={() => model.render({isPreview: false, now: true})}
+              className="p-button-sm"
+              disabled={state.rendering}
+              label={state.rendering ? 'Rendering...' : 'Render'}
+              />
+        ) : undefined
+      }
+      {/* <RenderExportButton /> */}
+      {/* <Button
         icon="pi pi-bolt"
         onClick={() => model.render({isPreview: false, now: true})}
         className="p-button-sm"
         label="Render"
         />
 
-      <ExportButton />
+      <ExportButton /> */}
       
       {(state.lastCheckerRun || state.output) &&
         <Button type="button"
