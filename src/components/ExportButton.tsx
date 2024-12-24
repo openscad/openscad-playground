@@ -30,24 +30,31 @@ export default function ExportButton({className, style}: {className?: string, st
       ] : [
         {
           data: 'glb',
-          buttonLabel: 'GLB',
+          buttonLabel: 'Download GLB',
           label: 'GLB (binary glTF)',
           icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'glb'),
         },
         {
           data: 'stl',
-          buttonLabel: 'STL',
+          buttonLabel: 'Download STL',
           label: 'STL (binary)',
           icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'stl'),
         },
         {
           data: 'off',
-          buttonLabel: 'OFF',
+          buttonLabel: 'Download OFF',
           label: 'OFF (Object File Format)',
           icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, 'off'),
+        },
+        {
+          data: '3mf',
+          buttonLabel: 'Download 3MF',
+          label: '3MF (3D Manufacturing Format)',
+          icon: 'pi pi-file',
+          command: () => model!.setFormats(undefined, '3mf'),
         },
       ];
 

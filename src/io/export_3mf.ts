@@ -35,13 +35,6 @@ export function exportOffTo3MF(data: IndexedPolyhedron, extruderColors?: chroma.
         getColorMapping(data.colors.map(c => chroma.rgb(...c)), extruderColors).map(i => PAINT_COLOR_MAP[i]);
     
     const archive = {
-        // _rels/.rels
-        '[Content Types].xml': new TextEncoder().encode([
-            '<?xml version="1.0" encoding="utf-8"?>',
-            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
-                '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>',
-            '</Types>',
-        ].join('\n')),
         '3D/3dmodel.model': new TextEncoder().encode([
             '<?xml version="1.0" encoding="utf-8"?>',
             '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">',
@@ -50,7 +43,7 @@ export function exportOffTo3MF(data: IndexedPolyhedron, extruderColors?: chroma.
                 '<meta name="slic3rpe:MmPaintingVersion" value="1"/>',
                 '<resources>',
                     '<basematerials id="2">',
-                    ...data.colors.map((color, i) => `<base name="color_${i}" displaycolor="#${chroma.rgb(...color).hex()}"/>`),
+                    ...data.colors.map((color, i) => `<base name="color_${i}" displaycolor="${chroma.rgb(...color).hex()}"/>`),
                     '</basematerials>',
                     `<object id="1" name="OpenSCAD Model" type="model" p:UUID="${objectUuid}" pid="2" pindex="0">`,
                         '<mesh>',
@@ -79,6 +72,18 @@ export function exportOffTo3MF(data: IndexedPolyhedron, extruderColors?: chroma.
                     `<item objectid="1" p:UUID="${objectUuid}"/>`,
                 '</build>',
             '</model>',
+        ].join('\n')),
+        '[Content_Types].xml': new TextEncoder().encode([
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+                '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>',
+            '</Types>',
+        ].join('\n')),
+        '_rels/.rels': new TextEncoder().encode([
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+            '<Relationship Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" Target="/3D/3dmodel.model" Id="rel0"/>',
+            '</Relationships>',
         ].join('\n')),
     };
     return new Blob([UZIP.encode(archive)], {type: 'model/3mf'});
