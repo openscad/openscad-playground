@@ -15,6 +15,8 @@ function createPrimitive(doc: Document, baseColorFactor: Color, {positions, indi
             doc.createMaterial()
                 .setDoubleSided(true)
                 .setAlphaMode(baseColorFactor[3] < 1 ? 'BLEND' : 'OPAQUE')
+                .setMetallicFactor(0.0)
+                .setRoughnessFactor(0.8)
                 .setBaseColorFactor(baseColorFactor))
         .setAttribute('POSITION',
             doc.createAccessor()
@@ -71,23 +73,37 @@ function getGeom(data: IndexedPolyhedron): Geom {
 export async function exportGlb(data: IndexedPolyhedron, defaultColor: Color = DEFAULT_FACE_COLOR): Promise<Blob> {
     const doc = new Document();
     const lightExt = doc.createExtension(KHRLightsPunctual);
-    const buffer = doc.createBuffer();
+    doc.createBuffer();
 
     const scene = doc.createScene()
         .addChild(doc.createNode()
-            .setExtension('KHR_lights_punctual', lightExt
-                .createLight()
-                .setType(LightDef.Type.DIRECTIONAL)
-                .setIntensity(8.0)
-                .setColor([1.0, 1.0, 1.0]))
+            .setExtension('KHR_lights_punctual',
+                lightExt.createLight()
+                    .setType(LightDef.Type.DIRECTIONAL)
+                    .setIntensity(3.0)
+                    .setColor([1.0, 1.0, 1.0]))
             .setRotation([-0.3250576, -0.3250576, 0, 0.8880739]))
         .addChild(doc.createNode()
-            .setExtension('KHR_lights_punctual', lightExt
-                .createLight()
-                .setType(LightDef.Type.DIRECTIONAL)
-                .setIntensity(8.0)
-                .setColor([1.0, 1.0, 1.0]))
-            .setRotation([0.6279631, 0.6279631, 0, 0.4597009]));
+            .setExtension('KHR_lights_punctual',
+                lightExt.createLight()
+                    .setType(LightDef.Type.DIRECTIONAL)
+                    .setIntensity(2.0)
+                    .setColor([0.9, 0.9, 1.0]))
+            .setRotation([0.6279631, 0.6279631, 0, 0.4597009]))
+        .addChild(doc.createNode()
+            .setExtension('KHR_lights_punctual',
+                lightExt.createLight()
+                    .setType(LightDef.Type.DIRECTIONAL)
+                    .setIntensity(1.0)
+                    .setColor([1.0, 1.0, 1.0]))
+            .setRotation([0.7071068, 0, 0, 0.7071068]))
+        .addChild(doc.createNode()
+            .setExtension('KHR_lights_punctual',
+                lightExt.createLight()
+                    .setType(LightDef.Type.DIRECTIONAL)
+                    .setIntensity(0.5)
+                    .setColor([0.8, 0.8, 0.8]))
+            .setRotation([-0.7071068, 0, 0, 0.7071068]));
 
     const mesh = doc.createMesh();
 
