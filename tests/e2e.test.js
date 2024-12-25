@@ -90,7 +90,7 @@ describe('e2e', () => {
       prismoid([40,40], [0,0], h=20);
     `);
     await waitForViewer();
-    expect3DManifold();
+    expect3DPolySet();
   }, longTimeout);
 
   test('use NopSCADlib', async () => {
