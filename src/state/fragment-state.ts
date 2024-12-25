@@ -57,6 +57,10 @@ export async function readStateFromFragment(): Promise<State | null> {
         // For testing
         const src = decodeURIComponent(serialized.substring('src:'.length));
         return createInitialState(null, src);
+      } else if (serialized.startsWith('testpath:')) {
+        // For testing
+        const path = decodeURIComponent(serialized.substring('testpath:'.length));
+        return createInitialState(null, '...', path);
       }
       let obj;
       try {
