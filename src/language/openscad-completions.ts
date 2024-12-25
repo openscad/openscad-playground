@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { join, readDirAsArray, Symlinks } from '../fs/filesystem';
+import { join, Symlinks } from '../fs/filesystem';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -192,7 +192,8 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
           for (const folder of [join('/libraries', folderName), join(workingDir, folderName)]) {
             files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
             try {
-              files = [...(await readDirAsArray(fs, folder) ?? []), ...files];
+              files = [...(fs.readdirSync(folder) ?? []), ...files];
+              // files = [...(await readDirAsArray(fs, folder) ?? []), ...files];
               // console.log('readDir', folder, files);
               break;
             } catch (e) {
