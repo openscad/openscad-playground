@@ -73,6 +73,8 @@ addEventListener('message', async (e) => {
 
     // Fonts are seemingly resolved from $(cwd)/fonts
     instance.FS.chdir("/");
+
+    instance.FS.mkdir('/locale');
       
     // const walkFolder = (path: string, indent = '') => {
     //   console.log("Walking " + path);
