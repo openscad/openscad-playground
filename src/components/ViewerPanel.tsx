@@ -16,6 +16,8 @@ declare global {
 const PREDEFINED_ORBITS: [string, number, number][] = [
   ["Front", 0, Math.PI / 2],
   ["Right", Math.PI / 2, Math.PI / 2],
+  ["Back", Math.PI, Math.PI / 2],
+  ["Left", -Math.PI / 2, Math.PI / 2],
   ["Top", 0, 0],
   ["Bottom", -Math.PI, Math.PI],
 ];
