@@ -106,19 +106,16 @@ export const render =
       isPreview,
       mountArchives,
       vars,
-      features: additionalFeatures,
+      features,
       extraArgs,
       renderFormat,
       streamsCallback,
     }  = renderArgs;
 
     const prefixLines: string[] = [];
-    let features: string[]
     if (isPreview) {
+      // TODO: add render-modifiers feature to OpenSCAD.
       prefixLines.push('$preview=true;');
-      features = ['render-modifiers', ...(additionalFeatures ?? [])];
-    } else {
-      features = (additionalFeatures ?? []).filter(f => f != 'render-modifiers');
     }
     if (!scadPath.endsWith('.scad')) throw new Error('First source must be a .scad file, got ' + sources[0].path + ' instead');
     
