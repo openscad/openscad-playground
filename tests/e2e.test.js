@@ -45,18 +45,43 @@ function expectMessage(messages, line) {
   const successMessage = messages.filter(msg => msg.type === 'debug' && msg.text === line);
   expect(successMessage).toHaveLength(1);
 }
+function expectObjectList() {
+  expectMessage(messages, 'stderr: Top level object is a list of objects:');
+}
+function expect3DPolySet() {
+  expectMessage(messages, 'stderr: Top level object is a 3D object (PolySet):');
+}
+function expect3DManifold() {
+  expectMessage(messages, 'stderr:    Top level object is a 3D object (manifold):');
+}
+function waitForCustomizeButton() {
+  return page.waitForFunction(() => {
+    const buttons = document.querySelectorAll('input[role=switch]');
+    for (const button of buttons) {
+      if (button.parentElement.innerText === 'Customize') {
+        return button;
+      }
+    }
+  });
+}
+function waitForLabel(text) {
+  return page.waitForFunction((text) => {
+    return Array.from(document.querySelectorAll('label')).find(el => el.textContent === 'myVar');
+    // return Array.from(document.querySelectorAll('label')).find(el => el.textContent === text);
+  }, {}, text);
+}
 
 describe('e2e', () => {
   test('load the default page', async () => {
     await page.goto(url);
     await waitForViewer();
-    expectMessage(messages, 'stderr: Top level object is a list of objects:');
+    expectOjbectList();
   }, longTimeout);
 
   test('can render cube', async () => {
     await loadSrc('cube([10, 10, 10]);');
     await waitForViewer();
-    expectMessage(messages, 'stderr: Top level object is a 3D object (PolySet):');
+    expect3DPolySet();
   }, longTimeout);
   
   test('use BOSL2', async () => {
@@ -65,7 +90,7 @@ describe('e2e', () => {
       prismoid([40,40], [0,0], h=20);
     `);
     await waitForViewer();
-    expectMessage(messages, 'stderr: Top level object is a 3D object (PolySet):');
+    expect3DManifold();
   }, longTimeout);
 
   test('use NopSCADlib', async () => {
@@ -74,6 +99,21 @@ describe('e2e', () => {
       meter(led_meter);
     `);
     await waitForViewer();
-    expectMessage(messages, 'stderr:    Top level object is a 3D object (manifold):');
+    expect3DManifold();
+  }, longTimeout);
+
+  test('customizer & windows line endings work', async () => {
+    await loadSrc([
+      'myVar = 10;',
+      'cube(myVar);',
+    ].join('\r\n'));
+    await waitForViewer();
+    expect3DPolySet();
+
+    await (await waitForCustomizeButton()).click();
+
+    await page.waitForSelector('fieldset');
+
+    await waitForLabel('myVar');
   }, longTimeout);
 });
