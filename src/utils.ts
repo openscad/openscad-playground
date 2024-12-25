@@ -157,7 +157,7 @@ export async function fetchSource({content, path, url}: Source) {
   } else if (url) {
     if (path.endsWith('.scad') || path.endsWith('.json')) {
       content = await (await fetch(url)).text();
-      return content;
+      return content.replace(/\r\n/g, '\n');
     } else {
       // Fetch bytes
       const response = await fetch(url);
