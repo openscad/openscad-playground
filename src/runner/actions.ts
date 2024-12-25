@@ -126,7 +126,8 @@ export const render =
     const content = [...prefixLines, source.content].join('\n');
 
     const actualRenderFormat = renderFormat == 'glb' || renderFormat == '3mf' ? 'off' : renderFormat;
-    const outFile = 'out.' + actualRenderFormat;
+    const stem = scadPath.replace(/\.scad$/, '').split('/').pop();
+    const outFile = `${stem}.${actualRenderFormat}`;
     const args = [
       scadPath,
       "-o", outFile,
