@@ -2,6 +2,8 @@
 
 import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
 import { ModelContext } from './contexts';
+import { on } from 'events';
+import { Toast } from 'primereact/toast';
 
 declare global {
   namespace JSX {
@@ -11,6 +13,13 @@ declare global {
   }
 }
 
+const PREDEFINED_ORBITS: [string, number, number][] = [
+  ["Front", 0, Math.PI / 2],
+  ["Right", Math.PI / 2, Math.PI / 2],
+  ["Top", 0, 0],
+  ["Bottom", -Math.PI, Math.PI],
+];
+
 export default function ViewerPanel({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
@@ -18,6 +27,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
   const state = model.state;
   const modelViewerRef = useRef<any>();
   const axesViewerRef = useRef<any>();
+  const toastRef = useRef<Toast>(null);
 
   for (const ref of [modelViewerRef, axesViewerRef]) {
     const otherRef = ref === modelViewerRef ? axesViewerRef : modelViewerRef;
@@ -28,6 +38,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         if (!otherRef.current) return;
         if (e.detail.source === 'user-interaction') {
           const cameraOrbit = ref.current.getCameraOrbit();
+          console.log(cameraOrbit.toString());
           cameraOrbit.radius = otherRef.current.getCameraOrbit().radius;
         
           otherRef.current.cameraOrbit = cameraOrbit.toString();
@@ -38,6 +49,25 @@ export default function ViewerPanel({className, style}: {className?: string, sty
       return () => element.removeEventListener('camera-change', handleCameraChange);
     }, [ref.current, otherRef.current]);
   }
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (e.target === axesViewerRef.current) {
+        // Cycle through orbits
+        const orbit = axesViewerRef.current.getCameraOrbit();
+        const eps = 0.01;
+        const currentIndex = PREDEFINED_ORBITS.findIndex(([_, theta, phi]) => Math.abs(orbit.theta - theta) < eps && Math.abs(orbit.phi - phi) < eps);
+        const newIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % PREDEFINED_ORBITS.length;
+        const [name, theta, phi] = PREDEFINED_ORBITS[newIndex];
+        orbit.theta = theta;
+        orbit.phi = phi;
+        const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = orbit.toString();
+        toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
+      }
+    }
+    window.addEventListener('click', onClick);
+    return () => window.removeEventListener('click', onClick);
+  });
   
   return (
     <div className={className}
@@ -49,6 +79,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
+      <Toast ref={toastRef} position='bottom-right'  />
       <model-viewer
         orientation="0deg -90deg 0deg"
         class="main-viewer"
