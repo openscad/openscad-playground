@@ -25,6 +25,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
   if (!model) throw new Error('No model');
 
   const state = model.state;
+  const [interactionPrompt, setInteractionPrompt] = useState('auto');
   const modelViewerRef = useRef<any>();
   const axesViewerRef = useRef<any>();
   const toastRef = useRef<Toast>(null);
@@ -62,6 +63,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         orbit.phi = phi;
         const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = orbit.toString();
         toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
+        setInteractionPrompt('none');
       }
     }
     window.addEventListener('click', onClick);
@@ -78,7 +80,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               width: '100%',
               ...(style ?? {})
           }}>
-      <Toast ref={toastRef} position='bottom-right'  />
+      <Toast ref={toastRef} position='top-right'  />
       <model-viewer
         orientation="0deg -90deg 0deg"
         class="main-viewer"
@@ -87,6 +89,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           width: '100%',
           height: '100%',
         }}
+        interaction-prompt={interactionPrompt}
         environment-image="./skybox-lights.jpg"
         max-camera-orbit="auto 180deg auto"
         min-camera-orbit="auto 0deg auto"
