@@ -118,17 +118,24 @@ export class Model {
   }
 
   openFile(path: string) {
-    // alert(`TODO: open ${path}`);
+    // console.log(`openFile: ${path}`);
     if (this.mutate(s => {
       if (s.params.activePath != path) {
-        s.params.activePath = path;
-        if (!s.params.sources.find(src => src.path === path)) {
-          let content = '';
+        const readSource = (path: string) => {
           try {
-            content = new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
+            return new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
           } catch (e) {
             console.error('Error while reading file:', e);
+            return '';
           }
+        };
+        // Remove source of previous active path if it's unmodified
+        const activePathContent = readSource(s.params.activePath);
+        s.params.sources = s.params.sources.filter(src => src.path !== s.params.activePath || src.content != activePathContent);
+
+        s.params.activePath = path;
+        if (!s.params.sources.find(src => src.path === path)) {
+          const content = readSource(path);
           s.params.sources = [...s.params.sources, {path, content}];
         }
         s.lastCheckerRun = undefined;
@@ -307,6 +314,7 @@ export class Model {
   }
 
   async render({isPreview, mountArchives, now, retryInOtherDim}: {isPreview: boolean, mountArchives?: boolean, now: boolean, retryInOtherDim?: boolean}) {
+    // console.log(JSON.stringify(this.state, null, 2));
     mountArchives ??= true;
     retryInOtherDim ??= true;
     const setRendering = (s: State, value: boolean) => {
