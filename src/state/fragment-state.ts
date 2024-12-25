@@ -3,7 +3,7 @@
 import { State } from "./app-state";
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
-import { defaultModelColor, defaultSourcePath } from "./initial-state";
+import { createInitialState, defaultModelColor, defaultSourcePath } from "./initial-state";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -51,6 +51,13 @@ export async function readStateFromFragment(): Promise<State | null> {
   if (window.location.hash.startsWith('#') && window.location.hash.length > 1) {
     try {
       const serialized = window.location.hash.substring(1);
+      if (serialized === 'blank') {
+        return createInitialState(null, '');
+      } else if (serialized.startsWith('src:')) {
+        // For testing
+        const src = decodeURIComponent(serialized.substring('src:'.length));
+        return createInitialState(null, src);
+      }
       let obj;
       try {
         obj = JSON.parse(await decompressString(serialized));
