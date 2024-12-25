@@ -6,7 +6,7 @@ import { State } from './app-state';
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
   
-export function createInitialState(state: State | null, content: string = defaultScad): State {
+export function createInitialState(state: State | null, content = defaultScad, activePath = defaultSourcePath): State {
 
   type Mode = State['view']['layout']['mode'];
   const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
@@ -14,8 +14,8 @@ export function createInitialState(state: State | null, content: string = defaul
 
   const initialState: State = {
     params: {
-      activePath: defaultSourcePath,
-      sources: [{path: defaultSourcePath, content}],
+      activePath: activePath,
+      sources: [{path: activePath, content}],
       features: [],
       exportFormat2D: 'svg',
       exportFormat3D: 'glb',

@@ -21,7 +21,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   // console.log('Messages:', JSON.stringify(messages, null, 2));
-  console.log('Messages:', JSON.stringify(messages.map(({text}) => text), null, 2));
+  const testName = expect.getState().currentTestName;
+  console.log(`[${testName}] Messages:`, JSON.stringify(messages.map(({text}) => text), null, 2));
     
   const errors = messages.filter(msg =>
       msg.type === 'error' &&
@@ -33,6 +34,9 @@ afterEach(async () => {
 
 function loadSrc(src) {
   return page.goto(url + '#src:' + encodeURIComponent(src));
+}
+function loadPath(path) {
+  return page.goto(url + '#testpath:' + encodeURIComponent(path));
 }
 async function waitForViewer() {
   await page.waitForSelector('model-viewer');
@@ -100,6 +104,12 @@ describe('e2e', () => {
     `);
     await waitForViewer();
     expect3DManifold();
+  }, longTimeout);
+
+  test('load a demo by path', async () => {
+    await loadPath('/libraries/closepoints/demo_3D_art.scad');
+    await waitForViewer();
+    expect3DPolySet();
   }, longTimeout);
 
   test('customizer & windows line endings work', async () => {
