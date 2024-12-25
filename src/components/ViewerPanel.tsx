@@ -38,7 +38,6 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         if (!otherRef.current) return;
         if (e.detail.source === 'user-interaction') {
           const cameraOrbit = ref.current.getCameraOrbit();
-          console.log(cameraOrbit.toString());
           cameraOrbit.radius = otherRef.current.getCameraOrbit().radius;
         
           otherRef.current.cameraOrbit = cameraOrbit.toString();
