@@ -61,7 +61,7 @@ window.addEventListener('load', async () => {
   
   registerCustomAppHeightCSSProperty();
 
-  const fs = await createEditorFS({prefix: '/', allowPersistence: isInStandaloneMode});
+  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode});
 
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 

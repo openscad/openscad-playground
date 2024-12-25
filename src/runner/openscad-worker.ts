@@ -93,6 +93,11 @@ addEventListener('message', async (e) => {
     if (inputs) {
       for (const source of inputs) {
         try {
+          if (source.path.startsWith('/libraries/')) {  
+            console.log(`Skipping ${source.path}`);
+            continue;
+          }
+          console.log(`Writing ${source.path}`);
           instance.FS.writeFile(source.path, await fetchSource(source));
         } catch (e) {
           console.trace(e);
