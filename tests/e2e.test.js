@@ -75,7 +75,7 @@ describe('e2e', () => {
   test('load the default page', async () => {
     await page.goto(url);
     await waitForViewer();
-    expectOjbectList();
+    expectObjectList();
   }, longTimeout);
 
   test('can render cube', async () => {
