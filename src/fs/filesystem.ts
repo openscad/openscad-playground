@@ -15,10 +15,6 @@ export const getParentDir = (path: string) => {
   return d === '' ? (path.startsWith('/') ? '/' : '.') : d;
 } 
 
-export function readDirAsArray(fs: FS, path: string): Promise<string[] | undefined> {
-  return new Promise((res, rej) => fs.readdir(path, (err, files) => err ? rej(err) : res(files)));
-}
-
 export function join(a: string, b: string): string {
   if (a === '.') return b;
   if (a.endsWith('/')) return join(a.substring(0, a.length - 1), b);
