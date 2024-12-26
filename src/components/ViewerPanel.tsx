@@ -79,10 +79,11 @@ export default function ViewerPanel({className, style}: {className?: string, sty
     }, [ref.current, otherRef.current]);
   }
 
+  // Cycle through predefined views when user clicks on the axes viewer
   useEffect(() => {
     let mouseDownSpherePoint: [number, number, number] | undefined;
     function getSpherePoint() {
-      const orbit = modelViewerRef.current.getCameraOrbit();
+      const orbit = axesViewerRef.current.getCameraOrbit();
       return spherePoint(orbit.theta, orbit.phi);
     }
     function onMouseDown(e: MouseEvent) {
@@ -100,13 +101,14 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         if (clickDist > euclEps) {
           return;
         }
-        // Cycle through orbits
-        const orbit = modelViewerRef.current.getCameraOrbit();
-        const [currentIndex, dist, radDist] = getClosestPredefinedOrbitIndex(orbit.theta, orbit.phi);
+        // Note: unlike the axes viewer, the model viewer has a prompt that makes the model wiggle around, we only fetch it to get the radius.
+        const axesOrbit = axesViewerRef.current.getCameraOrbit();
+        const modelOrbit = modelViewerRef.current.getCameraOrbit();
+        const [currentIndex, dist, radDist] = getClosestPredefinedOrbitIndex(axesOrbit.theta, axesOrbit.phi);
         const newIndex = dist < euclEps && radDist < radEps ? (currentIndex + 1) % PREDEFINED_ORBITS.length : currentIndex;
         const [name, theta, phi] = PREDEFINED_ORBITS[newIndex];
-        Object.assign(orbit, {theta, phi});
-        const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = orbit.toString();
+        Object.assign(modelOrbit, {theta, phi});
+        const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = modelOrbit.toString();
         toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
         setInteractionPrompt('none');
       }
@@ -119,7 +121,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [axesViewerRef.current]);
+  });
   
   return (
     <div className={className}
