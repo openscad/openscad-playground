@@ -151,13 +151,14 @@ export function downloadUrl(url: string, filename: string) {
   link.parentNode?.removeChild(link);
 }
 
-export async function fetchSource({content, path, url}: Source) {
+export async function fetchSource(fs: FS, {content, path, url}: Source): Promise<Uint8Array> {
+  const isText = path.endsWith('.scad') || path.endsWith('.json');
   if (content) {
-    return content;
+    return new TextEncoder().encode(content);
   } else if (url) {
-    if (path.endsWith('.scad') || path.endsWith('.json')) {
+    if (isText) {
       content = await (await fetch(url)).text();
-      return content.replace(/\r\n/g, '\n');
+      return new TextEncoder().encode(content.replace(/\r\n/g, '\n'));
     } else {
       // Fetch bytes
       const response = await fetch(url);
@@ -165,6 +166,9 @@ export async function fetchSource({content, path, url}: Source) {
       const data = new Uint8Array(buffer);
       return data;
     }
+  } else if (path) {
+    const data = fs.readFileSync(path);
+    return new Uint8Array('buffer' in data ? data.buffer : data);
   } else {
     throw new Error('Invalid source: ' + JSON.stringify({path, content, url}));
   }

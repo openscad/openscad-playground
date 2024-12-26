@@ -1,7 +1,7 @@
 const longTimeout = 60000;
 
 const isProd = process.env.NODE_ENV === 'production';
-const url = isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/';
+const baseUrl = isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/';
 
 const messages = [];
 
@@ -33,10 +33,13 @@ afterEach(async () => {
 });
 
 function loadSrc(src) {
-  return page.goto(url + '#src:' + encodeURIComponent(src));
+  return page.goto(baseUrl + '#src=' + encodeURIComponent(src));
 }
 function loadPath(path) {
-  return page.goto(url + '#testpath:' + encodeURIComponent(path));
+  return page.goto(baseUrl + '#path=' + encodeURIComponent(path));
+}
+function loadUrl(url) {
+  return page.goto(baseUrl + '#url=' + encodeURIComponent(url));
 }
 async function waitForViewer() {
   await page.waitForSelector('model-viewer');
@@ -77,7 +80,7 @@ function waitForLabel(text) {
 
 describe('e2e', () => {
   test('load the default page', async () => {
-    await page.goto(url);
+    await page.goto(baseUrl);
     await waitForViewer();
     expectObjectList();
   }, longTimeout);
@@ -112,6 +115,12 @@ describe('e2e', () => {
     expect3DPolySet();
   }, longTimeout);
 
+  test('load a demo by url', async () => {
+    await loadUrl('https://github.com/tenstad/keyboard/blob/main/keyboard.scad');
+    await waitForViewer();
+    expect3DManifold();
+  }, longTimeout);
+
   test('customizer & windows line endings work', async () => {
     await loadSrc([
       'myVar = 10;',
@@ -119,11 +128,8 @@ describe('e2e', () => {
     ].join('\r\n'));
     await waitForViewer();
     expect3DPolySet();
-
     await (await waitForCustomizeButton()).click();
-
     await page.waitForSelector('fieldset');
-
     await waitForLabel('myVar');
   }, longTimeout);
 });

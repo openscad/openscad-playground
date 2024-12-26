@@ -9,7 +9,7 @@ import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { buildUrlForStateParams } from '../state/fragment-state';
-import { blankProjectState, defaultSourcePath } from '../state/initial-state';
+import { getBlankProjectState, defaultSourcePath } from '../state/initial-state';
 import { ModelContext, FSContext } from './contexts';
 import FilePicker, {  } from './FilePicker';
 
@@ -89,7 +89,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
           {
             label: "New project",
             icon: 'pi pi-plus-circle',
-            url: buildUrlForStateParams(blankProjectState),
+            command: async () => window.open(buildUrlForStateParams(await getBlankProjectState()), '_blank'),
             target: '_blank',
           },
           {

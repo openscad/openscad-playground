@@ -6,7 +6,6 @@ import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem
 import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner";
 import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
 import { fetchSource } from "../utils.js";
-import { stderr } from "process";
 declare var BrowserFS: BrowserFSInterface
 
 importScripts("browserfs.min.js");
@@ -94,7 +93,13 @@ addEventListener('message', async (e) => {
       for (const source of inputs) {
         try {
           console.log(`Writing ${source.path}`);
-          instance.FS.writeFile(source.path, await fetchSource(source));
+          if (source.content == null && source.path != null && source.url == null) {
+            if (!instance.FS.isFile(source.path)) {
+              console.error(`File ${source.path} does not exist!`);
+            }
+          } else {
+            instance.FS.writeFile(source.path, await fetchSource(instance.FS, source));
+          }
         } catch (e) {
           console.trace(e);
           throw new Error(`Error while trying to write ${source.path}: ${e}`);
