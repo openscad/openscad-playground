@@ -2,7 +2,6 @@
 
 import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
 import { ModelContext } from './contexts';
-import { on } from 'events';
 import { Toast } from 'primereact/toast';
 
 declare global {
@@ -13,14 +12,42 @@ declare global {
   }
 }
 
-const PREDEFINED_ORBITS: [string, number, number][] = [
+export const PREDEFINED_ORBITS: [string, number, number][] = [
+  ["Diagonal", Math.PI / 4, Math.PI / 4],
   ["Front", 0, Math.PI / 2],
   ["Right", Math.PI / 2, Math.PI / 2],
   ["Back", Math.PI, Math.PI / 2],
   ["Left", -Math.PI / 2, Math.PI / 2],
   ["Top", 0, 0],
-  ["Bottom", -Math.PI, Math.PI],
+  ["Bottom", 0, Math.PI],
 ];
+
+function spherePoint(theta: number, phi: number): [number, number, number] {
+  return [
+    Math.cos(theta) * Math.sin(phi),
+    Math.sin(theta) * Math.sin(phi),
+    Math.cos(phi),
+  ];
+}
+
+function euclideanDist(a: [number, number, number], b: [number, number, number]): number {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  const dz = a[2] - b[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+const radDist = (a: number, b: number) => Math.min(Math.abs(a - b), Math.abs(a - b + 2 * Math.PI), Math.abs(a - b - 2 * Math.PI));
+
+function getClosestPredefinedOrbitIndex(theta: number, phi: number): [number, number, number] {
+  const point = spherePoint(theta, phi);
+  const points = PREDEFINED_ORBITS.map(([_, t, p]) => spherePoint(t, p));
+  const distances = points.map(p => euclideanDist(point, p));
+  const radDistances = PREDEFINED_ORBITS.map(([_, ptheta, pphi]) => Math.max(radDist(theta, ptheta), radDist(phi, pphi)));
+  const [index, dist] = distances.reduce((acc, d, i) => d < acc[1] ? [i, d] : acc, [0, Infinity]) as [number, number];
+  return [index, dist, radDistances[index]];
+}
+
+const originalOrbit = (([name, theta, phi]) => `${theta}rad ${phi}rad auto`)(PREDEFINED_ORBITS[0]);
 
 export default function ViewerPanel({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
@@ -53,24 +80,46 @@ export default function ViewerPanel({className, style}: {className?: string, sty
   }
 
   useEffect(() => {
-    function onClick(e: MouseEvent) {
+    let mouseDownSpherePoint: [number, number, number] | undefined;
+    function getSpherePoint() {
+      const orbit = modelViewerRef.current.getCameraOrbit();
+      return spherePoint(orbit.theta, orbit.phi);
+    }
+    function onMouseDown(e: MouseEvent) {
       if (e.target === axesViewerRef.current) {
+        mouseDownSpherePoint = getSpherePoint();
+      }
+    }
+    function onMouseUp(e: MouseEvent) {
+      if (e.target === axesViewerRef.current) {
+        const euclEps = 0.01;
+        const radEps = 0.1;
+
+        const spherePoint = getSpherePoint();
+        const clickDist = mouseDownSpherePoint ? euclideanDist(spherePoint, mouseDownSpherePoint) : Infinity;
+        if (clickDist > euclEps) {
+          return;
+        }
         // Cycle through orbits
-        const orbit = axesViewerRef.current.getCameraOrbit();
-        const eps = 0.01;
-        const currentIndex = PREDEFINED_ORBITS.findIndex(([_, theta, phi]) => Math.abs(orbit.theta - theta) < eps && Math.abs(orbit.phi - phi) < eps);
-        const newIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % PREDEFINED_ORBITS.length;
+        const orbit = modelViewerRef.current.getCameraOrbit();
+        const [currentIndex, dist, radDist] = getClosestPredefinedOrbitIndex(orbit.theta, orbit.phi);
+        const newIndex = dist < euclEps && radDist < radEps ? (currentIndex + 1) % PREDEFINED_ORBITS.length : currentIndex;
         const [name, theta, phi] = PREDEFINED_ORBITS[newIndex];
-        orbit.theta = theta;
-        orbit.phi = phi;
+        Object.assign(orbit, {theta, phi});
         const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = orbit.toString();
         toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
         setInteractionPrompt('none');
       }
     }
-    window.addEventListener('click', onClick);
-    return () => window.removeEventListener('click', onClick);
-  });
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    // window.addEventListener('click', onClick);
+    return () => {
+      // window.removeEventListener('click', onClick);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [axesViewerRef.current]);
   
   return (
     <div className={className}
@@ -91,6 +140,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
           width: '100%',
           height: '100%',
         }}
+        camera-orbit={originalOrbit}
         interaction-prompt={interactionPrompt}
         environment-image="./skybox-lights.jpg"
         max-camera-orbit="auto 180deg auto"
@@ -114,7 +164,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                   width: '100px',
                 }}
                 loading="eager"
-                interpolation-decay="0"
+                camera-orbit={originalOrbit}
+                // interpolation-decay="0"
                 environment-image="./skybox-lights.jpg"
                 max-camera-orbit="auto 180deg auto"
                 min-camera-orbit="auto 0deg auto"
