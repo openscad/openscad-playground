@@ -89,7 +89,7 @@ window.addEventListener('load', async () => {
     };
   }
 
-  const initialState = createInitialState(persistedState);
+  const initialState = await createInitialState(persistedState);
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

@@ -14,14 +14,15 @@ import { exportGlb } from "../io/export_glb";
 import { export3MF } from "../io/export_3mf";
 import chroma from "chroma-js";
 
+const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
+
 export class Model {
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
     private statePersister?: StatePersister) {
   }
   
   init() {
-    if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering &&
-        this.source.trim() != '') {
+    if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering) {
       this.processSource();
     }
   }
@@ -156,16 +157,26 @@ export class Model {
     }
   }
 
-  private processSource() {
-    // const params = this.state.params;
-    // if (isFileWritable(params.sourcePath)) {
-      // const absolutePath = params.sourcePath.startsWith('/') ? params.sourcePath : `/${params.sourcePath}`;
-    // this.fs.writeFile(params.sourcePath, params.source);
-    // }
-    if (this.state.params.activePath.endsWith('.scad')) {
-      this.checkSyntax();
+  private async processSource() {
+    let src = this.state.params.sources.find(src => src.path === this.state.params.activePath);
+    if (src && src.content == null) {
+      let {path, url} = src;
+      // Transform https://github.com/tenstad/keyboard/blob/main/keyboard.scad to https://raw.githubusercontent.com/tenstad/keyboard/refs/heads/main/keyboard.scad
+      let match;
+      if (url && (match = url.match(githubRx))) {
+        url = `https://raw.githubusercontent.com/${match[1]}/${match[2]}/refs/heads/${match[3]}`;
+      }
+      const content = new TextDecoder().decode(await fetchSource(this.fs, {path, url}));
+      this.mutate(s => {
+        s.params.sources = s.params.sources.map(src => src.path === s.params.activePath ? {...src, content} : src);
+      });
     }
-    this.render({isPreview: true, now: false});
+    if (this.source.trim() !== '') {
+      if (this.state.params.activePath.endsWith('.scad')) {
+        this.checkSyntax();
+      }
+      this.render({isPreview: true, now: false});
+    }
   }
 
   async checkSyntax() {
@@ -304,7 +315,7 @@ export class Model {
         if (path.startsWith('/')) {
           path = path.substring(1);
         }
-        zip.file(path, await fetchSource(source));
+        zip.file(path, await fetchSource(this.fs, source));
       }
       zip.generateAsync({type: 'blob'}).then(blob => {
         const file = new File([blob], 'project.zip');
