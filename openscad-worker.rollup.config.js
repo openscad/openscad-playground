@@ -1,4 +1,3 @@
-// import typescript from 'rollup-plugin-typescript';
 import typescript from 'rollup-plugin-typescript2';
 import replace from '@rollup/plugin-replace';
 import packageConfig from './package.json'
