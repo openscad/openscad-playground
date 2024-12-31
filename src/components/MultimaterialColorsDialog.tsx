@@ -43,11 +43,12 @@ export default function MultimaterialColorsDialog() {
                     disabled={!tempExtruderColors.every(c => chroma.valid(c) || c.trim() === '')}
                     autoFocus
                     onClick={e => {
+                        const wasExporting = state.view.extruderPickerVisibility === 'exporting';
                         model!.mutate(s => {
                             s.params.extruderColors = tempExtruderColors.filter(c => c.trim() !== '');
                             s.view.extruderPickerVisibility = undefined;
                         });
-                        if (state.view.extruderPickerVisibility === 'exporting') {
+                        if (wasExporting) {
                             model!.export();
                         }
                     }} />
