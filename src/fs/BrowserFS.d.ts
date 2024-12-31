@@ -11,13 +11,29 @@ declare interface FS {
 
 declare interface EmscriptenFS extends FS {}
 
-declare type BrowserFSInterface = {
-  BFSRequire: (name: string) => any,
+declare interface BrowserFSInterface {
+  EmscriptenFS: any;
+  BFSRequire: (module: string) => any;
+  install: (obj: any) => void;
+  configure: (config: any, cb: (e?: Error) => void) => void;
+  FileSystem: {
+    InMemory: any;
+    ZipFS: any;
+    MountableFileSystem: any;
+    LocalStorage: any;
+    XmlHttpRequest: any;
+  };
+  Buffer: {
+    from: (data: any, encoding?: string) => any;
+    alloc: (size: number) => any;
+  };
+  initialize: (config: any) => Promise<void>;
+  WorkerFS?: any;
+}
 
-  install: (windowOrSelf: Window) => void,
-  configure: (options: any, callback: (e?: any) => void) => void,
+declare var BrowserFS: BrowserFSInterface;
 
-  EmscriptenFS: {
-    new(fs: FS, path: string, errnoCodes: object): EmscriptenFS
-  }
-};
+declare module 'browserfs' {
+  export = BrowserFS;
+}
+

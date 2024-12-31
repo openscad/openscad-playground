@@ -61,14 +61,14 @@ window.addEventListener('load', async () => {
   
   registerCustomAppHeightCSSProperty();
 
-  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode});
+  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode()});
 
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 
   let statePersister: StatePersister;
   let persistedState: State | null = null;
 
-  if (isInStandaloneMode) {
+  if (isInStandaloneMode()) {
     const fs: FS = BrowserFS.BFSRequire('fs')
     try {
       const data = JSON.parse(new TextDecoder("utf-8").decode(fs.readFileSync('/state.json')));
