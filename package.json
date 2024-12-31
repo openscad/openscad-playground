@@ -14,7 +14,7 @@
     "chroma-js": "^3.1.2",
     "debug": "^4.4.0",
     "jszip": "^3.10.1",
-    "monaco-editor": "^0.36.1",
+    "monaco-editor": "^0.52.2",
     "primeflex": "^3.3.1",
     "primeicons": "^7.0.0",
     "primereact": "^10.8.5",
