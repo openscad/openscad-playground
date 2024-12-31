@@ -2,18 +2,18 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {App} from './components/App';
-import { createEditorFS } from './fs/filesystem';
-import { registerOpenSCADLanguage } from './language/openscad-register-language';
-import { zipArchives } from './fs/zip-archives';
-import {readStateFromFragment} from './state/fragment-state'
-import { createInitialState } from './state/initial-state';
+import {App} from './components/App.tsx';
+import { createEditorFS } from './fs/filesystem.ts';
+import { registerOpenSCADLanguage } from './language/openscad-register-language.ts';
+import { zipArchives } from './fs/zip-archives.ts';
+import {readStateFromFragment} from './state/fragment-state.ts'
+import { createInitialState } from './state/initial-state.ts';
 import './index.css';
 
 import debug from 'debug';
-import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils';
-import { State, StatePersister } from './state/app-state';
-import { writeStateInFragment } from "./state/fragment-state";
+import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils.ts';
+import { State, StatePersister } from './state/app-state.ts';
+import { writeStateInFragment } from "./state/fragment-state.ts";
 
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -89,7 +89,7 @@ window.addEventListener('load', async () => {
     };
   }
 
-  const initialState = await createInitialState(persistedState);
+  const initialState = createInitialState(persistedState);
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

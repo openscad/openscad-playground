@@ -1,5 +1,5 @@
 import React from "react";
-import { Model } from "../state/model";
+import { Model } from "../state/model.ts";
 
 export const FSContext = React.createContext<FS | undefined>(undefined);
 

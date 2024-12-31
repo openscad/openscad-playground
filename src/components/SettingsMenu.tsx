@@ -4,8 +4,8 @@ import { CSSProperties, useContext, useRef } from 'react';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
-import { ModelContext } from './contexts';
-import { isInStandaloneMode } from '../utils';
+import { ModelContext } from './contexts.ts';
+import { isInStandaloneMode } from '../utils.ts';
 import { confirmDialog } from 'primereact/confirmdialog';
 
 export default function SettingsMenu({className, style}: {className?: string, style?: CSSProperties}) {

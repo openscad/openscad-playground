@@ -1,16 +1,16 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import defaultScad from './default-scad';
-import { State } from './app-state';
-import { fetchSource } from '../utils';
+import defaultScad from './default-scad.ts';
+import { State } from './app-state.ts';
 
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
 const defaultBlurhash = "|KSPX^%3~qtjMx$lR*x]t7n,R%xuxbM{WBt7ayfk_3bY9FnAt8XOxanjNF%fxbMyIn%3t7NFoLaeoeV[WBo{xar^IoS1xbxcR*S0xbofRjV[j[kCNGofxaWBNHW-xasDR*WTkBxuWBM{s:t7bYahRjfkozWUadofbIW:jZ";
   
-export async function createInitialState(state: State | null, source?: {content?: string, path?: string, url?: string, blurhash?: string}): Promise<State> {
+export function createInitialState(state: State | null, source?: {content?: string, path?: string, url?: string, blurhash?: string}): State {
 
   type Mode = State['view']['layout']['mode'];
+  
   const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
     ? 'multi' : 'single';
 
@@ -87,8 +87,8 @@ export async function createInitialState(state: State | null, source?: {content?
   return initialState;
 }
 
-export async function getBlankProjectState() {
-  return await createInitialState(null, {
+export function getBlankProjectState() {
+  return createInitialState(null, {
     path: defaultSourcePath,
     content: defaultScad, 
   });

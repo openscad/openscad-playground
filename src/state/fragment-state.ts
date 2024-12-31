@@ -1,9 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { State } from "./app-state";
-import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
-import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils";
-import { createInitialState, defaultModelColor, defaultSourcePath } from "./initial-state";
+import { State } from "./app-state.ts";
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
+import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils.ts";
+import { createInitialState, defaultModelColor, defaultSourcePath } from "./initial-state.ts";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
   return `${location.protocol}//${location.host}${location.pathname}#${encodeStateParamsAsFragment(state)}`;
@@ -17,7 +17,6 @@ async function compressString(input: string): Promise<string> {
       controller.enqueue(new TextEncoder().encode(input));
       controller.close();
     }
-  // @ts-ignore
   }).pipeThrough(new CompressionStream('gzip'))).arrayBuffer())));
 }
 
@@ -27,7 +26,6 @@ async function decompressString(compressedInput: string): Promise<string> {
       controller.enqueue(Uint8Array.from(atob(compressedInput), c => c.charCodeAt(0)));
       controller.close();
     }
-  // @ts-ignore
   }).pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
 }
 

@@ -1,12 +1,12 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useContext } from 'react';
+import React, { CSSProperties, useContext } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import { TreeNode } from 'primereact/treenode';
-import { ModelContext, FSContext } from './contexts';
-import { getParentDir, join } from '../fs/filesystem';
-import { defaultSourcePath } from '../state/initial-state';
-import { zipArchives } from '../fs/zip-archives';
+import { ModelContext, FSContext } from './contexts.ts';
+import { getParentDir, join } from '../fs/filesystem.ts';
+import { defaultSourcePath } from '../state/initial-state.ts';
+import { zipArchives } from '../fs/zip-archives.ts';
 
 const biasedCompare = (a: string, b: string) => 
   a === 'openscad' ? -1 : b === 'openscad' ? 1 : a.localeCompare(b);

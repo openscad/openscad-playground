@@ -1,16 +1,16 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useContext, useRef } from 'react';
-import { ModelContext } from './contexts';
+import React, { CSSProperties, useContext, useRef } from 'react';
+import { ModelContext } from './contexts.ts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
 import { Badge } from 'primereact/badge';
 import { Toast } from 'primereact/toast';
-import HelpMenu from './HelpMenu';
-import ExportButton from './ExportButton';
-import SettingsMenu from './SettingsMenu';
-import MultimaterialColorsDialog from './MultimaterialColorsDialog';
+import HelpMenu from './HelpMenu.tsx';
+import ExportButton from './ExportButton.tsx';
+import SettingsMenu from './SettingsMenu.tsx';
+import MultimaterialColorsDialog from './MultimaterialColorsDialog.tsx';
 
 
 export default function Footer({style}: {style?: CSSProperties}) {

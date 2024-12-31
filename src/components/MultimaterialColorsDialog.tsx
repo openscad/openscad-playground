@@ -3,7 +3,7 @@ import React, { useContext, useState } from 'react';
 import { ColorPicker } from 'primereact/colorpicker';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
-import { ModelContext } from './contexts';
+import { ModelContext } from './contexts.ts';
 import { Dialog } from 'primereact/dialog';
 
 export default function MultimaterialColorsDialog() {

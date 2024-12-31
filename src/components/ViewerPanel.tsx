@@ -1,9 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { CSSProperties, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ModelContext } from './contexts';
+import { ModelContext } from './contexts.ts';
 import { Toast } from 'primereact/toast';
-import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes';
+import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes.ts';
 
 declare global {
   namespace JSX {
