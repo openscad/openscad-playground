@@ -16,5 +16,5 @@ export default {
     preview: true,
   },
   codeLens: true,
-  wordBasedSuggestions: false,
+  wordBasedSuggestions: "off",
 } as monaco.editor.IStandaloneEditorConstructionOptions;
