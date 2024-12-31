@@ -35,6 +35,12 @@ export interface State {
     extruderColors?: string[],
   },
 
+  
+  preview?: {
+    thumbhash?: string,
+    blurhash?: string,
+  },
+
   view: {
     logs?: boolean,
     extruderPickerVisibility?: 'editing' | 'exporting',

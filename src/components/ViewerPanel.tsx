@@ -1,8 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
+import { CSSProperties, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ModelContext } from './contexts';
 import { Toast } from 'primereact/toast';
+import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes';
 
 declare global {
   namespace JSX {
@@ -58,6 +59,51 @@ export default function ViewerPanel({className, style}: {className?: string, sty
   const modelViewerRef = useRef<any>();
   const axesViewerRef = useRef<any>();
   const toastRef = useRef<Toast>(null);
+
+  const [loadedUri, setLoadedUri] = useState<string | undefined>();
+
+  const [cachedImageHash, setCachedImageHash] = useState<{hash: string, uri: string} | undefined>(undefined);
+
+  const modelUri = state.output?.displayFileURL ?? state.output?.outFileURL ?? '';
+  const loaded = loadedUri === modelUri;
+
+  if (state?.preview) {
+    let {hash, uri} = cachedImageHash ?? {};
+    if (state.preview.blurhash && hash !== state.preview.blurhash) {
+      hash = state.preview.blurhash;
+      uri = blurHashToImage(hash, 100, 100);
+      setCachedImageHash({hash, uri});
+    } else if (state.preview.thumbhash && hash !== state.preview.thumbhash) {
+      hash = state.preview.thumbhash;
+      uri = thumbHashToImage(hash);
+      setCachedImageHash({hash, uri});
+    }
+  } else if (cachedImageHash) {
+    setCachedImageHash(undefined);
+  }
+
+  const onLoad = useCallback(async (e: any) => {
+    setLoadedUri(modelUri);
+    console.log('onLoad', e);
+
+    if (!modelViewerRef.current) return;
+
+    const uri = await modelViewerRef.current.toDataURL('image/png', 0.5);
+    const preview = {blurhash: await imageToBlurhash(uri)};
+    // const preview = {thumbhash: await imageToThumbhash(uri)};
+    console.log(preview);
+    
+    model?.mutate(s => s.preview = preview);
+  }, [model, modelUri, setLoadedUri, modelViewerRef.current]);
+
+  useEffect(() => {
+    if (!modelViewerRef.current) return;
+
+    const element = modelViewerRef.current;
+    element.addEventListener('load', onLoad);
+    return () => element.removeEventListener('load', onLoad);
+  }, [modelViewerRef.current, onLoad]);
+
 
   for (const ref of [modelViewerRef, axesViewerRef]) {
     const otherRef = ref === modelViewerRef ? axesViewerRef : modelViewerRef;
@@ -122,7 +168,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
       window.removeEventListener('mouseup', onMouseUp);
     };
   });
-  
+
   return (
     <div className={className}
           style={{
@@ -134,11 +180,36 @@ export default function ViewerPanel({className, style}: {className?: string, sty
               ...(style ?? {})
           }}>
       <Toast ref={toastRef} position='top-right'  />
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.7; }
+            100% { opacity: 0.4; }
+          }
+        `}
+      </style>
+
+      {!loaded && cachedImageHash && 
+        <img
+        src={cachedImageHash.uri}
+        style={{
+          animation: 'pulse 1.5s ease-in-out infinite',
+          position: 'absolute',
+          pointerEvents: 'none',
+          width: '100%',
+          height: '100%'
+        }} />
+      }
+
       <model-viewer
         orientation="0deg -90deg 0deg"
         class="main-viewer"
-        src={state.output?.displayFileURL ?? state.output?.outFileURL ?? ''}
+        src={modelUri}
         style={{
+          transition: 'opacity 0.5s',
+          opacity: loaded ? 1 : 0,
+          position: 'absolute',
           width: '100%',
           height: '100%',
         }}
@@ -173,8 +244,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 min-camera-orbit="auto 0deg auto"
                 orbit-sensitivity="5"
                 interaction-prompt="none"
-                disable-zoom
                 camera-controls="false"
+                disable-zoom
                 disable-tap 
                 disable-pan
                 ref={axesViewerRef}

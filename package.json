@@ -11,6 +11,7 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "blurhash": "^2.0.5",
     "chroma-js": "^3.1.2",
     "debug": "^4.4.0",
     "jszip": "^3.10.1",
@@ -20,6 +21,7 @@
     "primereact": "^10.8.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "thumbhash": "^0.1.1",
     "uuid": "^11.0.3",
     "uzip": "^0.20201231.0"
   },
