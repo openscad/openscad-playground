@@ -2,16 +2,16 @@
 
 import React, { CSSProperties, useContext, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
-import openscadEditorOptions from '../language/openscad-editor-options';
+import openscadEditorOptions from '../language/openscad-editor-options.ts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
-import { buildUrlForStateParams } from '../state/fragment-state';
-import { getBlankProjectState, defaultSourcePath } from '../state/initial-state';
-import { ModelContext, FSContext } from './contexts';
-import FilePicker, {  } from './FilePicker';
+import { buildUrlForStateParams } from '../state/fragment-state.ts';
+import { getBlankProjectState, defaultSourcePath } from '../state/initial-state.ts';
+import { ModelContext, FSContext } from './contexts.ts';
+import FilePicker, {  } from './FilePicker.tsx';
 
 // const isMonacoSupported = false;
 const isMonacoSupported = (() => {
@@ -89,7 +89,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
           {
             label: "New project",
             icon: 'pi pi-plus-circle',
-            command: async () => window.open(buildUrlForStateParams(await getBlankProjectState()), '_blank'),
+            command: () => window.open(buildUrlForStateParams(getBlankProjectState()), '_blank'),
             target: '_blank',
           },
           {

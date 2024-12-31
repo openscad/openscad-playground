@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useContext } from 'react';
-import { ModelContext } from './contexts';
+import React, { CSSProperties, useContext } from 'react';
+import { ModelContext } from './contexts.ts';
 
 import { Dropdown } from 'primereact/dropdown';
 import { Slider } from 'primereact/slider';
@@ -9,7 +9,7 @@ import { Checkbox } from 'primereact/checkbox';
 import { InputNumber } from 'primereact/inputnumber';
 import { InputText } from 'primereact/inputtext';
 import { Fieldset } from 'primereact/fieldset';
-import { Parameter } from '../state/customizer-types';
+import { Parameter } from '../state/customizer-types.ts';
 import { Button } from 'primereact/button';
 
 export default function CustomizerPanel({className, style}: {className?: string, style?: CSSProperties}) {

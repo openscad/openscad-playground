@@ -1,17 +1,17 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions";
-import { MultiLayoutComponentId, SingleLayoutComponentId, Source, State, StatePersister } from "./app-state";
-import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from './formats';
-import { bubbleUpDeepMutations } from "./deep-mutate";
-import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils'
+import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions.ts";
+import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state.ts";
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
+import { bubbleUpDeepMutations } from "./deep-mutate.ts";
+import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils.ts'
 
 import JSZip from 'jszip';
-import { ProcessStreams } from "../runner/openscad-runner";
-import { is2DFormatExtension } from "./formats";
-import { parseOff } from "../io/import_off";
-import { exportGlb } from "../io/export_glb";
-import { export3MF } from "../io/export_3mf";
+import { ProcessStreams } from "../runner/openscad-runner.ts";
+import { is2DFormatExtension } from "./formats.ts";
+import { parseOff } from "../io/import_off.ts";
+import { exportGlb } from "../io/export_glb.ts";
+import { export3MF } from "../io/export_3mf.ts";
 import chroma from "chroma-js";
 
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;

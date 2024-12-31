@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": [
-      "dom",
-      "dom.iterable",
+      "DOM",
+      "DOM.Iterable",
       "ES2022",
       "WebWorker"
     ],

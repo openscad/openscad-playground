@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { Source } from "./state/app-state";
+import { Source } from "./state/app-state.ts";
 
 export function mapObject(o: any, f: (key: string, value: any) => any, ifPred: (key: string) => boolean) {
   const ret = [];

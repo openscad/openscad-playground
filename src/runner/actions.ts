@@ -1,12 +1,12 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner";
-import { processMergedOutputs } from "./output-parser";
-import { AbortablePromise, turnIntoDelayableExecution } from '../utils';
-import { Source } from '../state/app-state';
-import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D, VALID_RENDER_FORMATS } from '../state/formats';
-import { ParameterSet } from '../state/customizer-types';
+import { ProcessStreams, spawnOpenSCAD } from "./openscad-runner.ts";
+import { processMergedOutputs } from "./output-parser.ts";
+import { AbortablePromise, turnIntoDelayableExecution } from '../utils.ts';
+import { Source } from '../state/app-state.ts';
+import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from '../state/formats.ts';
+import { ParameterSet } from '../state/customizer-types.ts';
 
 const syntaxDelay = 300;
 
@@ -85,7 +85,7 @@ export type RenderArgs = {
   extraArgs?: string[],
   isPreview: boolean,
   mountArchives: boolean,
-  renderFormat: keyof typeof VALID_EXPORT_FORMATS_2D | keyof typeof VALID_EXPORT_FORMATS_3D | keyof typeof VALID_RENDER_FORMATS,
+  renderFormat: keyof typeof VALID_EXPORT_FORMATS_2D | keyof typeof VALID_EXPORT_FORMATS_3D,
   streamsCallback: (ps: ProcessStreams) => void,
 }
 
