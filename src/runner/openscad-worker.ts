@@ -3,9 +3,9 @@
 /// <reference lib="webworker" />
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem.ts";
+import { createEditorFS, symlinkLibraries } from "../fs/filesystem.ts";
 import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner.ts";
-import { deployedArchiveNames, zipArchives } from "../fs/zip-archives.ts";
+import { deployedArchiveNames } from "../fs/zip-archives.ts";
 import { fetchSource } from "../utils.ts";
 
 importScripts("browserfs.min.js");
