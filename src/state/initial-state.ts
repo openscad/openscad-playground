@@ -6,8 +6,9 @@ import { fetchSource } from '../utils';
 
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
+const defaultBlurhash = "|KSPX^%3~qtjMx$lR*x]t7n,R%xuxbM{WBt7ayfk_3bY9FnAt8XOxanjNF%fxbMyIn%3t7NFoLaeoeV[WBo{xar^IoS1xbxcR*S0xbofRjV[j[kCNGofxaWBNHW-xasDR*WTkBxuWBM{s:t7bYahRjfkozWUadofbIW:jZ";
   
-export async function createInitialState(state: State | null, source?: {content?: string, path?: string, url?: string}): Promise<State> {
+export async function createInitialState(state: State | null, source?: {content?: string, path?: string, url?: string, blurhash?: string}): Promise<State> {
 
   type Mode = State['view']['layout']['mode'];
   const mode: Mode = window.matchMedia("(min-width: 768px)").matches 
@@ -18,14 +19,16 @@ export async function createInitialState(state: State | null, source?: {content?
     if (source) throw new Error('Cannot provide source when state is provided');
     initialState = state;
   } else {
-    let content, path, url;
+    let content, path, url, blurhash;
     if (source) {
       content = source.content;
       path = source.path;
       url = source.url;
+      blurhash = source.blurhash;
     } else {
       content = defaultScad;
       path = defaultSourcePath;
+      blurhash = defaultBlurhash;
     }
     let activePath = path ?? (url && new URL(url).pathname.split('/').pop()) ?? defaultSourcePath;
     initialState = {
@@ -46,6 +49,7 @@ export async function createInitialState(state: State | null, source?: {content?
 
         color: defaultModelColor,
       },
+      preview: blurhash ? {blurhash} : undefined,
     };
   }
 

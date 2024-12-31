@@ -42,7 +42,8 @@ async function decompressString(compressedInput: string): Promise<string> {
 export function encodeStateParamsAsFragment(state: State) {
   const json = JSON.stringify({
     params: state.params,
-    view: state.view
+    view: state.view,
+    preview: state.preview,
   });
   // return encodeURIComponent(json);
   return compressString(json);
@@ -73,7 +74,7 @@ export async function readStateFromFragment(): Promise<State | null> {
         // Backwards compatibility
         obj = JSON.parse(decodeURIComponent(serialized));
       }
-      const {params, view} = obj;
+      const {params, view, preview} = obj;
       return {
         params: {
           activePath: validateString(params?.activePath, () => defaultSourcePath),
@@ -85,6 +86,10 @@ export async function readStateFromFragment(): Promise<State | null> {
           exportFormat3D: validateStringEnum(params?.exportFormat3D, Object.keys(VALID_EXPORT_FORMATS_3D), s => 'glb'),
           extruderColors: validateArray(params?.extruderColors, validateString, () => undefined as any as []),
         },
+        preview: preview ? {
+          thumbhash: preview.thumbhash ? validateString(preview.thumbhash) : undefined,
+          blurhash: preview.blurhash ? validateString(preview.blurhash) : undefined,
+        } : undefined,
         view: {
           logs: validateBoolean(view?.logs),
           extruderPickerVisibility: validateStringEnum(view?.extruderPickerVisibility, ['editing', 'exporting'], s => undefined),

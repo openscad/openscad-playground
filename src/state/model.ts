@@ -142,6 +142,11 @@ export class Model {
         s.lastCheckerRun = undefined;
         s.output = undefined;
         s.export = undefined;
+        s.preview = undefined;
+        s.currentRunLogs = undefined;
+        s.error = undefined;
+        s.is2D = undefined;
+        console.log('Opened file:', path);
       }
     })) {
       this.processSource();
