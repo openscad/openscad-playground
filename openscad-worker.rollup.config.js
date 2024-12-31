@@ -1,4 +1,4 @@
-import typescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript'
 import replace from '@rollup/plugin-replace';
 import packageConfig from './package.json'
 
@@ -13,9 +13,7 @@ export default [
       format: 'es'
     },
     plugins: [
-      typescript({
-        rootDir: 'src',
-      }),
+      typescript(),
       replace({
         preventAssignment: true,
         'import.meta.url': JSON.stringify(process.env.NODE_ENV !== 'production' ? LOCAL_URL : PUBLIC_URL),
