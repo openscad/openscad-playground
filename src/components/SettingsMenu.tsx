@@ -40,7 +40,7 @@ export default function SettingsMenu({className, style}: {className?: string, st
           // disabled: true,
           command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
         },
-        ...(isInStandaloneMode ? [
+        ...(isInStandaloneMode() ? [
           {
             separator: true
           },  
