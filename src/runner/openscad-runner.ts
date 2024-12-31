@@ -4,26 +4,13 @@ import { MergedOutputs } from "./openscad-worker";
 import { AbortablePromise } from "../utils";
 import { Source } from "../state/app-state";
 
-export function createWasmMemory({maximumMegabytes, maximumBytes}: {maximumMegabytes: number, maximumBytes: number}) {
-  const pageSize = 64 * 1024; // 64KB
-  if (!maximumBytes) {
-    maximumBytes = maximumMegabytes * 1024 * 1024;
-  }
-  return new WebAssembly.Memory({
-    initial: Math.floor(maximumBytes / 2 / pageSize),
-    maximum: Math.floor(maximumBytes / pageSize),
-    shared: true,
-  });
-}
-
-// Output is {outputs: [name, content][], mergedOutputs: [{(stderr|stdout|error)?: string}], exitCode: number}
 export type OpenSCADInvocation = {
-  wasmMemory?: WebAssembly.Memory,
   mountArchives: boolean,
   inputs?: Source[],
   args: string[],
   outputPaths?: string[],
 }
+
 export type OpenSCADInvocationResults = {
   exitCode?: number,
   error?: string,
@@ -31,12 +18,16 @@ export type OpenSCADInvocationResults = {
   mergedOutputs: MergedOutputs,
   elapsedMillis: number,
 };
+
 export type ProcessStreams = {stderr: string} | {stdout: string}
 export type OpenSCADInvocationCallback = {result: OpenSCADInvocationResults} | ProcessStreams;
 
-export function spawnOpenSCAD(invocation: OpenSCADInvocation, streamsCallback: (ps: ProcessStreams) => void): AbortablePromise<OpenSCADInvocationResults> {
-  var worker: Worker | null;
-  var rejection: (err: any) => void;
+export function spawnOpenSCAD(
+  invocation: OpenSCADInvocation, 
+  streamsCallback: (ps: ProcessStreams) => void
+): AbortablePromise<OpenSCADInvocationResults> {
+  let worker: Worker | null;
+  let rejection: (err: any) => void;
 
   function terminate() {
     if (!worker) {
@@ -46,10 +37,10 @@ export function spawnOpenSCAD(invocation: OpenSCADInvocation, streamsCallback: (
     worker = null;
   }
     
-  return AbortablePromise<OpenSCADInvocationResults>((resolve, reject) => {
-    worker = new Worker('./openscad-worker.js');
+  return AbortablePromise<OpenSCADInvocationResults>((resolve: (result: OpenSCADInvocationResults) => void, reject: (error: any) => void) => {
+    worker = new Worker('./openscad-worker.js');//, { type: 'module' });
     rejection = reject;
-    worker.onmessage = (e: {data: OpenSCADInvocationCallback}) => {
+    worker.onmessage = (e: MessageEvent<OpenSCADInvocationCallback>) => {
       if ('result' in e.data) {
         resolve(e.data.result);
         terminate();

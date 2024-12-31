@@ -1,38 +1,36 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+/// <reference lib="webworker" />
 import OpenSCAD from "../wasm/openscad.js";
 
-import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem";
-import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner";
-import { deployedArchiveNames, zipArchives } from "../fs/zip-archives";
-import { fetchSource } from "../utils.js";
-declare var BrowserFS: BrowserFSInterface
+import { createEditorFS, getParentDir, symlinkLibraries } from "../fs/filesystem.ts";
+import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner.ts";
+import { deployedArchiveNames, zipArchives } from "../fs/zip-archives.ts";
+import { fetchSource } from "../utils.ts";
 
 importScripts("browserfs.min.js");
+
+declare const self: DedicatedWorkerGlobalScope;
 
 export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[];
 
 function callback(payload: OpenSCADInvocationCallback) {
-  postMessage(payload);
+  self.postMessage(payload);
 }
 
-addEventListener('message', async (e) => {
-
+self.addEventListener('message', async (e: MessageEvent<OpenSCADInvocation>) => {
   const {
     mountArchives,
     inputs,
     args,
     outputPaths,
-    wasmMemory,
-  } = e.data as OpenSCADInvocation;
+  } = e.data;
 
   const mergedOutputs: MergedOutputs = [];
   let instance: any;
   const start = performance.now();
   try {
     instance = await OpenSCAD({
-      wasmMemory,
-      buffer: wasmMemory && wasmMemory.buffer,
       noInitialRun: true,
       'print': (text: string) => {
         console.debug('stdout: ' + text);
@@ -43,9 +41,6 @@ addEventListener('message', async (e) => {
         console.debug('stderr: ' + text);
         callback({stderr: text})
         mergedOutputs.push({ stderr: text })
-      },
-      'ENV': {
-        'OPENSCADPATH': '/libraries',
       },
     });
 
@@ -140,7 +135,6 @@ addEventListener('message', async (e) => {
     }
 
     console.debug(result);
-
     callback({result});
   } catch (e) { 
     const end = performance.now();

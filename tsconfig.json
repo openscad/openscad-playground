@@ -5,10 +5,9 @@
       "dom",
       "dom.iterable",
       "ES2022",
-      "WebWorker",
+      "WebWorker"
     ],
     "rootDir": "src",
-    // "outDir": "js",
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -17,17 +16,22 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    // "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "declaration": true,
+    "baseUrl": "src",
+    "paths": {
+      "*": ["*"]
+    }
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/**/*.js",
-    // "public"
+    "src/**/*.js"
   ],
   "exclude": [
     "node_modules",
