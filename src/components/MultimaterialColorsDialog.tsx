@@ -40,11 +40,11 @@ export default function MultimaterialColorsDialog() {
                     <Button 
                     label={state.view.extruderPickerVisibility == 'exporting' ? "Export" : "Save"}
                     icon="pi pi-check"
-                    disabled={!tempExtruderColors.every(c => chroma.valid(c))}
+                    disabled={!tempExtruderColors.every(c => chroma.valid(c) || c.trim() === '')}
                     autoFocus
                     onClick={e => {
                         model!.mutate(s => {
-                            s.params.extruderColors = tempExtruderColors;
+                            s.params.extruderColors = tempExtruderColors.filter(c => c.trim() !== '');
                             s.view.extruderPickerVisibility = undefined;
                         });
                         if (state.view.extruderPickerVisibility === 'exporting') {
@@ -84,9 +84,9 @@ export default function MultimaterialColorsDialog() {
                                         }
                                     }}
                                     onChange={(e) => {
-                                        let color = e.target.value;
+                                        let color = e.target.value.trim();
                                         try {
-                                            color = chroma(e.target.value).name();
+                                            color = chroma(color).name();
                                             console.log(`color: ${e.target.value} -> ${color}`);
                                         } catch (e) {
                                             // ignore
