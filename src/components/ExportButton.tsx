@@ -52,7 +52,7 @@ export default function ExportButton({className, style}: {className?: string, st
         {
           data: '3mf',
           buttonLabel: 'Download 3MF',
-          label: '3MF (3D Manufacturing Format)',
+          label: '3MF (Multimaterial)',
           icon: 'pi pi-file',
           command: () => model!.setFormats(undefined, '3mf'),
         },
