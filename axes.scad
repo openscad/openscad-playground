@@ -494,7 +494,3 @@ baseHeight = 2.0; // [0.0:0.01:30.0]
 padHeight = (all_combos == true) ? 0 : baseHeight;
 // --------------- End of Triple Letter Parameters
 */
-
-
-
-
