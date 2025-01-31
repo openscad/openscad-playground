@@ -1,4 +1,3 @@
-
 /* Dual Letter Blocks Illusion and Triple Letter Blocks Ambigram
    by Lyl3
 
