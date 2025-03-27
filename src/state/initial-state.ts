@@ -37,7 +37,7 @@ export function createInitialState(state: State | null, source?: {content?: stri
         sources: [{path: activePath, content, url}],
         features: [],
         exportFormat2D: 'svg',
-        exportFormat3D: 'glb',
+        exportFormat3D: 'stl',
       },
       view: {
         layout: {
