@@ -1,14 +1,21 @@
-const webpack = require('webpack');
-const CopyPlugin = require("copy-webpack-plugin");
-const WorkboxPlugin = require('workbox-webpack-plugin');
-const path = require('path');
-const packageConfig = require('./package.json');
+import CopyPlugin from 'copy-webpack-plugin';
+import WorkboxPlugin from 'workbox-webpack-plugin';
+import webpack from 'webpack';
+import packageConfig from './package.json' with {type: 'json'};
+
+import path, {dirname} from 'path';
+import {fileURLToPath} from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const LOCAL_URL = process.env.LOCAL_URL ?? 'http://localhost:4000/';
 const PUBLIC_URL = process.env.PUBLIC_URL ?? packageConfig.homepage;
 const isDev = process.env.NODE_ENV !== 'production';
 
-module.exports = [
+
+/** @type {import('webpack').Configuration[]} */
+const config = [
   {
     entry: './src/index.tsx',
     devtool: isDev ? 'source-map' : 'nosources-source-map',
@@ -38,7 +45,7 @@ module.exports = [
         {
           test: /\.css$/i,
           use: [
-            "style-loader",
+            'style-loader',
             {
               loader: 'css-loader',
               options:{url: false},
@@ -47,7 +54,7 @@ module.exports = [
         },
         // {
         //   test: /\.(png|gif|woff|woff2|eot|ttf|svg)$/,
-        //   loader: "url-loader?limit=100000"
+        //   loader: 'url-loader?limit=100000'
         // },
       ],
     },
@@ -59,7 +66,7 @@ module.exports = [
       path: path.resolve(__dirname, 'dist'),
     },
     devServer: {
-      static: path.join(__dirname, "dist"),
+      static: path.join(__dirname, 'dist'),
       compress: true,
       port: 4000,
     },
@@ -74,9 +81,9 @@ module.exports = [
               /\.map$/,
               /^manifest.*\.js$/,
             ],
-            // these options encourage the ServiceWorkers to get in there fast     
-            // and not allow any straggling "old" SWs to hang around     
-            swDest: path.join(__dirname, "dist", 'sw.js'),
+            // these options encourage the ServiceWorkers to get in there fast
+            // and not allow any straggling 'old' SWs to hang around
+            swDest: path.join(__dirname, 'dist', 'sw.js'),
             maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
             clientsClaim: true,
             skipWaiting: true,
@@ -95,16 +102,16 @@ module.exports = [
       ] : []),
       new CopyPlugin({
         patterns: [
-          { 
+          {
             from: path.resolve(__dirname, 'public'),
             toType: 'dir',
           },
-          { 
+          {
             from: path.resolve(__dirname, 'node_modules/primeicons/fonts'),
             to: path.resolve(__dirname, 'dist/fonts'),
             toType: 'dir',
           },
-          { 
+          {
             from: path.resolve(__dirname, 'src/wasm/openscad.js'),
             from: path.resolve(__dirname, 'src/wasm/openscad.wasm'),
           },
@@ -177,3 +184,5 @@ module.exports = [
     ],
   },
 ];
+
+export default config;

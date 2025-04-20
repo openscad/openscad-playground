@@ -1,4 +1,5 @@
-module.exports = {
+/** @type {import('jest-environment-puppeteer').JestPuppeteerConfig} */
+const config = {
   launch: {
     headless: process.env.CI === "true",
     args: [
@@ -12,3 +13,5 @@ module.exports = {
     launchTimeout: 180000,
   },
 };
+
+export default config;
