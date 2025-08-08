@@ -1,0 +1,9 @@
+{
+  "title": "Network Equipment Rack",
+  "entry": "main.scad",
+  "description": "Custom rack system for network equipment including POE switches and patch panels",
+  "category": "Technology",
+  "tags": ["networking", "rack", "equipment", "organization"],
+  "created": "2024-01-01",
+  "author": "OpenSCAD Playground"
+}

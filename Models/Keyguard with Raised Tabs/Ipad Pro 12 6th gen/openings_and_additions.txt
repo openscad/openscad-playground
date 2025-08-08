@@ -1,0 +1,126 @@
+
+screen_openings=[
+// *** the numbers in screen_openings are assumed to be in pixels or millimeters depending on the value of "unit of measure for screen" in "Free-form and Hybrid Keyguard Openings "***
+//  ID,       x,      y, width, height,  shape, top slope, bottom slope, left slope, right slope, corner radius,  other
+[    1,       0,      0,     0,      0,    "r",        90,           90,         90,          90,             0,       ],
+[2, 45, 342, 660, 200, "r", 90, 90, 90, 90, 20]
+];
+
+case_openings=[
+//  ID,       x,      y, width, height,  shape, top slope, bottom slope, left slope, right slope, corner radius,   other
+[    1,       0,      0,     0,      0,    "r",        90,           90,         90,          90,            0,         ],
+];
+
+case_additions=[
+//  ID,       x,      y,  width, height,  shape, thickness,  trim above, trim below, trim to right, trim to left, corner radius
+[    1,       0,      0,      0,      0,    "r",         0,        -999,       -999,          -999,         -999,             0],
+];
+
+
+
+
+/***********SCREEN and CASE VARIABLES
+
+/***********SCREEN VARIABLES
+These special variables can be used to locate screen openings relative to the (0,0) location of the screen opening region
+
+** screen variables
+	sh 	screen height
+	sw	screen width
+
+	mpp	millimeters per pixel	
+	ppm	pixels per millimeter
+
+	nr	number of rows in grid
+	nc	number of columns in grid
+
+** app variables (the value is in millimeters or pixels as appropriate)
+	sbh	status bar height
+	umbh	upper message bar height
+	ucbh	upper command bar height
+	lmbh	lower message bar height
+	lcbh	lower command bar height
+
+	sbb	status bar bottom
+	umbb	upper message bar bottom
+	ucbb	upper command bar bottom
+	lmbt	lower message bar top
+	lmbb	lower message bar bottom
+	lcbb	lower command bar bottom
+	
+** grid variables (the value is in millimeters or pixels as appropriate)
+	cw	cell width
+	ch	cell height
+	gw	grid width
+	gh	grid height
+	gt 	grid top
+	gb	grid bottom
+
+	h_rw	horizontal rail width - specified in Grid Layout
+	v_rw 	vertical rail width - specified in Grid Layout
+
+	tp	top padding - specified in Grid Special Settings
+	bp	bottom padding - specified in Grid Special Settings
+	lp	left padding - specified in Grid Special Settings
+	rp	right padding - specified in Grid Special Settings
+	
+** cell variables (the value is in millimeters)
+	cw	cell width (doesn't apply to cells that are affected by left/right compensation for tight cases)
+	ch	cell height (doesn't apply to cells that are affected by top/bottom compensation for tight cases)
+	ccr	cell corner radius
+
+	hor	height of ridge - specified in Grid Special Settings
+	tor	thickness of ridge - specified in Grid Special Settings
+
+/***********CAMERA and HOME BUTTON VARIABLES
+Since the home button and camera are always located in the same place relative to the screen and have nothing to do with how the tablet sits in the case, any openings that you create associated with the home button or camera should be described in the screen_openings data structure rather than the case_openings data structure.  Note that all the measurements in this set are in millimeters.  If you use these in a design that assumes all measurements are in pixels, multiply the variable times ppm (pixels per millimeter).
+
+	hloc	home button location: 1,2,3,4 (adjusted for orientation)
+	hbd	distance from screen to home button in millimeters
+	hbh	home button height in millimeters
+	hbw	home button width in millimeters
+	cloc	camera location: 1,2,3,4 (adjusted for orientation)
+	cmd	distance from screen to camera in millimeters
+	cmh	camera height in millimeters
+	cmw	camera width in millimeters
+
+	sch	yes/no, has the camera and home button been swapped so that the camera is on right and home button is on left?
+	sxo	sign of x offset, if measuring from standard home/camera locations
+	syo	sign of y offset, if measuring from standard home/camera locations
+	
+	xols	x location of the left side of the case opening adjusted for swapping camera and home button
+	xors	x location of the right side of the case opening adjusted for swapping camera and home button
+	yobs	y location of the bottom side of the case opening adjusted for swapping the camera and home button
+	yots	y location of the top side of the case opening adjusted for swapping the camera and home button
+
+
+
+/***********CASE VARIABLES
+These special variables can be used to locate openings and place additions relative to the (0,0) location of the case opening
+[Note that the (0,0) location of the case opening is not absolute and can move if the screen doesn't sit in the middle of the opening.  These variables are independent of that movement. All variables are in millimeters]
+	coh	case opening height - specified in Case Info
+	cow 	case opening width - specified in Case Info
+	cocr	case opening corner radius - specified in Case Info
+
+	kh	keyguard height - specified in Keyguard Frame Info
+	kw	keyguard width - specified in Keyguard Frame Info
+	kcr	keyguard corner radius - specified in Keyguard Frame Info
+	rh	rail height (also keyguard thickness)
+	hrw	horizontal rail width
+	vrw	vertical rail width
+
+	w 	width of the opening for the keyguard independent of whether this is a keyguard or a keyguard frame
+	h	height of the opening for the keyguard independent of whether this is a keyguard or a keyguard frame
+
+		   
+
+/***********TABLET VARIABLES
+	th     height of tablet in millimeters
+	tw     width of tablet in millimeters - specified in internal designer data
+	tcr    tablet corner radius in millimeters - specified in internal designer data
+
+
+************************************************************************************************************************************/
+
+
+

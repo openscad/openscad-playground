@@ -1,0 +1,9 @@
+{
+  "title": "Pleated Pendant Lamp",
+  "entry": "Main.scad",
+  "description": "Elegant pleated pendant lamp shade with customizable dimensions and pleating patterns",
+  "category": "Home & Decor",
+  "tags": ["lamp", "lighting", "pendant", "pleated", "customizable"],
+  "created": "2024-01-01",
+  "author": "OpenSCAD Playground"
+}

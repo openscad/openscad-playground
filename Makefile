@@ -22,6 +22,7 @@ public: \
 		public/libraries/NopSCADlib.zip \
 		public/libraries/BOSL.zip \
 		public/libraries/BOSL2.zip \
+		public/libraries/Models.zip \
 		public/libraries/boltsparts.zip \
 		public/libraries/OpenSCAD-Snippet.zip \
 		public/libraries/funcutils.zip \
@@ -63,7 +64,11 @@ wasm: libs/openscad
 
 libs/openscad-wasm:
 	mkdir -p libs/openscad-wasm
-	wget ${WASM_BUILD_URL} -O libs/openscad-wasm.zip
+
+libs/openscad-wasm.zip:
+	mkdir -p libs
+	(command -v wget >/dev/null 2>&1 && wget -q --show-progress ${WASM_BUILD_URL} -O libs/openscad-wasm.zip) || curl -L --progress-bar -o libs/openscad-wasm.zip ${WASM_BUILD_URL}
+	(command -v wget >/dev/null 2>&1 && wget -q --show-progress ${WASM_BUILD_URL} -O libs/openscad-wasm.zip) || curl -L --progress-bar -o libs/openscad-wasm.zip ${WASM_BUILD_URL}
 	( cd libs/openscad-wasm && unzip ../openscad-wasm.zip )
 	
 public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
@@ -71,6 +76,13 @@ public/openscad.js: libs/openscad-wasm libs/openscad-wasm/openscad.js
 		
 public/openscad.wasm: libs/openscad-wasm libs/openscad-wasm/openscad.wasm
 	ln -sf libs/openscad-wasm/openscad.wasm public/openscad.wasm
+
+# Ensure wasm files are extracted when referenced directly
+libs/openscad-wasm/openscad.js: libs/openscad-wasm libs/openscad-wasm.zip
+	@test -f $@ || ( cd libs/openscad-wasm && unzip -o ../openscad-wasm.zip )
+
+libs/openscad-wasm/openscad.wasm: libs/openscad-wasm libs/openscad-wasm.zip
+	@test -f $@ || ( cd libs/openscad-wasm && unzip -o ../openscad-wasm.zip )
 
 # Var w/ noto fonts
 NOTO_FONTS=\
@@ -128,11 +140,11 @@ public/libraries/fonts.zip: $(NOTO_FONTS) libs/liberation
 
 libs/noto/%.ttf:
 	mkdir -p libs/noto
-	wget https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@
+	(command -v wget >/dev/null 2>&1 && wget -q --show-progress https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@) || curl -L --progress-bar -o $@ https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@)
 	
 libs/noto/%.otf:
 	mkdir -p libs/noto
-	wget https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@
+	(command -v wget >/dev/null 2>&1 && wget -q --show-progress https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@) -O $@) || curl -L --progress-bar -o $@ https://github.com/openmaptiles/fonts/raw/master/noto-sans/$(notdir $@)
 	
 libs/liberation:
 	git clone --recurse https://github.com/shantigilbert/liberation-fonts-ttf.git ${SHALLOW} ${SINGLE_BRANCH} $@
@@ -149,7 +161,16 @@ libs/BOSL2:
 
 public/libraries/BOSL2.zip: libs/BOSL2
 	mkdir -p public/libraries
-	( cd libs/BOSL2 ; zip -r ../../public/libraries/BOSL2.zip *.scad LICENSE examples )
+	( cd libs/BOSL2 ; zip -r ../../public/libraries/BOSL2.zip `find . -name '*.scad'` LICENSE )
+
+# Zip local Models/ directory into a library the app can mount
+public/libraries/Models.zip:
+	mkdir -p public/libraries
+	if [ -d Models ]; then \
+	  ( cd Models ; zip -r ../public/libraries/Models.zip . ); \
+	else \
+	  echo "No local Models directory found; skipping Models.zip"; \
+	fi
 
 libs/BOSL: 
 	git clone --recurse https://github.com/revarbat/BOSL.git ${SHALLOW} ${SINGLE_BRANCH} $@

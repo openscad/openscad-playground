@@ -1,0 +1,20 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "100",
+            "PART": "vanes",
+            "funnel_bot_od": "50",
+            "funnel_height": "40",
+            "funnel_top_od": "120",
+            "funnel_wall": "2",
+            "jar_thread_len": "8",
+            "jar_thread_od": "86.599999999999994",
+            "jar_thread_pitch": "3.1749999999999998",
+            "slop": "0.14999999999999999",
+            "vane_h": "140",
+            "vane_t": "2",
+            "vane_w": "130"
+        }
+    }
+}

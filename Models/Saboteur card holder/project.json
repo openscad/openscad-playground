@@ -1,0 +1,9 @@
+{
+  "title": "Card Holder Grid",
+  "entry": "grid.scad",
+  "description": "Organizational grid system for holding and displaying cards, perfect for board games",
+  "category": "Games & Hobbies",
+  "tags": ["cards", "holder", "grid", "games", "organization"],
+  "created": "2024-01-01",
+  "author": "OpenSCAD Playground"
+}

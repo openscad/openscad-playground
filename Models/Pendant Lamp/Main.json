@@ -1,0 +1,109 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": "",
+        "New set 2": "",
+        "New set 3": {
+            "$fn": "100",
+            "edge_radius": "0.5",
+            "pleat_gap": "4",
+            "pleat_height": "1.8",
+            "pleat_offset": "-1",
+            "radius": "100",
+            "thickness": "3"
+        },
+        "New set 4": {
+            "$fn": "100",
+            "edge_radius": "0.5",
+            "opening_diameter": "80",
+            "pleat_gap": "4",
+            "pleat_height": "1.8",
+            "pleat_offset": "-1",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "3"
+        },
+        "New set 5": {
+            "$fn": "100",
+            "edge_radius": "0.5",
+            "opening_diameter": "80",
+            "pleat_gap": "2.8000000000000003",
+            "pleat_height": "1.2",
+            "pleat_offset": "-1",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "0.80000000000000004"
+        },
+        "New set 6": {
+            "$fn": "100",
+            "edge_radius": "0.5",
+            "opening_diameter": "60",
+            "pleat_gap": "5.3000000000000007",
+            "pleat_height": "1.8",
+            "pleat_offset": "-1",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "1"
+        },
+        "New set 7": {
+            "$fn": "100",
+            "edge_radius": "0.5",
+            "opening_diameter": "80",
+            "pleat_gap": "2.7999999999999998",
+            "pleat_height": "1.2",
+            "pleat_offset": "-1.8999999999999999",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "0.80000000000000004"
+        },
+        "New set 8": {
+            "$fn": "100",
+            "bottom_brim": "true",
+            "edge_radius": "0.5",
+            "opening_diameter": "90",
+            "pleat_gap": "2.7999999999999998",
+            "pleat_height": "1.2",
+            "pleat_offset": "-1",
+            "pleats_inside": "false",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "0.80000000000000004",
+            "top_brim": "false"
+        },
+        "Mar 6 Small": {
+            "$fn": "100",
+            "bottom_brim": "true",
+            "edge_radius": "0.5",
+            "opening_diameter": "90",
+            "pleat_gap": "2.7999999999999998",
+            "pleat_height": "1.2",
+            "pleat_offset": "-1",
+            "pleats_inside": "false",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "0.80000000000000004",
+            "top_brim": "false"
+        },
+        "test": {
+            "$fn": "100",
+            "bottom_brim": "true",
+            "edge_radius": "0.5",
+            "opening_diameter": "90",
+            "pleat_gap": "2.7999999999999998",
+            "pleat_height": "1.2",
+            "pleat_offset": "-1",
+            "pleats_inside": "false",
+            "radius": "100",
+            "shade_depth": "15",
+            "shade_thickness": "2",
+            "thickness": "1",
+            "top_brim": "false"
+        }
+    }
+}

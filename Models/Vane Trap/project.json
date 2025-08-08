@@ -1,0 +1,9 @@
+{
+  "title": "Vane Trap Device",
+  "entry": "main.scad",
+  "description": "Custom vane trap mechanism with adjustable parameters",
+  "category": "Mechanical",
+  "tags": ["trap", "mechanism", "vane", "mechanical"],
+  "created": "2024-01-01",
+  "author": "OpenSCAD Playground"
+}
