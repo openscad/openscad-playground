@@ -1,32 +1,63 @@
 #!/usr/bin/env node
 
-import fs from 'fs/promises';
-import { createWriteStream, existsSync } from 'fs';
-import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import https from 'https';
-import { pipeline } from 'stream/promises';
+import { exec } from 'node:child_process';
+import { createWriteStream, existsSync } from 'node:fs';
+import fs from 'node:fs/promises';
+import https from 'node:https';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
-const CONFIG_FILE = 'libs-config.json';
-const LIBS_DIR = 'libs';
-const PUBLIC_LIBS_DIR = 'public/libraries';
-const SRC_WASM_DIR = 'src/wasm';
-
-class LibsBuilder {
-    constructor() {
+class OpenSCADLibrariesPlugin {
+    constructor(options = {}) {
+        this.configFile = options.configFile || 'libs-config.json';
+        this.libsDir = options.libsDir || 'libs';
+        this.publicLibsDir = options.publicLibsDir || 'public/libraries';
+        this.srcWasmDir = options.srcWasmDir || 'src/wasm';
+        this.buildMode = options.buildMode || 'all'; // 'all', 'wasm', 'fonts', 'libs'
         this.config = null;
+    }
+
+    apply(compiler) {
+        const pluginName = 'OpenSCADLibrariesPlugin';
+
+        compiler.hooks.beforeRun.tapAsync(pluginName, async (_, callback) => {
+            try {
+                await this.loadConfig();
+
+                switch (this.buildMode) {
+                    case 'all':
+                        await this.buildAll();
+                        break;
+                    case 'wasm':
+                        await this.buildWasm();
+                        break;
+                    case 'fonts':
+                        await this.buildFonts();
+                        break;
+                    case 'libs':
+                        await this.buildAllLibraries();
+                        break;
+                    case 'clean':
+                        await this.clean();
+                        break;
+                }
+
+                callback();
+            } catch (error) {
+                callback(error);
+            }
+        });
     }
 
     async loadConfig() {
         try {
-            const configContent = await fs.readFile(CONFIG_FILE, 'utf-8');
+            const configContent = await fs.readFile(this.configFile, 'utf-8');
             this.config = JSON.parse(configContent);
         } catch (error) {
-            console.error(`Failed to load config from ${CONFIG_FILE}:`, error.message);
-            process.exit(1);
+            throw new Error(`Failed to load config from ${this.configFile}: ${error.message}`);
         }
     }
 
@@ -46,7 +77,6 @@ class LibsBuilder {
         return new Promise((resolve, reject) => {
             https.get(url, (response) => {
                 if (response.statusCode === 302 || response.statusCode === 301) {
-                    // Handle redirects
                     return this.downloadFile(response.headers.location, outputPath)
                         .then(resolve)
                         .catch(reject);
@@ -95,23 +125,18 @@ class LibsBuilder {
         if (includes.length > 0) {
             const findPatterns = includes.map(pattern => {
                 if (pattern.includes('**/*.')) {
-                    // Pattern like "examples/**/*.scad"
                     const parts = pattern.split('/');
                     const dir = parts[0];
                     const filePattern = parts[parts.length - 1];
                     return `-path "./${dir}/*" -name "${filePattern}"`;
                 } else if (pattern.includes('**')) {
-                    // Pattern like "**/*.scad"
                     const filePattern = pattern.replace('**/', '');
                     return `-name "${filePattern}"`;
                 } else if (pattern.includes('*')) {
-                    // Pattern like "*.scad"
                     return `-name "${pattern}"`;
                 } else if (pattern.includes('/')) {
-                    // Path pattern like "bitmap/*.scad"
                     return `-path "./${pattern}"`;
                 } else {
-                    // Direct file/directory name
                     return `-name "${pattern}" -o -path "./${pattern}/*"`;
                 }
             }).join(' -o ');
@@ -132,7 +157,6 @@ class LibsBuilder {
         const zipCmd = `cd ${fullSourceDir} && ${findCmd} | zip -r ${path.resolve(outputPath)} -@`;
 
         console.log(`Creating zip: ${outputPath}`);
-        console.log(`Zip command: ${zipCmd}`);
         try {
             await execAsync(zipCmd);
         } catch (error) {
@@ -146,22 +170,16 @@ class LibsBuilder {
         const wasmDir = wasmBuild.target;
         const wasmZip = `${wasmDir}.zip`;
 
-        // Create libs directory
-        await this.ensureDir(LIBS_DIR);
+        await this.ensureDir(this.libsDir);
 
-        // Download WASM if not exists
         if (!existsSync(wasmDir)) {
             await this.ensureDir(wasmDir);
-
-            // Download WASM zip
             await this.downloadFile(wasmBuild.url, wasmZip);
 
-            // Extract WASM zip
             console.log(`Extracting WASM to ${wasmDir}`);
             await execAsync(`cd ${wasmDir} && unzip ../${path.basename(wasmZip)}`);
         }
 
-        // Create symlinks for public files
         await this.ensureDir('public');
 
         const jsTarget = 'public/openscad.js';
@@ -170,34 +188,28 @@ class LibsBuilder {
         // Remove existing symlinks/files
         try {
             await fs.unlink(jsTarget);
-        } catch {
-            // ignore - file doesn't exist
-        }
+        } catch { /* ignore */ }
         try {
             await fs.unlink(wasmTarget);
-        } catch {
-            // ignore - file doesn't exist
-        }
+        } catch { /* ignore */ }
 
-        // Create new symlinks - use relative paths for portability
+        // Create new symlinks
         await fs.symlink(path.relative('public', path.join(wasmDir, 'openscad.js')), jsTarget);
         await fs.symlink(path.relative('public', path.join(wasmDir, 'openscad.wasm')), wasmTarget);
 
         // Create src/wasm symlink
         try {
-            await fs.unlink(SRC_WASM_DIR);
-        } catch {
-            // ignore - file doesn't exist
-        }
-        await fs.symlink(path.relative('src', wasmDir), SRC_WASM_DIR);
+            await fs.unlink(this.srcWasmDir);
+        } catch { /* ignore */ }
+        await fs.symlink(path.relative('src', wasmDir), this.srcWasmDir);
 
         console.log('WASM setup completed');
     }
 
     async buildFonts() {
         const { fonts } = this.config;
-        const notoDir = path.join(LIBS_DIR, 'noto');
-        const liberationDir = path.join(LIBS_DIR, 'liberation');
+        const notoDir = path.join(this.libsDir, 'noto');
+        const liberationDir = path.join(this.libsDir, 'liberation');
 
         await this.ensureDir(notoDir);
 
@@ -216,8 +228,8 @@ class LibsBuilder {
         }
 
         // Create fonts zip
-        const fontsZip = path.join(PUBLIC_LIBS_DIR, 'fonts.zip');
-        await this.ensureDir(PUBLIC_LIBS_DIR);
+        const fontsZip = path.join(this.publicLibsDir, 'fonts.zip');
+        await this.ensureDir(this.publicLibsDir);
 
         console.log('Creating fonts.zip');
         const fontsCmd = `zip -r ${fontsZip} -j fonts.conf libs/noto/*.ttf libs/liberation/*.ttf libs/liberation/LICENSE libs/liberation/AUTHORS`;
@@ -227,8 +239,8 @@ class LibsBuilder {
     }
 
     async buildLibrary(library) {
-        const libDir = path.join(LIBS_DIR, library.name);
-        const zipPath = path.join(PUBLIC_LIBS_DIR, `${library.name}.zip`);
+        const libDir = path.join(this.libsDir, library.name);
+        const zipPath = path.join(this.publicLibsDir, `${library.name}.zip`);
 
         // Clone repository if not exists
         if (!existsSync(libDir)) {
@@ -248,7 +260,7 @@ class LibsBuilder {
     }
 
     async buildAllLibraries() {
-        await this.ensureDir(PUBLIC_LIBS_DIR);
+        await this.ensureDir(this.publicLibsDir);
 
         for (const library of this.config.libraries) {
             await this.buildLibrary(library);
@@ -259,12 +271,12 @@ class LibsBuilder {
         console.log('Cleaning build artifacts...');
 
         const cleanPaths = [
-            LIBS_DIR,
+            this.libsDir,
             'build',
             'public/openscad.js',
             'public/openscad.wasm',
-            `${PUBLIC_LIBS_DIR}/*.zip`,
-            SRC_WASM_DIR
+            `${this.publicLibsDir}/*.zip`,
+            this.srcWasmDir
         ];
 
         for (const cleanPath of cleanPaths) {
@@ -282,7 +294,7 @@ class LibsBuilder {
         console.log('Clean completed');
     }
 
-    async build() {
+    async buildAll() {
         console.log('Building all libraries...');
 
         await this.buildWasm();
@@ -293,32 +305,4 @@ class LibsBuilder {
     }
 }
 
-async function main() {
-    const builder = new LibsBuilder();
-    await builder.loadConfig();
-
-    const command = process.argv[2] || 'build';
-
-    switch (command) {
-        case 'build':
-            await builder.build();
-            break;
-        case 'clean':
-            await builder.clean();
-            break;
-        case 'wasm':
-            await builder.buildWasm();
-            break;
-        case 'fonts':
-            await builder.buildFonts();
-            break;
-        default:
-            console.log('Usage: node build-libs.js [build|clean|wasm|fonts]');
-            process.exit(1);
-    }
-}
-
-main().catch(error => {
-    console.error('Build failed:', error);
-    process.exit(1);
-});
+export default OpenSCADLibrariesPlugin;

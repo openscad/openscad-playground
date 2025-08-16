@@ -48,6 +48,8 @@ Licenses: see [LICENSES](./LICENSE).
 
 ## Building
 
+The project uses a **webpack-based build system** that reads library metadata from `libs-config.json` to automatically download, clone, and package OpenSCAD libraries and dependencies. This replaces the previous Makefile approach with a more standard, maintainable solution.
+
 Prerequisites:
 *   wget or curl
 *   Node.js (>=18.12.0)
@@ -90,7 +92,7 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 
 ## Build your own WASM binary
 
-[Makefile](./Makefile) fetches a prebuilt OpenSCAD web WASM binary, but you can build your own in a couple of minutes:
+The build system fetches a prebuilt OpenSCAD web WASM binary, but you can build your own in a couple of minutes:
 
 - **Optional**: use your own openscad fork / branch:
 
@@ -117,7 +119,7 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 
 ## Adding OpenSCAD libraries
 
-You'll need to update 3 files (search for BOSL2 for an example):
+The build system uses a webpack plugin that reads from `libs-config.json` to manage all library dependencies. You'll need to update 3 files (search for BOSL2 for an example):
 
 - [libs-config.json](./libs-config.json): to add the library's metadata including repository URL, branch, and files to include/exclude in the zip archive
 
