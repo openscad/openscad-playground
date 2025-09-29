@@ -8,8 +8,17 @@ import { getParentDir, join } from '../fs/filesystem.ts';
 import { defaultSourcePath } from '../state/initial-state.ts';
 import { zipArchives } from '../fs/zip-archives.ts';
 
-const biasedCompare = (a: string, b: string) => 
-  a === 'openscad' ? -1 : b === 'openscad' ? 1 : a.localeCompare(b);
+const biasedCompare = (a: string, b: string) => {
+  const pinned = ['openscad', 'Models'];
+  const indexA = pinned.indexOf(a);
+  const indexB = pinned.indexOf(b);
+  if (indexA !== -1 || indexB !== -1) {
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  }
+  return a.localeCompare(b);
+};
 
 function listFilesAsNodes(fs: FS, path: string, accept?: (path: string) => boolean): TreeNode[] {
   const files: [string, string][] = []

@@ -20,9 +20,11 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import "primeflex/primeflex.min.css";
 
+const nodeEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV) ? process.env.NODE_ENV : 'production';
+
 const log = debug('app:log');
 
-if (process.env.NODE_ENV !== 'production') {
+if (nodeEnv !== 'production') {
   debug.enable('*');
   log('Logging is enabled!');
 } else {
@@ -34,7 +36,7 @@ declare var BrowserFS: BrowserFSInterface
 
 window.addEventListener('load', async () => {
   //*
-  if (process.env.NODE_ENV === 'production') {
+  if (nodeEnv === 'production') {
     if ('serviceWorker' in navigator) {
         try {
             const registration = await navigator.serviceWorker.register('./sw.js');
@@ -61,14 +63,46 @@ window.addEventListener('load', async () => {
   
   registerCustomAppHeightCSSProperty();
 
-  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode()});
+  const editorEnabled = (() => {
+    const getEnvValue = (key: string) =>
+      (typeof process !== 'undefined' && process.env?.[key]) ? String(process.env[key]) : '';
+
+    if (typeof window === 'undefined') {
+      const envValue = getEnvValue('PLAYGROUND_EDITOR_ENABLED').toLowerCase();
+      if (envValue) {
+        return !['0', 'false', 'off', 'no'].includes(envValue);
+      }
+      return true;
+    }
+    const globalConfig = window.OPENSCAD_PLAYGROUND_CONFIG ?? {};
+    let enabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : true;
+
+    const envValue = getEnvValue('PLAYGROUND_EDITOR_ENABLED').toLowerCase();
+    if (envValue) {
+      enabled = !['0', 'false', 'off', 'no'].includes(envValue);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const param = params.get('editor');
+    if (param) {
+      const normalized = param.toLowerCase();
+      enabled = !['0', 'false', 'off', 'no'].includes(normalized);
+    }
+    return enabled;
+  })();
+
+  const { fs } = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode()});
 
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 
   let statePersister: StatePersister;
   let persistedState: State | null = null;
 
-  if (isInStandaloneMode()) {
+  if (!editorEnabled) {
+    statePersister = {
+      set: async () => {},
+    };
+  } else if (isInStandaloneMode()) {
     const fs: FS = BrowserFS.BFSRequire('fs')
     try {
       const data = JSON.parse(new TextDecoder("utf-8").decode(fs.readFileSync('/state.json')));
@@ -89,7 +123,7 @@ window.addEventListener('load', async () => {
     };
   }
 
-  const initialState = createInitialState(persistedState);
+  const initialState = createInitialState(editorEnabled ? persistedState : null);
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement
@@ -100,5 +134,3 @@ window.addEventListener('load', async () => {
     </React.StrictMode>
   );
 });
-
-

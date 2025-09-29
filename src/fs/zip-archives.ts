@@ -22,6 +22,9 @@ export type ZipArchives = {
 
 export const zipArchives: ZipArchives = {
   'fonts': {},
+  'Models': {
+    description: 'Curated OpenSCAD portfolio projects',
+  },
   'openscad': {
     description: 'OpenSCAD',
     gitOrigin: {

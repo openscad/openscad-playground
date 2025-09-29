@@ -1,4 +1,15 @@
-# OpenSCAD Playground
+# OpenSCAD Playground – Portfolio Edition
+
+This fork of ochafik’s original OpenSCAD Playground keeps the proven WASM renderer and Monaco-driven editing environment, but layers on a gallery-first experience aimed at showcasing curated models. Highlights:
+
+- **Gallery landing page** – Visiting `http://localhost:4000/` opens a full-screen model gallery. Selecting a card navigates directly to the viewer with the model loaded.
+- **In-app gallery dialog** – Inside the playground UI, the “Gallery” button opens the same browsing experience as a dialog for quick project switching.
+- **Direct linking** – URLs such as `?model=3D%20Rack%20SCAD` load the viewer with that model and skip the landing page. `?editor=off` (or the matching `.env` flag) keeps the editor hidden for kiosk deployments.
+- **Runtime configuration** – Point-and-click options plus `.env`, query-string, or `window.OPENSCAD_PLAYGROUND_CONFIG` flags let you control editor visibility and gallery behaviour without code changes.
+
+The sections below retain the upstream documentation for reference and build instructions, with additional notes where behaviour differs.
+
+---
 
 [Open the Demo](https://ochafik.com/openscad2)
 
@@ -125,3 +136,24 @@ You'll need to update 3 files (search for BOSL2 for an example):
 - [LICENSE.md](./LICENSE.md): most libraries require proper disclosure of their usage and of their license. If a license is unique, paste it in full, otherwise, link to one of the standard ones already there.
 
 Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad2 demo.
+
+## Runtime configuration
+
+You can control the default UI via environment variables stored in a local `.env` file (loaded by the webpack config) before build or `npm start`.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PLAYGROUND_EDITOR_ENABLED` | `true` | Set to `false`, `0`, `off`, or `no` to disable the Monaco editor entirely (viewer + customizer only). |
+| `PLAYGROUND_EDITOR_TOGGLE` | `true` | Set to `false` to hide the editor toggle button while keeping the editor enabled. |
+
+Example `.env`:
+
+```
+# Start in kiosk mode
+PLAYGROUND_EDITOR_ENABLED=false
+
+# Optional: keep the toggle hidden even when the editor runs
+PLAYGROUND_EDITOR_TOGGLE=false
+```
+
+Query-string parameters still override everything at runtime: `?editor=off` and `?editorToggle=off` mirror the variables above, while `window.OPENSCAD_PLAYGROUND_CONFIG` remains available for custom embeds.

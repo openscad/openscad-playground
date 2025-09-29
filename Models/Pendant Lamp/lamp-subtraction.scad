@@ -1,4 +1,4 @@
-include <BOSL2/std.scad>
+// BOSL2 not required for this model; remove dependency to simplify rendering
 
 // Parameters
 radius = 100;

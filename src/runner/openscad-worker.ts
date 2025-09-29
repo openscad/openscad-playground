@@ -46,7 +46,7 @@ self.addEventListener('message', async (e: MessageEvent<OpenSCADInvocation>) => 
 
     if (mountArchives) {
       // This will mount lots of libraries' ZIP archives under /libraries/<name> -> <name>.zip
-      await createEditorFS({prefix: '', allowPersistence: false});
+      const { mountedArchives } = await createEditorFS({prefix: '', allowPersistence: false});
       
       instance.FS.mkdir('/libraries');
       
@@ -62,7 +62,7 @@ self.addEventListener('message', async (e: MessageEvent<OpenSCADInvocation>) => 
         
       instance.FS.mount(BFS, {root: '/'}, '/libraries');
 
-      await symlinkLibraries(deployedArchiveNames, instance.FS, '/libraries', "/");
+      await symlinkLibraries(mountedArchives, instance.FS, '/libraries', "/");
     }
 
     // Fonts are seemingly resolved from $(cwd)/fonts

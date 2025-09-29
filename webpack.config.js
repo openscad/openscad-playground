@@ -4,10 +4,28 @@ import webpack from 'webpack';
 import packageConfig from './package.json' with {type: 'json'};
 
 import path, {dirname} from 'path';
+import fs from 'fs';
 import {fileURLToPath} from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const envFilePath = path.resolve(__dirname, '.env');
+if (fs.existsSync(envFilePath)) {
+  const lines = fs.readFileSync(envFilePath, 'utf-8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    const rawValue = trimmed.slice(eqIndex + 1).trim();
+    if (!(key in process.env)) {
+      const value = rawValue.replace(/^['"]|['"]$/g, '');
+      process.env[key] = value;
+    }
+  }
+}
 
 const LOCAL_URL = process.env.LOCAL_URL ?? 'http://localhost:4000/';
 const PUBLIC_URL = process.env.PUBLIC_URL ?? packageConfig.homepage;
@@ -72,7 +90,9 @@ const config = [
     },
     plugins: [
       new webpack.EnvironmentPlugin({
-        'process.env.NODE_ENV': 'development',
+        NODE_ENV: 'development',
+        PLAYGROUND_EDITOR_ENABLED: '',
+        PLAYGROUND_EDITOR_TOGGLE: '',
       }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({

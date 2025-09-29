@@ -21,22 +21,52 @@ export function join(a: string, b: string): string {
   return b === '.' ? a : `${a}/${b}`;
 }
 
-export async function getBrowserFSLibrariesMounts(archiveNames: string[]) {
+async function validateZipArchive(zipData: any): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ZipFS = (BrowserFS as any).FileSystem?.ZipFS;
+    if (!ZipFS || typeof ZipFS.Create !== 'function') {
+      resolve();
+      return;
+    }
+    ZipFS.Create({ zipData }, (err: any) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export async function getBrowserFSLibrariesMounts(archiveNames: string[]): Promise<{ mounts: FSMounts, mountedArchives: string[] }> {
   const Buffer = BrowserFS.BFSRequire('buffer').Buffer;
-  const fetchData = async (url: string) => (await fetch(url)).arrayBuffer();
-  const results: [string, ArrayBuffer][] =
-    await Promise.all(archiveNames.map(async (n: string) => [n, await fetchData(`./libraries/${n}.zip`)]));
-  
-  const zipMounts: FSMounts = {};
-  for (const [n, zipData] of results) {
-    zipMounts[n] = {
-      fs: "ZipFS",
-      options: {
-        zipData: Buffer.from(zipData)
+  const mounts: FSMounts = {};
+  const mountedArchives: string[] = [];
+
+  for (const name of archiveNames) {
+    const url = `./libraries/${name}.zip`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`[filesystem] Skipping ${name}.zip (HTTP ${response.status})`);
+        continue;
       }
+      const data = Buffer.from(await response.arrayBuffer());
+      await validateZipArchive(data);
+      mounts[name] = {
+        fs: 'ZipFS',
+        options: {
+          zipData: data,
+        },
+      };
+      mountedArchives.push(name);
+    } catch (error) {
+      console.error(`[filesystem] Failed to load archive ${name}.zip`, error);
     }
   }
-  return zipMounts;
+
+  if (mountedArchives.length === 0) {
+    console.warn('[filesystem] No library archives were mounted. Run `make public` to generate ZIP archives.');
+  }
+
+  return { mounts, mountedArchives };
 }
 
 export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/libraries', cwd='/tmp') {
@@ -79,9 +109,9 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS({prefix, allowPersistence}: {prefix: string, allowPersistence: boolean}): Promise<FS> {
+export async function createEditorFS({prefix, allowPersistence}: {prefix: string, allowPersistence: boolean}): Promise<{ fs: FS, mountedArchives: string[] }> {
   const archiveNames = deployedArchiveNames;
-  const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
+  const { mounts: librariesMounts, mountedArchives } = await getBrowserFSLibrariesMounts(archiveNames);
   const allMounts: FSMounts = {};
   for (const n in librariesMounts) {
     allMounts[`${prefix}${n}`] = librariesMounts[n];
@@ -106,5 +136,5 @@ export async function createEditorFS({prefix, allowPersistence}: {prefix: string
 
   var fs = BrowserFS.BFSRequire('fs');
 
-  return fs;
+  return { fs, mountedArchives };
 }

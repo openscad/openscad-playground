@@ -17,8 +17,16 @@ import chroma from "chroma-js";
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
 
 export class Model {
-  constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
-    private statePersister?: StatePersister) {
+  constructor(
+    private fs: FS,
+    public state: State,
+    private setStateCallback?: (state: State) => void,
+    private statePersister?: StatePersister,
+    private editorEnabled: boolean = true,
+  ) {
+  }
+  setEditorEnabled(value: boolean) {
+    this.editorEnabled = value;
   }
   
   init() {
@@ -59,6 +67,9 @@ export class Model {
   }
 
   set logsVisible(value: boolean) {
+    if (!this.editorEnabled && value) {
+      return;
+    }
     if (value) {
       if (this.state.view.layout.mode === 'single') {
         this.changeSingleVisibility('editor');
@@ -83,17 +94,22 @@ export class Model {
       s.view.layout = s.view.layout.mode === 'multi'
         ? {
           mode: 'single',
-          focus: s.view.layout.editor ? 'editor' : s.view.layout.viewer ? 'viewer' : 'customizer'
+          focus: this.editorEnabled && s.view.layout.editor ? 'editor'
+            : s.view.layout.viewer ? 'viewer'
+            : 'customizer'
         }
         : {
           mode: 'multi',
-          editor: s.view.layout.focus === 'editor',
+          editor: this.editorEnabled && s.view.layout.focus === 'editor',
           viewer: s.view.layout.focus === 'viewer',
           customizer: s.view.layout.focus === 'customizer',
         }
     });
   }
   changeSingleVisibility(focus: SingleLayoutComponentId) {
+    if (!this.editorEnabled && focus === 'editor') {
+      return;
+    }
     this.mutate(s => {
       if (s.view.layout.mode !== 'single') throw new Error('Wrong mode');
       s.view.layout.focus = focus;
@@ -104,6 +120,9 @@ export class Model {
   }
 
   changeMultiVisibility(target: MultiLayoutComponentId, visible: boolean) {
+    if (!this.editorEnabled && target === 'editor') {
+      return;
+    }
     this.mutate(s => {
       if (s.view.layout.mode !== 'multi') throw new Error('Wrong mode');
       s.view.layout[target] = visible
@@ -118,6 +137,31 @@ export class Model {
     })
   }
 
+  setEditorVisible(visible: boolean) {
+    if (!this.editorEnabled) {
+      return;
+    }
+    if (this.state.view.layout.mode === 'multi') {
+      this.changeMultiVisibility('editor', visible);
+    } else {
+      if (visible) {
+        this.changeSingleVisibility('editor');
+      } else if (this.state.view.layout.focus === 'editor') {
+        this.changeSingleVisibility('viewer');
+      }
+    }
+  }
+
+  toggleEditorVisibility() {
+    if (!this.editorEnabled) {
+      return;
+    }
+    const isVisible = this.state.view.layout.mode === 'multi'
+      ? this.state.view.layout.editor
+      : this.state.view.layout.focus === 'editor';
+    this.setEditorVisible(!isVisible);
+  }
+
   openFile(path: string) {
     // console.log(`openFile: ${path}`);
     if (this.mutate(s => {
@@ -126,7 +170,9 @@ export class Model {
           try {
             return new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
           } catch (e) {
-            console.error('Error while reading file:', e);
+            if (this.editorEnabled) {
+              console.error('Error while reading file:', e);
+            }
             return '';
           }
         };
@@ -146,7 +192,9 @@ export class Model {
         s.currentRunLogs = undefined;
         s.error = undefined;
         s.is2D = undefined;
-        console.log('Opened file:', path);
+        if (this.editorEnabled) {
+          console.log('Opened file:', path);
+        }
       }
     })) {
       this.processSource();
