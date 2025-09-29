@@ -87,6 +87,8 @@ const config = [
       static: path.join(__dirname, 'dist'),
       compress: true,
       port: 4000,
+      hot: false,
+      liveReload: true,
     },
     plugins: [
       new webpack.EnvironmentPlugin({
