@@ -1,10 +1,8 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Dialog } from 'primereact/dialog';
-import { Button } from 'primereact/button';
-import { InputText } from 'primereact/inputtext';
-import { Dropdown } from 'primereact/dropdown';
 import { ModelContext, FSContext } from './contexts.ts';
 import { join } from '../fs/filesystem.ts';
+import './ProjectGalleryDialog.css';
 
 interface BrowserProject {
   id: string;
@@ -286,138 +284,166 @@ export function ProjectGalleryDialog({
       setError('Unable to open project. See console for details.');
     }
   };
-  const content = loading ? (
-    <div className="flex align-items-center justify-content-center" style={{ minHeight: '220px' }}>
-      Loading projects...
-    </div>
-  ) : (
-    <div className="flex flex-column gap-3">
-      <div className="flex flex-column md:flex-row gap-3 md:align-items-center">
-        <span className="p-input-icon-left w-full md:w-20rem">
-          <i className="pi pi-search" />
-          <InputText
+  const toolbar = (
+    <div className="gallery-toolbar">
+      <div className="gallery-field">
+        <span>Search</span>
+        <div className="gallery-input-group">
+          <svg
+            className="gallery-input-icon"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            focusable="false"
+          >
+            <path
+              d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm9.707 12.293-3.387-3.387a1 1 0 1 0-1.414 1.414l3.387 3.387a1 1 0 0 0 1.414-1.414z"
+              fill="currentColor"
+            />
+          </svg>
+          <input
+            type="search"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(event.target.value)}
             placeholder="Search by name, tags, or description"
-            className="w-full"
+            className="gallery-input"
+            aria-label="Search projects"
           />
-        </span>
-        <Dropdown
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.value ?? null)}
-          options={categories.map(category => ({ label: category, value: category }))}
-          placeholder="Filter by category"
-          showClear
-          className="w-full md:w-16rem"
-        />
-      </div>
-
-      {error && (
-        <div className="text-sm" style={{ color: 'var(--red-500, #c0392b)' }}>
-          {error}
         </div>
-      )}
-
-      <div className="grid">
-        {filteredProjects.map(project => (
-          <div key={project.id} className="col-12 sm:col-6 lg:col-4">
-            <div
-              className="surface-card border-round shadow-1 p-3 h-full flex flex-column gap-3 cursor-pointer"
-              onClick={() => openProject(project)}
-              style={{ transition: 'box-shadow 0.15s ease-in-out' }}
-            >
-              {project.image && (
-                <div className="border-round overflow-hidden" style={{ background: 'var(--surface-ground)', maxHeight: '180px' }}>
-                  <img
-                    src={project.image}
-                    alt={project.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                </div>
-              )}
-              <div className="flex flex-column gap-1 flex-grow-1">
-                <div className="text-lg font-semibold">{project.title}</div>
-                {project.description && (
-                  <div className="text-sm" style={{ color: 'var(--text-color-secondary, #6c757d)' }}>
-                    {project.description}
-                  </div>
-                )}
-                <div className="text-xs" style={{ color: 'var(--text-color-secondary, #6c757d)' }}>
-                  Entry: <code>{project.entry}</code>
-                </div>
-                {project.category && (
-                  <div className="text-xs" style={{ color: 'var(--text-color-secondary, #6c757d)' }}>
-                    Category: {project.category}
-                  </div>
-                )}
-              </div>
-              {project.tags && project.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {project.tags.slice(0, 4).map(tag => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 border-round"
-                      style={{
-                        fontSize: '0.75rem',
-                        background: 'var(--surface-hover, #f2f2f2)',
-                        color: 'var(--text-color-secondary, #6c757d)'
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                  {project.tags.length > 4 && (
-                    <span className="px-2 py-1 border-round" style={{ fontSize: '0.75rem', background: 'var(--surface-hover, #f2f2f2)', color: 'var(--text-color-secondary, #6c757d)' }}>
-                      +{project.tags.length - 4}
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="flex justify-content-end">
-                <Button
-                  label="Open"
-                  icon="pi pi-play"
-                  size="small"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openProject(project);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
-
-      {filteredProjects.length === 0 && (
-        <div className="flex align-items-center justify-content-center flex-column gap-2" style={{ minHeight: '180px', color: 'var(--text-color-secondary, #6c757d)' }}>
-          <i className="pi pi-folder-open text-3xl" />
-          <span>No projects match the current filters.</span>
+      {categories.length > 0 && (
+        <div className="gallery-field">
+          <span>Category</span>
+          <select
+            value={selectedCategory ?? ''}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
+              const value = event.target.value;
+              setSelectedCategory(value ? value : null);
+            }}
+            className="gallery-select"
+            aria-label="Filter by category"
+          >
+            <option value="">All categories</option>
+            {categories.map(category => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         </div>
       )}
     </div>
   );
 
-  const overlayStyle: React.CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 1000,
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e40af 100%)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    padding: 'clamp(1rem, 4vw, 3rem)',
-    overflow: 'auto',
-  };
+  const body = loading ? (
+    <div className="gallery-placeholder" role="status">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 2a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm6.364 3.636a1 1 0 0 1 0 1.414l-2.829 2.828a1 1 0 0 1-1.414-1.414l2.829-2.828a1 1 0 0 1 1.414 0zM21 11a1 1 0 1 1 0 2h-4a1 1 0 1 1 0-2h4zm-3.636 6.364a1 1 0 0 1-1.414 0l-2.829-2.828a1 1 0 0 1 1.414-1.414l2.829 2.828a1 1 0 0 1 0 1.414zM13 21a1 1 0 1 1-2 0v-4a1 1 0 1 1 2 0v4zm-6.364-3.636a1 1 0 0 1-1.414 0 1 1 0 0 1 0-1.414l2.828-2.829a1 1 0 0 1 1.414 1.414L6.636 17.364zM7 11a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2h4zm2.05-5.657a1 1 0 0 1 1.414 0l2.829 2.828a1 1 0 0 1-1.414 1.414L9.05 6.757a1 1 0 0 1 0-1.414z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>Loading projects…</span>
+    </div>
+  ) : filteredProjects.length > 0 ? (
+    <div className="gallery-grid">
+      {filteredProjects.map(project => {
+        const displayedTags = (project.tags ?? []).slice(0, 4);
+        const extraTags = project.tags && project.tags.length > 4 ? project.tags.length - 4 : 0;
 
-  const panelStyle: React.CSSProperties = {
-    width: 'min(1200px, 100%)',
-    minHeight: '100%',
-    background: 'var(--surface-card, #ffffff)',
-    borderRadius: '16px',
-    padding: 'clamp(1.5rem, 3vw, 2.5rem)',
-    boxShadow: '0 30px 80px rgba(15, 23, 42, 0.25)',
-  };
+        return (
+          <article
+            key={project.id}
+            className="gallery-card"
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${project.title}`}
+            onClick={() => openProject(project)}
+            onKeyDown={(event: React.KeyboardEvent<HTMLElement>) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openProject(project);
+              }
+            }}
+          >
+            {project.image && (
+              <div className="gallery-card-image">
+                <img src={project.image} alt={`${project.title} preview`} loading="lazy" />
+              </div>
+            )}
+            <div className="gallery-card-body">
+              <div className="gallery-card-title">{project.title}</div>
+              {project.description && (
+                <p className="gallery-card-description">{project.description}</p>
+              )}
+              <div className="gallery-card-meta">
+                <span>
+                  Entry: <code>{project.entry}</code>
+                </span>
+                {project.category && <span>Category: {project.category}</span>}
+                {project.author && <span>Author: {project.author}</span>}
+              </div>
+            </div>
+            {(displayedTags.length > 0 || extraTags > 0) && (
+              <div className="gallery-tags">
+                {displayedTags.map(tag => (
+                  <span key={tag} className="gallery-tag">
+                    {tag}
+                  </span>
+                ))}
+                {extraTags > 0 && (
+                  <span className="gallery-tag">+{extraTags}</span>
+                )}
+              </div>
+            )}
+            <div className="gallery-card-footer">
+              <button
+                type="button"
+                className="gallery-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openProject(project);
+                }}
+              >
+                <span>Open</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <div className="gallery-placeholder">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M4 5a2 2 0 0 1 2-2h6l2 2h6a2 2 0 0 1 2 2v1H4V5Zm18 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9h18Zm-11 3H7v2h4v-2Zm8 0h-6v2h6v-2Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>No projects match the current filters.</span>
+    </div>
+  );
+
+  const content = (
+    <div className="gallery-view">
+      {toolbar}
+      {error && (
+        <div className="gallery-error">{error}</div>
+      )}
+      {body}
+    </div>
+  );
 
   if (variant === 'fullscreen') {
     if (!visible) return null;
@@ -425,21 +451,44 @@ export function ProjectGalleryDialog({
     const showCloseButton = mode !== 'standalone';
 
     return (
-      <div style={overlayStyle} className="gallery-fullscreen-overlay">
-        <div style={panelStyle} className="gallery-fullscreen-panel flex flex-column gap-3">
-          <div className="flex justify-content-between align-items-center">
-            <h2 className="m-0">Model Gallery</h2>
-            {showCloseButton && (
-              <Button
-                icon="pi pi-times"
-                rounded
-                text
-                aria-label="Close gallery"
-                onClick={onHide}
-              />
-            )}
-          </div>
-          <div className="flex flex-column gap-3" style={{ flex: 1, overflow: 'auto' }}>
+      <div
+        className="gallery-fullscreen-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-title"
+      >
+        <div className="gallery-fullscreen-panel">
+          <div className="gallery-fullscreen-inner">
+            <header className="gallery-fullscreen-header">
+              <div className="gallery-fullscreen-heading">
+                <p className="gallery-eyebrow">Model Gallery</p>
+                <h2 id="gallery-title">Pick a project to open</h2>
+                <p className="gallery-subtitle">
+                  Browse curated OpenSCAD models and launch them instantly in the viewer.
+                </p>
+              </div>
+              {showCloseButton && (
+                <button
+                  type="button"
+                  className="gallery-close-button"
+                  aria-label="Close gallery"
+                  onClick={onHide}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m7 7 10 10" />
+                    <path d="M17 7 7 17" />
+                  </svg>
+                </button>
+              )}
+            </header>
             {content}
           </div>
         </div>
@@ -455,6 +504,7 @@ export function ProjectGalleryDialog({
       style={{ width: 'min(1080px, 95vw)' }}
       breakpoints={{ '960px': '98vw' }}
       dismissableMask
+      contentClassName="gallery-dialog-content"
     >
       {content}
     </Dialog>

@@ -27,16 +27,31 @@ type UIConfig = {
   showEditorToggle: boolean;
 };
 
-const defaultUIConfig: UIConfig = {
+const baseUIConfig: UIConfig = {
   editorEnabled: true,
   showEditorToggle: true,
 };
 
+function computeDefaultUIConfig(): UIConfig {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host.endsWith('github.io')) {
+      return {
+        editorEnabled: false,
+        showEditorToggle: false,
+      };
+    }
+  }
+  return baseUIConfig;
+}
+
 function readUIConfig(): UIConfig {
-  if (typeof window === 'undefined') return defaultUIConfig;
+  const defaults = computeDefaultUIConfig();
+  if (typeof window === 'undefined') return defaults;
   const globalConfig = window.OPENSCAD_PLAYGROUND_CONFIG ?? {};
-  let editorEnabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : defaultUIConfig.editorEnabled;
-  let showEditorToggle = typeof globalConfig.editorToggle === 'boolean' ? globalConfig.editorToggle : editorEnabled;
+  let editorEnabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : defaults.editorEnabled;
+  let showEditorToggle = typeof globalConfig.editorToggle === 'boolean' ? globalConfig.editorToggle : defaults.showEditorToggle;
+  let toggleExplicit = typeof globalConfig.editorToggle === 'boolean';
 
   const envEditor = (typeof process !== 'undefined' && process.env?.PLAYGROUND_EDITOR_ENABLED ? process.env.PLAYGROUND_EDITOR_ENABLED : '').toLowerCase();
   if (envEditor) {
@@ -45,6 +60,7 @@ function readUIConfig(): UIConfig {
 
   const envToggle = (typeof process !== 'undefined' && process.env?.PLAYGROUND_EDITOR_TOGGLE ? process.env.PLAYGROUND_EDITOR_TOGGLE : '').toLowerCase();
   if (envToggle) {
+    toggleExplicit = true;
     showEditorToggle = !['0', 'false', 'off', 'no'].includes(envToggle);
   }
 
@@ -59,6 +75,11 @@ function readUIConfig(): UIConfig {
   if (toggleParam) {
     const normalized = toggleParam.toLowerCase();
     showEditorToggle = !['0', 'false', 'off', 'no'].includes(normalized);
+    toggleExplicit = true;
+  }
+
+  if (!toggleExplicit) {
+    showEditorToggle = editorEnabled;
   }
 
   if (!editorEnabled) {

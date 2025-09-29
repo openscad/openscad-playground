@@ -63,19 +63,31 @@ window.addEventListener('load', async () => {
   
   registerCustomAppHeightCSSProperty();
 
+  const computeDefaultEditorEnabled = () => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname.toLowerCase();
+      if (host.endsWith('github.io')) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const editorEnabled = (() => {
     const getEnvValue = (key: string) =>
       (typeof process !== 'undefined' && process.env?.[key]) ? String(process.env[key]) : '';
+
+    const defaultEnabled = computeDefaultEditorEnabled();
 
     if (typeof window === 'undefined') {
       const envValue = getEnvValue('PLAYGROUND_EDITOR_ENABLED').toLowerCase();
       if (envValue) {
         return !['0', 'false', 'off', 'no'].includes(envValue);
       }
-      return true;
+      return defaultEnabled;
     }
     const globalConfig = window.OPENSCAD_PLAYGROUND_CONFIG ?? {};
-    let enabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : true;
+    let enabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : defaultEnabled;
 
     const envValue = getEnvValue('PLAYGROUND_EDITOR_ENABLED').toLowerCase();
     if (envValue) {
