@@ -28,6 +28,22 @@ const log = debug('app:log');
 if (nodeEnv !== 'production') {
   debug.enable('*');
   log('Logging is enabled!');
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(registrations => {
+        registrations.forEach(registration => {
+          if (registration.scope.startsWith(window.location.origin)) {
+            registration.unregister().catch((error) => {
+              console.warn('Failed to unregister service worker in development mode.', error);
+            });
+          }
+        });
+      })
+      .catch((error) => {
+        console.warn('Failed to enumerate service workers in development mode.', error);
+      });
+  }
 } else {
   debug.disable();
 }
