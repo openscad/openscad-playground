@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { CSSProperties, useContext } from 'react';
-import { ModelContext } from './contexts.ts';
+import React, { CSSProperties, useContext, useState, useEffect } from 'react';
+import { ModelContext, FSContext } from './contexts.ts';
 
 import { Dropdown } from 'primereact/dropdown';
 import { Slider } from 'primereact/slider';
@@ -12,12 +12,99 @@ import { Fieldset } from 'primereact/fieldset';
 import { Parameter } from '../state/customizer-types.ts';
 import { Button } from 'primereact/button';
 
+type PresetData = {
+  fileFormatVersion: string;
+  parameterSets: {
+    [key: string]: {
+      [param: string]: string;
+    };
+  };
+};
+
 export default function CustomizerPanel({className, style}: {className?: string, style?: CSSProperties}) {
 
   const model = useContext(ModelContext);
+  const fs = useContext(FSContext);
   if (!model) throw new Error('No model');
 
   const state = model.state;
+
+  const [presetData, setPresetData] = useState<PresetData | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+  // Check for main.json in the same directory as the active file
+  useEffect(() => {
+    const activePath = state.params.activePath;
+    console.log('Checking for main.json, activePath:', activePath);
+
+    if (!activePath || !activePath.endsWith('.scad') || !fs) {
+      console.log('Skipping main.json check:', { activePath, hasFs: !!fs });
+      setPresetData(null);
+      return;
+    }
+
+    const directory = activePath.substring(0, activePath.lastIndexOf('/'));
+    const mainJsonPath = `${directory}/main.json`;
+    const mainJsonPathAlt = `${directory}/Main.json`; // Try alternate capitalization
+
+    console.log('Looking for main.json at:', mainJsonPath);
+
+    try {
+      const bfs = fs as any;
+      let foundPath: string | null = null;
+
+      // Try both lowercase and capitalized versions
+      if (typeof bfs?.existsSync === 'function') {
+        if (bfs.existsSync(mainJsonPath)) {
+          foundPath = mainJsonPath;
+        } else if (bfs.existsSync(mainJsonPathAlt)) {
+          foundPath = mainJsonPathAlt;
+        }
+      }
+
+      if (foundPath) {
+        console.log('Found main.json at:', foundPath);
+        const content = bfs.readFileSync(foundPath, 'utf-8');
+        const parsed = JSON.parse(content) as PresetData;
+        console.log('Loaded preset data:', parsed);
+        setPresetData(parsed);
+      } else {
+        console.log('main.json not found');
+        setPresetData(null);
+      }
+    } catch (error) {
+      console.warn('Error reading main.json:', error);
+      setPresetData(null);
+    }
+  }, [state.params.activePath, fs]);
+
+  const handlePresetChange = (presetName: string | null) => {
+    console.log('Preset changed to:', presetName);
+    setSelectedPreset(presetName);
+    if (presetName && presetData?.parameterSets[presetName]) {
+      const presetParams = presetData.parameterSets[presetName];
+      console.log('Applying preset parameters:', presetParams);
+      // Apply all preset parameters
+      Object.entries(presetParams).forEach(([name, value]) => {
+        // Parse the value based on the parameter type
+        let parsedValue: any = value;
+        const param = state.parameterSet?.parameters.find(p => p.name === name);
+        if (param) {
+          if (param.type === 'number') {
+            parsedValue = parseFloat(value);
+          } else if (param.type === 'boolean') {
+            parsedValue = value === 'true';
+          }
+        }
+        console.log(`Setting ${name} = ${parsedValue} (type: ${typeof parsedValue})`);
+        model.setVar(name, parsedValue);
+      });
+    }
+  };
+
+  const presetOptions = presetData
+    ? Object.keys(presetData.parameterSets).map(name => ({ label: name, value: name }))
+    : [];
 
   const handleChange = (name: string, value: any) => {
     model.setVar(name, value);
@@ -53,6 +140,26 @@ export default function CustomizerPanel({className, style}: {className?: string,
           ...style,
           bottom: 'unset',
         }}>
+      {presetOptions.length > 0 && (
+        <div style={{
+          margin: '10px 10px 5px 10px',
+          padding: '10px',
+          backgroundColor: 'rgba(255,255,255,0.4)',
+          borderRadius: '6px',
+        }}>
+          <label style={{ fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>
+            Preset
+          </label>
+          <Dropdown
+            value={selectedPreset}
+            options={presetOptions}
+            onChange={(e) => handlePresetChange(e.value)}
+            placeholder="Select a preset..."
+            style={{ width: '100%' }}
+            showClear
+          />
+        </div>
+      )}
       {groups.map(([group, params]) => (
         <Fieldset 
             style={{
