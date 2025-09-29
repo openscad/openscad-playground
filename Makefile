@@ -221,7 +221,7 @@ public/libraries/Stemfie_OpenSCAD.zip: libs/Stemfie_OpenSCAD
 	mkdir -p public/libraries
 	( cd libs/Stemfie_OpenSCAD ; zip -r ../../public/libraries/Stemfie_OpenSCAD.zip *.scad LICENSE )
 
-public/libraries/Models.zip: $(shell find Models -type f 2>/dev/null)
+public/libraries/Models.zip: Models
 	mkdir -p public/libraries
 	( cd Models && zip -r ../public/libraries/Models.zip . -x '*.DS_Store' -x '__MACOSX' )
 
