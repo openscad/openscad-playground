@@ -7,7 +7,8 @@ import { createEditorFS } from './fs/filesystem.ts';
 import { registerOpenSCADLanguage } from './language/openscad-register-language.ts';
 import { zipArchives } from './fs/zip-archives.ts';
 import {readStateFromFragment} from './state/fragment-state.ts'
-import { createInitialState } from './state/initial-state.ts';
+import { createInitialState, defaultSourcePath } from './state/initial-state.ts';
+import defaultScad from './state/default-scad.ts';
 import './index.css';
 
 import debug from 'debug';
@@ -104,6 +105,20 @@ window.addEventListener('load', async () => {
   })();
 
   const { fs } = await createEditorFS({prefix: '/libraries/', allowPersistence: isInStandaloneMode()});
+
+  const seedDefaultSource = () => {
+    try {
+      const bfs = fs as any;
+      if (typeof bfs?.existsSync === 'function' && bfs.existsSync(defaultSourcePath)) {
+        return;
+      }
+      bfs.writeFileSync(defaultSourcePath, defaultScad, 'utf-8');
+    } catch (error) {
+      console.warn('Failed to seed default OpenSCAD source file.', error);
+    }
+  };
+
+  seedDefaultSource();
 
   await registerOpenSCADLanguage(fs, '/', zipArchives);
 

@@ -166,14 +166,29 @@ export class Model {
     // console.log(`openFile: ${path}`);
     if (this.mutate(s => {
       if (s.params.activePath != path) {
-        const readSource = (path: string) => {
+        const readSource = (targetPath: string) => {
+          const fallbackFromState = () => {
+            const cached = this.state.params.sources.find(src => src.path === targetPath);
+            return cached?.content ?? '';
+          };
+
           try {
-            return new TextDecoder("utf-8").decode(this.fs.readFileSync(path));
-          } catch (e) {
-            if (this.editorEnabled) {
-              console.error('Error while reading file:', e);
+            const bfs = this.fs as any;
+            if (typeof bfs?.existsSync === 'function' && !bfs.existsSync(targetPath)) {
+              return fallbackFromState();
             }
-            return '';
+
+            const data = this.fs.readFileSync(targetPath);
+            if (typeof data === 'string') {
+              return data;
+            }
+            return new TextDecoder('utf-8').decode(data as Uint8Array);
+          } catch (error: any) {
+            const errorCode = typeof error === 'object' && error ? (error.code ?? error?.errno) : undefined;
+            if (this.editorEnabled && errorCode !== 'ENOENT') {
+              console.error('Error while reading file:', error);
+            }
+            return fallbackFromState();
           }
         };
         // Remove source of previous active path if it's unmodified
