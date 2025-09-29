@@ -12,61 +12,64 @@ export default function SettingsMenu({className, style}: {className?: string, st
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
+  const editorEnabled = typeof model.isEditorEnabled === 'function' ? model.isEditorEnabled() : true;
 
   const settingsMenu = useRef<Menu>(null);
+  const menuItems: MenuItem[] = [
+    {
+      label: state.view.layout.mode === 'multi'
+        ? 'Switch to single panel mode'
+        : 'Switch to side-by-side mode',
+      icon: 'pi pi-table',
+      command: () => model.changeLayout(state.view.layout.mode === 'multi' ? 'single' : 'multi'),
+    },
+    {
+      separator: true,
+    },
+    {
+      label: state.view.showAxes ? 'Hide axes' : 'Show axes',
+      icon: 'pi pi-asterisk',
+      command: () => model.mutate(s => { s.view.showAxes = !s.view.showAxes; }),
+    },
+  ];
+
+  if (editorEnabled) {
+    menuItems.push({
+      label: state.view.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
+      icon: 'pi pi-list',
+      command: () => model.mutate(s => { s.view.lineNumbers = !s.view.lineNumbers; }),
+    });
+  }
+
+  if (isInStandaloneMode()) {
+    menuItems.push(
+      { separator: true },
+      {
+        label: 'Clear local storage',
+        icon: 'pi pi-list',
+        command: () => {
+          confirmDialog({
+            message: "This will clear all the edits you've made and files you've created in this playground " +
+              "and will reset it to factory defaults. " +
+              "Are you sure you wish to proceed? (you might lose your models!)",
+            header: 'Clear local storage',
+            icon: 'pi pi-exclamation-triangle',
+            accept: () => {
+              localStorage.clear();
+              location.reload();
+            },
+            acceptLabel: 'Clear all files!',
+            rejectLabel: 'Cancel',
+          });
+        },
+      },
+    );
+  }
+
   return (
     <>
-      <Menu model={[
-        {
-          label: state.view.layout.mode === 'multi'
-            ? 'Switch to single panel mode'
-            : "Switch to side-by-side mode",
-          icon: 'pi pi-table',
-          // disabled: true,
-          command: () => model.changeLayout(state.view.layout.mode === 'multi' ? 'single' : 'multi'),
-        },
-        {
-          separator: true
-        },  
-        {
-          label: state.view.showAxes ? 'Hide axes' : 'Show axes',
-          icon: 'pi pi-asterisk',
-          // disabled: true,
-          command: () => model.mutate(s => s.view.showAxes = !s.view.showAxes)
-        },
-        {
-          label: state.view.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
-          icon: 'pi pi-list',
-          // disabled: true,
-          command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
-        },
-        ...(isInStandaloneMode() ? [
-          {
-            separator: true
-          },  
-          {
-            label: 'Clear local storage',
-            icon: 'pi pi-list',
-            // disabled: true,
-            command: () => {
-              confirmDialog({
-                message: "This will clear all the edits you've made and files you've created in this playground " +
-                  "and will reset it to factory defaults. " +
-                  "Are you sure you wish to proceed? (you might lose your models!)",
-                header: 'Clear local storage',
-                icon: 'pi pi-exclamation-triangle',
-                accept: () => {
-                  localStorage.clear();
-                  location.reload();
-                },
-                acceptLabel: `Clear all files!`,
-                rejectLabel: 'Cancel'
-              });
-            },
-          },
-        ] : []),
-      ] as MenuItem[]} popup ref={settingsMenu} />
-    
+      <Menu model={menuItems} popup ref={settingsMenu} />
+
       <Button title="Settings menu"
           style={style}
           className={className}

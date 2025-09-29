@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import PrimeReact from 'primereact/api';
 import {App} from './components/App.tsx';
 import { createEditorFS } from './fs/filesystem.ts';
 import { registerOpenSCADLanguage } from './language/openscad-register-language.ts';
@@ -22,6 +23,8 @@ import "primeicons/primeicons.css";
 import "primeflex/primeflex.min.css";
 
 const nodeEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV) ? process.env.NODE_ENV : 'production';
+
+PrimeReact.hideOverlaysOnDocumentScrolling = false;
 
 const log = debug('app:log');
 
