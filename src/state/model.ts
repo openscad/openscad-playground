@@ -28,6 +28,9 @@ export class Model {
   setEditorEnabled(value: boolean) {
     this.editorEnabled = value;
   }
+  isEditorEnabled() {
+    return this.editorEnabled;
+  }
   
   init() {
     if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering) {

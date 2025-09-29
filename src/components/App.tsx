@@ -15,6 +15,7 @@ declare global {
     OPENSCAD_PLAYGROUND_CONFIG?: {
       editor?: boolean;
       editorToggle?: boolean;
+      customizerOpen?: boolean;
     };
   }
 }
@@ -25,11 +26,13 @@ import CustomizerPanel from './CustomizerPanel';
 type UIConfig = {
   editorEnabled: boolean;
   showEditorToggle: boolean;
+  customizerDefaultOpen: boolean;
 };
 
 const baseUIConfig: UIConfig = {
   editorEnabled: true,
   showEditorToggle: true,
+  customizerDefaultOpen: false,
 };
 
 function computeDefaultUIConfig(): UIConfig {
@@ -39,6 +42,7 @@ function computeDefaultUIConfig(): UIConfig {
       return {
         editorEnabled: false,
         showEditorToggle: false,
+        customizerDefaultOpen: false,
       };
     }
   }
@@ -51,7 +55,9 @@ function readUIConfig(): UIConfig {
   const globalConfig = window.OPENSCAD_PLAYGROUND_CONFIG ?? {};
   let editorEnabled = typeof globalConfig.editor === 'boolean' ? globalConfig.editor : defaults.editorEnabled;
   let showEditorToggle = typeof globalConfig.editorToggle === 'boolean' ? globalConfig.editorToggle : defaults.showEditorToggle;
+  let customizerDefaultOpen = typeof globalConfig.customizerOpen === 'boolean' ? globalConfig.customizerOpen : defaults.customizerDefaultOpen;
   let toggleExplicit = typeof globalConfig.editorToggle === 'boolean';
+  let customizerExplicit = typeof globalConfig.customizerOpen === 'boolean';
 
   const envEditor = (typeof process !== 'undefined' && process.env?.PLAYGROUND_EDITOR_ENABLED ? process.env.PLAYGROUND_EDITOR_ENABLED : '').toLowerCase();
   if (envEditor) {
@@ -62,6 +68,12 @@ function readUIConfig(): UIConfig {
   if (envToggle) {
     toggleExplicit = true;
     showEditorToggle = !['0', 'false', 'off', 'no'].includes(envToggle);
+  }
+
+  const envCustomizer = (typeof process !== 'undefined' && process.env?.PLAYGROUND_CUSTOMIZER_OPEN ? process.env.PLAYGROUND_CUSTOMIZER_OPEN : '').toLowerCase();
+  if (envCustomizer) {
+    customizerExplicit = true;
+    customizerDefaultOpen = !['0', 'false', 'off', 'no', 'closed'].includes(envCustomizer);
   }
 
   const params = new URLSearchParams(window.location.search);
@@ -78,6 +90,13 @@ function readUIConfig(): UIConfig {
     toggleExplicit = true;
   }
 
+  const customizerParam = params.get('customizer');
+  if (customizerParam) {
+    const normalized = customizerParam.toLowerCase();
+    customizerDefaultOpen = !['0', 'false', 'off', 'no', 'closed'].includes(normalized);
+    customizerExplicit = true;
+  }
+
   if (!toggleExplicit) {
     showEditorToggle = editorEnabled;
   }
@@ -89,28 +108,41 @@ function readUIConfig(): UIConfig {
   return {
     editorEnabled,
     showEditorToggle,
+    customizerDefaultOpen,
   };
 }
 
 function applyUIConfigToState(state: State, config: UIConfig): State {
-  if (config.editorEnabled) {
-    return state;
-  }
+  const result = JSON.parse(JSON.stringify(state)) as State;
 
-  const sanitized = JSON.parse(JSON.stringify(state)) as State;
+  if (!config.editorEnabled) {
+    result.view.logs = false;
 
-  sanitized.view.logs = false;
-
-  if (sanitized.view.layout.mode === 'multi') {
-    sanitized.view.layout.editor = false;
-    if (!sanitized.view.layout.viewer && !sanitized.view.layout.customizer) {
-      sanitized.view.layout.viewer = true;
+    if (result.view.layout.mode === 'multi') {
+      result.view.layout.editor = false;
+      if (!result.view.layout.viewer && !result.view.layout.customizer) {
+        result.view.layout.viewer = true;
+      }
+    } else if (result.view.layout.focus === 'editor') {
+      result.view.layout.focus = 'viewer';
     }
-  } else if (sanitized.view.layout.focus === 'editor') {
-    sanitized.view.layout.focus = 'viewer';
   }
 
-  return sanitized;
+  if (config.customizerDefaultOpen) {
+    if (result.view.layout.mode === 'multi') {
+      result.view.layout.customizer = true;
+      if (!result.view.layout.viewer && (config.editorEnabled ? !result.view.layout.editor : true)) {
+        result.view.layout.viewer = true;
+      }
+    } else {
+      if (!config.editorEnabled && result.view.layout.focus === 'editor') {
+        result.view.layout.focus = 'viewer';
+      }
+      result.view.layout.focus = 'customizer';
+    }
+  }
+
+  return result;
 }
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {

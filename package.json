@@ -28,7 +28,7 @@
   },
   "scripts": {
     "test:e2e": "jest",
-    "start:development": "npx webpack serve --mode=development",
+    "start:development": "npx webpack serve --mode=development --no-hot",
     "start:production": "NODE_ENV=production PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
     "start": "npm run start:development",
     "build": "NODE_ENV=production webpack --mode=production"

@@ -53,7 +53,9 @@ declare var BrowserFS: BrowserFSInterface
 
 window.addEventListener('load', async () => {
   //*
-  if (nodeEnv === 'production') {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  if (nodeEnv === 'production' && !isLocalhost) {
     if ('serviceWorker' in navigator) {
         try {
             const registration = await navigator.serviceWorker.register('./sw.js');

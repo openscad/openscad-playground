@@ -95,6 +95,7 @@ const config = [
         NODE_ENV: 'development',
         PLAYGROUND_EDITOR_ENABLED: '',
         PLAYGROUND_EDITOR_TOGGLE: '',
+        PLAYGROUND_CUSTOMIZER_OPEN: '',
       }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({

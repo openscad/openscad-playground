@@ -17,6 +17,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
+  const editorEnabled = typeof model.isEditorEnabled === 'function' ? model.isEditorEnabled() : true;
   
   const toast = useRef<Toast>(null);
 
@@ -82,7 +83,7 @@ export default function Footer({style}: {style?: CSSProperties}) {
 
       <ExportButton /> */}
       
-      {(state.lastCheckerRun || state.output) &&
+      {editorEnabled && (state.lastCheckerRun || state.output) &&
         <Button type="button"
             severity={maxMarkerSeverity && severityByMarkerSeverity.get(maxMarkerSeverity)}
             icon="pi pi-align-left"
