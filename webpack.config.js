@@ -1,16 +1,13 @@
 import CopyPlugin from 'copy-webpack-plugin';
-import WorkboxPlugin from 'workbox-webpack-plugin';
 import webpack from 'webpack';
-import packageConfig from './package.json' with {type: 'json'};
+import WorkboxPlugin from 'workbox-webpack-plugin';
 
-import path, {dirname} from 'path';
-import {fileURLToPath} from 'url';
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const LOCAL_URL = process.env.LOCAL_URL ?? 'http://localhost:4000/';
-const PUBLIC_URL = process.env.PUBLIC_URL ?? packageConfig.homepage;
 const isDev = process.env.NODE_ENV !== 'production';
 
 
@@ -48,7 +45,7 @@ const config = [
             'style-loader',
             {
               loader: 'css-loader',
-              options:{url: false},
+              options: { url: false },
             }
           ]
         },
@@ -76,28 +73,28 @@ const config = [
       }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({
-            exclude: [
-              /(^|\/)\./,
-              /\.map$/,
-              /^manifest.*\.js$/,
-            ],
-            // these options encourage the ServiceWorkers to get in there fast
-            // and not allow any straggling 'old' SWs to hang around
-            swDest: path.join(__dirname, 'dist', 'sw.js'),
-            maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
-            clientsClaim: true,
-            skipWaiting: true,
-            runtimeCaching: [{
-              urlPattern: ({request, url}) => true,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'all',
-                expiration: {
-                  maxEntries: 1000,
-                  purgeOnQuotaError: true,
-                },
+          exclude: [
+            /(^|\/)\./,
+            /\.map$/,
+            /^manifest.*\.js$/,
+          ],
+          // these options encourage the ServiceWorkers to get in there fast
+          // and not allow any straggling 'old' SWs to hang around
+          swDest: path.join(__dirname, 'dist', 'sw.js'),
+          maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
+          clientsClaim: true,
+          skipWaiting: true,
+          runtimeCaching: [{
+            urlPattern: ({ request, url }) => true,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'all',
+              expiration: {
+                maxEntries: 1000,
+                purgeOnQuotaError: true,
               },
-            }],
+            },
+          }],
         }),
       ] : []),
       new CopyPlugin({
@@ -113,7 +110,11 @@ const config = [
           },
           {
             from: path.resolve(__dirname, 'src/wasm/openscad.js'),
+            to: path.resolve(__dirname, 'dist'),
+          },
+          {
             from: path.resolve(__dirname, 'src/wasm/openscad.wasm'),
+            to: path.resolve(__dirname, 'dist'),
           },
         ],
       }),

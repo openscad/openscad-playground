@@ -25,8 +25,7 @@ jobs:
         with:
           node-version: ${{ matrix.node.version }}
       - run: npm install
-      - run: make public
-      - run: npm run build
+      - run: npm run build:all
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
         with:
