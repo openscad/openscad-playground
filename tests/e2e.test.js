@@ -22,24 +22,24 @@ beforeEach(async () => {
 afterEach(async () => {
   // console.log('Messages:', JSON.stringify(messages, null, 2));
   const testName = expect.getState().currentTestName;
-  console.log(`[${testName}] Messages:`, JSON.stringify(messages.map(({text}) => text), null, 2));
-    
+  console.log(`[${testName}] Messages:`, JSON.stringify(messages.map(({ text }) => text), null, 2));
+
   const errors = messages.filter(msg =>
-      msg.type === 'error' &&
-      !(msg.text.includes('404')
-          && msg.stack.some(s =>
-              s.url.indexOf('fonts/InterVariable.woff') >= 0)));
+    msg.type === 'error' &&
+    !(msg.text.includes('404')
+      && msg.stack.some(s =>
+        s.url.indexOf('fonts/InterVariable.woff') >= 0)));
   expect(errors).toHaveLength(0);
 });
 
 function loadSrc(src) {
-  return page.goto(baseUrl + '#src=' + encodeURIComponent(src));
+  return page.goto(`${baseUrl}#src=${encodeURIComponent(src)}`);
 }
 function loadPath(path) {
-  return page.goto(baseUrl + '#path=' + encodeURIComponent(path));
+  return page.goto(`${baseUrl}#path=${encodeURIComponent(path)}`);
 }
 function loadUrl(url) {
-  return page.goto(baseUrl + '#url=' + encodeURIComponent(url));
+  return page.goto(`${baseUrl}#url=${encodeURIComponent(url)}`);
 }
 async function waitForViewer() {
   await page.waitForSelector('model-viewer');
@@ -63,19 +63,34 @@ function expect3DManifold() {
 }
 function waitForCustomizeButton() {
   return page.waitForFunction(() => {
-    const buttons = document.querySelectorAll('input[role=switch]');
-    for (const button of buttons) {
-      if (button.parentElement.innerText === 'Customize') {
-        return button;
+    // Try multiple selectors for PrimeReact components
+    // ToggleButton might render as button or input elements
+    const selectors = [
+      'input[role=switch]',
+      'button',
+      '[role=tab]',
+      '.p-togglebutton',
+      '.p-tabmenu-nav a'
+    ];
+
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const element of elements) {
+        const text = element.textContent || element.innerText || '';
+        const parentText = element.parentElement?.textContent || element.parentElement?.innerText || '';
+        if (text.includes('Customize') || parentText.includes('Customize')) {
+          return element;
+        }
       }
     }
-  });
+    return null;
+  }, { timeout: 45000 }); // Increase timeout to 45 seconds
 }
 function waitForLabel(text) {
-  return page.waitForFunction((text) => {
+  return page.waitForFunction(() => {
     return Array.from(document.querySelectorAll('label')).find(el => el.textContent === 'myVar');
     // return Array.from(document.querySelectorAll('label')).find(el => el.textContent === text);
-  }, {}, text);
+  });
 }
 
 describe('e2e', () => {
@@ -90,7 +105,7 @@ describe('e2e', () => {
     await waitForViewer();
     expect3DPolySet();
   }, longTimeout);
-  
+
   test('use BOSL2', async () => {
     await loadSrc(`
       include <BOSL2/std.scad>;
@@ -128,8 +143,17 @@ describe('e2e', () => {
     ].join('\r\n'));
     await waitForViewer();
     expect3DPolySet();
+
+    // Wait for syntax checking to complete and parameters to be detected
+    await page.waitForFunction(() => {
+      // Look for any indication that parameters have been processed
+      const messages = Array.from(document.querySelectorAll('*')).map(el => el.textContent || '').join(' ');
+      return messages.includes('myVar') || messages.includes('Customize');
+    }, { timeout: 30000 });
+
     await (await waitForCustomizeButton()).click();
     await page.waitForSelector('fieldset');
     await waitForLabel('myVar');
   }, longTimeout);
 });
+

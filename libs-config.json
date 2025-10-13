@@ -1,0 +1,257 @@
+{
+    "wasmBuild": {
+        "url": "https://files.openscad.org/playground/OpenSCAD-2025.03.25.wasm24456-WebAssembly-web.zip",
+        "target": "libs/openscad-wasm"
+    },
+    "libraries": [
+        {
+            "name": "openscad",
+            "repo": "https://github.com/openscad/openscad.git",
+            "branch": "master",
+            "zipIncludes": [
+                "examples/**/*.scad"
+            ],
+            "zipExcludes": [
+                "**/tests/**"
+            ]
+        },
+        {
+            "name": "BOSL2",
+            "repo": "https://github.com/BelfrySCAD/BOSL2.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE",
+                "examples"
+            ]
+        },
+        {
+            "name": "BOSL",
+            "repo": "https://github.com/revarbat/BOSL.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "NopSCADlib",
+            "repo": "https://github.com/nophead/NopSCADlib.git",
+            "branch": "master",
+            "zipIncludes": [
+                "**/*.scad",
+                "COPYING"
+            ]
+        },
+        {
+            "name": "funcutils",
+            "repo": "https://github.com/thehans/funcutils.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "FunctionalOpenSCAD",
+            "repo": "https://github.com/thehans/FunctionalOpenSCAD.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "YAPP_Box",
+            "repo": "https://github.com/mrWheel/YAPP_Box.git",
+            "branch": "main",
+            "zipIncludes": [
+                "**/*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "MCAD",
+            "repo": "https://github.com/openscad/MCAD.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "bitmap/*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "boltsparts",
+            "repo": "https://github.com/boltsparts/boltsparts.git",
+            "branch": "main",
+            "zipIncludes": [
+                "**/*.scad",
+                "../LICENSE"
+            ],
+            "zipExcludes": [
+                "**/tests/**"
+            ],
+            "workingDir": "openscad"
+        },
+        {
+            "name": "OpenSCAD-Snippet",
+            "repo": "https://github.com/AngeloNicoli/OpenSCAD-Snippet.git",
+            "branch": "main",
+            "zipIncludes": [
+                "**/*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "Stemfie_OpenSCAD",
+            "repo": "https://github.com/Cantareus/Stemfie_OpenSCAD.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "pathbuilder",
+            "repo": "https://github.com/dinther/pathbuilder.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "demo/*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "openscad_attachable_text3d",
+            "repo": "https://github.com/jon-gilbert/openscad_attachable_text3d.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "brailleSCAD",
+            "repo": "https://github.com/BelfrySCAD/brailleSCAD.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "smooth-prim",
+            "repo": "https://github.com/rcolyer/smooth-prim.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE.txt"
+            ]
+        },
+        {
+            "name": "plot-function",
+            "repo": "https://github.com/rcolyer/plot-function.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE.txt"
+            ]
+        },
+        {
+            "name": "closepoints",
+            "repo": "https://github.com/rcolyer/closepoints.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE.txt"
+            ]
+        },
+        {
+            "name": "UB.scad",
+            "repo": "https://github.com/UBaer21/UB.scad.git",
+            "branch": "main",
+            "zipIncludes": [
+                "libraries/*.scad",
+                "LICENSE",
+                "examples/UBexamples"
+            ]
+        },
+        {
+            "name": "openscad-tray",
+            "repo": "https://github.com/sofian/openscad-tray.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "lasercut",
+            "repo": "https://github.com/bmsleight/lasercut.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ]
+        },
+        {
+            "name": "Models",
+            "localPath": "Models",
+            "zipExcludes": [
+                "__MACOSX/*",
+                "*.DS_Store",
+                "*/.DS_Store"
+            ]
+        }
+    ],
+    "fonts": {
+        "notoFonts": [
+            "NotoNaskhArabic-Bold.ttf",
+            "NotoNaskhArabic-Regular.ttf",
+            "NotoSans-Bold.ttf",
+            "NotoSans-Italic.ttf",
+            "NotoSans-Regular.ttf",
+            "NotoSansArmenian-Bold.ttf",
+            "NotoSansArmenian-Regular.ttf",
+            "NotoSansBalinese-Regular.ttf",
+            "NotoSansBengali-Bold.ttf",
+            "NotoSansBengali-Regular.ttf",
+            "NotoSansDevanagari-Bold.ttf",
+            "NotoSansDevanagari-Regular.ttf",
+            "NotoSansEthiopic-Bold.ttf",
+            "NotoSansEthiopic-Regular.ttf",
+            "NotoSansGeorgian-Bold.ttf",
+            "NotoSansGeorgian-Regular.ttf",
+            "NotoSansGujarati-Bold.ttf",
+            "NotoSansGujarati-Regular.ttf",
+            "NotoSansGurmukhi-Bold.ttf",
+            "NotoSansGurmukhi-Regular.ttf",
+            "NotoSansHebrew-Bold.ttf",
+            "NotoSansHebrew-Regular.ttf",
+            "NotoSansJavanese-Regular.ttf",
+            "NotoSansKannada-Bold.ttf",
+            "NotoSansKannada-Regular.ttf",
+            "NotoSansKhmer-Bold.ttf",
+            "NotoSansKhmer-Regular.ttf",
+            "NotoSansLao-Bold.ttf",
+            "NotoSansLao-Regular.ttf",
+            "NotoSansMongolian-Regular.ttf",
+            "NotoSansMyanmar-Bold.ttf",
+            "NotoSansMyanmar-Regular.ttf",
+            "NotoSansOriya-Bold.ttf",
+            "NotoSansOriya-Regular.ttf",
+            "NotoSansSinhala-Bold.ttf",
+            "NotoSansSinhala-Regular.ttf",
+            "NotoSansTamil-Bold.ttf",
+            "NotoSansTamil-Regular.ttf",
+            "NotoSansThai-Bold.ttf",
+            "NotoSansThai-Regular.ttf",
+            "NotoSansTibetan-Bold.ttf",
+            "NotoSansTibetan-Regular.ttf",
+            "NotoSansTifinagh-Regular.ttf"
+        ],
+        "notoBaseUrl": "https://github.com/openmaptiles/fonts/raw/master/noto-sans/",
+        "liberationRepo": "https://github.com/shantigilbert/liberation-fonts-ttf.git",
+        "liberationBranch": "master"
+    }
+}

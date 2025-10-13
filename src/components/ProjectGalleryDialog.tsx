@@ -211,7 +211,7 @@ export function ProjectGalleryDialog({
       if (!cancelled) {
         setProjects(scanned);
         if (scanned.length === 0) {
-          setError('No projects found in /libraries/Models. Run `make public` to build the archive.');
+          setError('No projects found in /libraries/Models. Run `npm run build:libs` to build the archive.');
         }
         setLoading(false);
       }

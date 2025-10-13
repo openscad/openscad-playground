@@ -30,8 +30,14 @@
     "test:e2e": "jest",
     "start:development": "npx webpack serve --mode=development --no-hot",
     "start:production": "NODE_ENV=production PUBLIC_URL=http://localhost:3000/dist/ npm run build && npx serve",
+    "start:test": "npm run start:development",
     "start": "npm run start:development",
-    "build": "NODE_ENV=production webpack --mode=production"
+    "build": "NODE_ENV=production webpack --mode=production",
+    "build:libs": "LIBS_BUILD_MODE=all webpack --config webpack.libs.config.js",
+    "build:libs:clean": "LIBS_BUILD_MODE=clean webpack --config webpack.libs.config.js",
+    "build:libs:wasm": "LIBS_BUILD_MODE=wasm webpack --config webpack.libs.config.js",
+    "build:libs:fonts": "LIBS_BUILD_MODE=fonts webpack --config webpack.libs.config.js",
+    "build:all": "npm run build:libs && npm run build"
   },
   "eslintConfig": {
     "extends": [
@@ -74,6 +80,7 @@
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.1",
     "tslib": "^2.8.1",
+    "typescript": "^5.9.2",
     "webpack": "^5.97.1",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.0",

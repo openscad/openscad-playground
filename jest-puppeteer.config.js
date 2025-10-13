@@ -8,7 +8,7 @@ const config = {
     ],
   },
   server: {
-    command: `npm run start:${process.env.NODE_ENV}`,
+    command: `npm run start:${process.env.NODE_ENV || 'test'}`,
     port: process.env.NODE_ENV === 'production' ? 3000 : 4000,
     launchTimeout: 180000,
   },

@@ -63,7 +63,7 @@ export async function getBrowserFSLibrariesMounts(archiveNames: string[]): Promi
   }
 
   if (mountedArchives.length === 0) {
-    console.warn('[filesystem] No library archives were mounted. Run `make public` to generate ZIP archives.');
+    console.warn('[filesystem] No library archives were mounted. Run `npm run build:libs` to generate ZIP archives.');
   }
 
   return { mounts, mountedArchives };
