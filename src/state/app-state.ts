@@ -76,6 +76,21 @@ export interface State {
     isPreview: boolean,
   },
   export?: FileOutput,
+
+  project?: {
+    id?: string,
+    type: 'scad' | 'static',
+    entryPath?: string,
+    previousLayout?: State['view']['layout'],
+    previousLogsVisible?: boolean,
+  },
+
+  staticModel?: {
+    objectUrl: string,
+    entryPath: string,
+    mimeType: string,
+    projectId?: string,
+  },
 };
 
 export interface StatePersister {

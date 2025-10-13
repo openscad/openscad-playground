@@ -73,7 +73,7 @@ export async function readStateFromFragment(): Promise<State | null> {
         obj = JSON.parse(decodeURIComponent(serialized));
       }
       const {params, view, preview} = obj;
-      return {
+      const state: State = {
         params: {
           activePath: validateString(params?.activePath, () => defaultSourcePath),
           features: validateArray(params?.features, validateString),
@@ -104,6 +104,12 @@ export async function readStateFromFragment(): Promise<State | null> {
           lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false)
         }
       };
+      state.project = {
+        type: 'scad',
+        entryPath: state.params.activePath,
+      };
+      state.staticModel = undefined;
+      return state;
     } catch (e) {
       console.error(e);
     }

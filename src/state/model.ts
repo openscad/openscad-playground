@@ -16,6 +16,31 @@ import chroma from "chroma-js";
 
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
 
+const STATIC_MIME_MAP: Record<string, string> = {
+  glb: 'model/gltf-binary',
+  gltf: 'model/gltf+json',
+  obj: 'model/obj',
+  stl: 'model/stl',
+  ply: 'model/ply',
+  off: 'model/off',
+};
+
+function guessMimeType(path: string, fallback?: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  if (fallback) return fallback;
+  return STATIC_MIME_MAP[ext] ?? 'application/octet-stream';
+}
+
+function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
+  if (typeof data === 'string') {
+    return new TextEncoder().encode(data);
+  }
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+  return new Uint8Array(data);
+}
+
 export class Model {
   constructor(
     private fs: FS,
@@ -33,6 +58,9 @@ export class Model {
   }
   
   init() {
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     if (!this.state.output && !this.state.lastCheckerRun && !this.state.previewing && !this.state.checkingSyntax && !this.state.rendering) {
       this.processSource();
     }
@@ -42,6 +70,13 @@ export class Model {
     this.state = state;
     this.statePersister && this.statePersister.set(state);
     this.setStateCallback && this.setStateCallback(state);
+  }
+
+  private revokeStaticModel() {
+    const url = this.state.staticModel?.objectUrl;
+    if (url && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
   }
 
   mutate(f: (state: State) => void) {
@@ -65,6 +100,9 @@ export class Model {
     });
   }
   setVar(name: string, value: any) {
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     this.mutate(s => s.params.vars = {...s.params.vars ?? {}, [name]: value});
     this.render({isPreview: true, now: false});
   }
@@ -159,6 +197,9 @@ export class Model {
     if (!this.editorEnabled) {
       return;
     }
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     const isVisible = this.state.view.layout.mode === 'multi'
       ? this.state.view.layout.editor
       : this.state.view.layout.focus === 'editor';
@@ -167,6 +208,11 @@ export class Model {
 
   openFile(path: string) {
     // console.log(`openFile: ${path}`);
+    const previousLayout = this.state.project?.previousLayout
+      ? JSON.parse(JSON.stringify(this.state.project.previousLayout)) as State['view']['layout']
+      : undefined;
+    const previousLogsVisible = this.state.project?.previousLogsVisible;
+    this.revokeStaticModel();
     if (this.mutate(s => {
       if (s.params.activePath != path) {
         const readSource = (targetPath: string) => {
@@ -203,6 +249,19 @@ export class Model {
           const content = readSource(path);
           s.params.sources = [...s.params.sources, {path, content}];
         }
+        s.project = {
+          type: 'scad',
+          entryPath: path,
+          previousLayout: undefined,
+          previousLogsVisible: undefined,
+        };
+        s.staticModel = undefined;
+        if (previousLayout) {
+          s.view.layout = previousLayout;
+        }
+        if (previousLogsVisible !== undefined) {
+          s.view.logs = previousLogsVisible;
+        }
         s.lastCheckerRun = undefined;
         s.output = undefined;
         s.export = undefined;
@@ -223,12 +282,18 @@ export class Model {
     return this.state.params.sources.find(src => src.path === this.state.params.activePath)?.content ?? '';
   }
   set source(source: string) {
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     if (this.mutate(s => s.params.sources = s.params.sources.map(src => src.path === s.params.activePath ? {path: src.path, content: source} : src))) {
       this.processSource();
     }
   }
 
   private async processSource() {
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     let src = this.state.params.sources.find(src => src.path === this.state.params.activePath);
     if (src && src.content == null) {
       let {path, url} = src;
@@ -251,6 +316,9 @@ export class Model {
   }
 
   async checkSyntax() {
+    if (this.state.project?.type === 'static') {
+      return;
+    }
     this.mutate(s => s.checkingSyntax = true);
     try {
       const checkerRun = await checkSyntax({
@@ -278,6 +346,10 @@ export class Model {
   }
 
   async export() {
+    if (this.state.project?.type === 'static') {
+      console.warn('Export is not available for static projects.');
+      return;
+    }
     if (this.state.output) {
       const normalPassThrough = 
         (this.state.is2D && this.state.params.exportFormat2D === 'svg')
@@ -373,6 +445,10 @@ export class Model {
   }
 
   async saveProject() {
+    if (this.state.project?.type === 'static') {
+      console.warn('Save project is not available for static projects.');
+      return;
+    }
     if (this.state.params.sources.length == 1) {
       const content = this.state.params.sources[0].content;
       const contentBytes = new TextEncoder().encode(content);
@@ -396,6 +472,10 @@ export class Model {
   }
 
   async render({isPreview, mountArchives, now, retryInOtherDim}: {isPreview: boolean, mountArchives?: boolean, now: boolean, retryInOtherDim?: boolean}) {
+    if (this.state.project?.type === 'static') {
+      console.warn('Render skipped for static project.');
+      return;
+    }
     // console.log(JSON.stringify(this.state, null, 2));
     mountArchives ??= true;
     retryInOtherDim ??= true;
@@ -543,5 +623,70 @@ export class Model {
         return;
       }
     }
+  }
+
+  openStaticProject(entryPath: string, options?: { projectId?: string, mimeType?: string }) {
+    const bfs = this.fs as any;
+    try {
+      if (!bfs.existsSync(entryPath)) {
+        throw new Error(`Static model not found: ${entryPath}`);
+      }
+    } catch (error) {
+      console.error('Failed to open static project:', error);
+      return;
+    }
+
+    let data: string | Uint8Array | ArrayBuffer;
+    try {
+      data = this.fs.readFileSync(entryPath) as any;
+    } catch (error) {
+      console.error('Failed to read static model:', error);
+      return;
+    }
+    const bytes = toUint8Array(data);
+    const mimeType = guessMimeType(entryPath, options?.mimeType);
+    const objectUrl = URL.createObjectURL(new Blob([bytes], {type: mimeType}));
+
+    const previousLayout = JSON.parse(JSON.stringify(this.state.view.layout)) as State['view']['layout'];
+    const previousLogsVisible = this.state.view.logs ?? false;
+
+    this.revokeStaticModel();
+    if (this.state.output?.outFileURL?.startsWith('blob:') ?? false) {
+      URL.revokeObjectURL(this.state.output!.outFileURL);
+    }
+    if (this.state.output?.displayFileURL?.startsWith('blob:') ?? false) {
+      URL.revokeObjectURL(this.state.output!.displayFileURL!);
+    }
+
+    this.mutate(s => {
+      s.params.activePath = entryPath;
+      s.params.sources = [];
+      s.lastCheckerRun = undefined;
+      s.output = undefined;
+      s.export = undefined;
+      s.preview = undefined;
+      s.currentRunLogs = undefined;
+      s.error = undefined;
+      s.is2D = undefined;
+      s.parameterSet = undefined;
+      s.project = {
+        type: 'static',
+        entryPath,
+        id: options?.projectId,
+        previousLayout,
+        previousLogsVisible,
+      };
+      s.staticModel = {
+        objectUrl,
+        entryPath,
+        mimeType,
+        projectId: options?.projectId,
+      };
+      s.view.logs = false;
+      s.view.layout = {
+        mode: 'single',
+        focus: 'viewer',
+      };
+    });
   }
 }

@@ -172,9 +172,11 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     modelRef.current = new Model(fs, state, setState, statePersister, uiConfig.editorEnabled);
   } else {
     modelRef.current.state = state;
-    modelRef.current.setEditorEnabled(uiConfig.editorEnabled);
   }
   const model = modelRef.current;
+  const isStaticProject = model.state.project?.type === 'static';
+  const editorEnabledForProject = uiConfig.editorEnabled && !isStaticProject;
+  model.setEditorEnabled(editorEnabledForProject);
 
   useEffect(() => {
     if (!model || showLanding) {
@@ -193,11 +195,17 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
         const projectJsonPath = `${modelPath}/project.json`;
         if (bfs.existsSync(projectJsonPath)) {
           const projectData = JSON.parse(bfs.readFileSync(projectJsonPath, 'utf-8'));
+          const projectType = (projectData.type === 'static') ? 'static' : 'scad';
           if (projectData.entry) {
             const entryPath = `${modelPath}/${projectData.entry}`;
             if (bfs.existsSync(entryPath)) {
-              model.openFile(entryPath);
-              opened = true;
+              if (projectType === 'static') {
+                model.openStaticProject(entryPath, { projectId: modelParam });
+                opened = true;
+              } else {
+                model.openFile(entryPath);
+                opened = true;
+              }
             }
           }
         }
@@ -337,12 +345,12 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
           
           <PanelSwitcher
             onOpenGallery={(variant) => {
-              const nextVariant = uiConfig.editorEnabled ? variant : 'fullscreen';
+              const nextVariant = editorEnabledForProject ? variant : 'fullscreen';
               setGalleryVariant(nextVariant);
               setGalleryVisible(true);
             }}
-            editorEnabled={uiConfig.editorEnabled}
-            showEditorToggle={uiConfig.showEditorToggle}
+            editorEnabled={editorEnabledForProject}
+            showEditorToggle={uiConfig.showEditorToggle && !isStaticProject}
           />
 
           <ProjectGalleryDialog
@@ -356,14 +364,14 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
               setGalleryVariant(defaultGalleryVariant);
             }}
           />
-    
+
           <div className={mode === 'multi' ? 'flex flex-row' : 'flex flex-column'}
               style={mode === 'multi' ? {flex: 1} : {
                 flex: 1,
                 position: 'relative'
               }}>
 
-            {uiConfig.editorEnabled && (
+            {editorEnabledForProject && (
               <EditorPanel className={`
                 opacity-animated
                 ${layout.mode === 'single' && layout.focus !== 'editor' ? 'opacity-0' : ''}
@@ -371,11 +379,13 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
               `} style={getPanelStyle('editor')} />
             )}
             <ViewerPanel className={layout.mode === 'single' ? `absolute-fill` : ''} style={getPanelStyle('viewer')} />
-            <CustomizerPanel className={`
+            {!isStaticProject && (
+              <CustomizerPanel className={`
               opacity-animated
               ${layout.mode === 'single' && layout.focus !== 'customizer' ? 'opacity-0' : ''}
               ${layout.mode === 'single' ? `absolute-fill` : ''}
             `} style={getPanelStyle('customizer')} />
+            )}
           </div>
 
           <Footer />

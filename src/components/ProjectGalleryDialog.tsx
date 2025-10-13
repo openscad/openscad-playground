@@ -12,7 +12,8 @@ interface BrowserProject {
   tags?: string[];
   author?: string;
   entry: string;
-  scadPath: string;
+  entryPath: string;
+  type: 'scad' | 'static';
   image?: string;
   status?: 'ideas' | 'in-progress' | 'in-review' | 'completed';
 }
@@ -114,29 +115,57 @@ function collectProjects(fs: FS): BrowserProject[] {
     }
 
     const projectJson = safeReadJSON(fs, join(projectDir, 'project.json')) ?? {};
+    const projectType: 'scad' | 'static' = (projectJson.type === 'static') ? 'static' : 'scad';
     let entry = typeof projectJson.entry === 'string' && projectJson.entry.length > 0
       ? projectJson.entry
-      : findDefaultEntry(fs, projectDir);
+      : undefined;
+    let entryPath = entry ? join(projectDir, entry) : undefined;
 
-    let scadPath = entry ? join(projectDir, entry) : undefined;
-    if (scadPath) {
-      try {
-        const stat = bfs.lstatSync(scadPath);
-        if (!stat.isFile()) {
-          scadPath = undefined;
+    if (projectType === 'scad') {
+      const ensureScadFile = () => {
+        if (!entryPath) return false;
+        try {
+          const stat = bfs.lstatSync(entryPath);
+          if (!stat.isFile()) {
+            return false;
+          }
+          if (!entryPath.toLowerCase().endsWith('.scad')) {
+            return false;
+          }
+          return true;
+        } catch {
+          return false;
         }
-      } catch {
-        scadPath = undefined;
+      };
+
+      if (!ensureScadFile()) {
+        entry = findDefaultEntry(fs, projectDir) ?? entry;
+        entryPath = entry ? join(projectDir, entry) : undefined;
+      }
+
+      if (!ensureScadFile()) {
+        console.warn(`No entry SCAD file found for project ${name}`);
+        continue;
+      }
+    } else {
+      if (!entryPath) {
+        console.warn(`Static project ${name} is missing entry file in project.json`);
+        continue;
+      }
+      try {
+        const stat = bfs.lstatSync(entryPath);
+        if (!stat.isFile()) {
+          console.warn(`Entry for static project ${name} is not a file: ${entryPath}`);
+          continue;
+        }
+      } catch (error) {
+        console.warn(`Unable to read entry for static project ${name}:`, error);
+        continue;
       }
     }
 
-    if (!scadPath) {
-      entry = findDefaultEntry(fs, projectDir);
-      scadPath = entry ? join(projectDir, entry) : undefined;
-    }
-
-    if (!entry || !scadPath) {
-      console.warn(`No entry SCAD file found for project ${name}`);
+    if (!entry || !entryPath) {
+      console.warn(`No entry file found for project ${name}`);
       continue;
     }
 
@@ -167,7 +196,8 @@ function collectProjects(fs: FS): BrowserProject[] {
       tags: projectJson.tags,
       author: projectJson.author,
       entry,
-      scadPath,
+      entryPath,
+      type: projectType,
       image: imageData,
       status: projectJson.status,
     });
@@ -318,7 +348,11 @@ export function ProjectGalleryDialog({
         return;
       }
 
-      model.openFile(project.scadPath);
+      if (project.type === 'static') {
+        model.openStaticProject(project.entryPath, { projectId: project.id });
+      } else {
+        model.openFile(project.entryPath);
+      }
 
       const url = new URL(window.location.href);
       url.searchParams.set('model', project.id);

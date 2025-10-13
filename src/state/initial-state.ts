@@ -84,6 +84,12 @@ export function createInitialState(state: State | null, source?: {content?: stri
     initialState.params.features.push(f);
   });
 
+  initialState.project = {
+    type: 'scad',
+    entryPath: initialState.params.activePath,
+  };
+  initialState.staticModel = undefined;
+
   return initialState;
 }
 

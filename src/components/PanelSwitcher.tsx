@@ -26,7 +26,9 @@ export default function PanelSwitcher({
     singleTargets.push({ id: 'editor', icon: 'pi pi-pencil', label: 'Edit' });
   }
   singleTargets.push({ id: 'viewer', icon: 'pi pi-box', label: 'View' });
-  if ((state.parameterSet?.parameters?.length ?? 0) > 0) {
+  const staticProject = state.project?.type === 'static';
+  const hasCustomizer = !staticProject && (state.parameterSet?.parameters?.length ?? 0) > 0;
+  if (hasCustomizer) {
     singleTargets.push({ id: 'customizer', icon: 'pi pi-sliders-h', label: 'Customize' });
   }
   const multiTargets = singleTargets;

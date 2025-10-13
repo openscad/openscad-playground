@@ -64,7 +64,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
 
   const [cachedImageHash, setCachedImageHash] = useState<{hash: string, uri: string} | undefined>(undefined);
 
-  const modelUri = state.output?.displayFileURL ?? state.output?.outFileURL ?? '';
+  const modelUri = state.staticModel?.objectUrl ?? state.output?.displayFileURL ?? state.output?.outFileURL ?? '';
   const loaded = loadedUri === modelUri;
 
   if (state?.preview) {
