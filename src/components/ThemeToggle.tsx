@@ -9,6 +9,8 @@ export default function ThemeToggle() {
   if (!model?.state?.view) return null; // Don't render if model/state not available
 
   const isDark = (model.state.view as any).theme === 'dark';
+  const isSmallViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 480px)').matches;
+  const topOffsetPx = isSmallViewport ? 72 : 20;
 
   const toggleTheme = () => {
     const newTheme = isDark ? 'light' : 'dark';
@@ -35,7 +37,7 @@ export default function ThemeToggle() {
       aria-label={`Switch to ${isDark ? 'dark' : 'light'} mode`}
       style={{
         position: 'fixed',
-        top: '20px',
+        top: `${topOffsetPx}px`,
         right: '20px',
         zIndex: 1000,
         width: '48px',
