@@ -6,15 +6,24 @@ import { ModelContext } from './contexts';
 
 export default function ThemeToggle() {
   const model = React.useContext(ModelContext);
-  if (!model || !model.state || !model.state.view) return null; // Don't render if model/state not available
+  if (!model?.state?.view) return null; // Don't render if model/state not available
 
-  const isDark = (model.state.view as any).theme === 'dark' || true; // Default to dark for now
+  const isDark = (model.state.view as any).theme === 'dark';
 
   const toggleTheme = () => {
     const newTheme = isDark ? 'light' : 'dark';
     model.mutate(state => {
       state.view.theme = newTheme;
     });
+
+    // Save theme preference to localStorage
+    if (typeof localStorage !== 'undefined') {
+      if (newTheme === 'light') {
+        localStorage.setItem('theme', 'light');
+      } else {
+        localStorage.removeItem('theme'); // Default is dark, so remove any saved preference
+      }
+    }
   };
 
   return (
@@ -22,9 +31,8 @@ export default function ThemeToggle() {
       icon={isDark ? 'pi pi-sun' : 'pi pi-moon'}
       onClick={toggleTheme}
       rounded
-      text
       severity="secondary"
-      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      aria-label={`Switch to ${isDark ? 'dark' : 'light'} mode`}
       style={{
         position: 'fixed',
         top: '20px',
@@ -33,12 +41,12 @@ export default function ThemeToggle() {
         width: '48px',
         height: '48px',
         borderRadius: '50%',
-        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-        border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'}`,
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+        border: `2px solid ${isDark ? '#ffffff' : '#333333'}`,
         color: isDark ? '#fff' : '#333',
-        transition: 'all 0.3s ease'
+        transition: 'all 0.3s ease',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
       }}
-      className="theme-toggle-button"
     />
   );
 }

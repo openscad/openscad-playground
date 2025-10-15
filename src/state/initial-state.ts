@@ -48,7 +48,7 @@ export function createInitialState(state: State | null, source?: {content?: stri
         } as any,
 
         color: defaultModelColor,
-        theme: 'dark' as const,
+        theme: (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'light' | 'dark') || 'dark' as const,
       },
       preview: blurhash ? {blurhash} : undefined,
     };
@@ -63,21 +63,18 @@ export function createInitialState(state: State | null, source?: {content?: stri
         customizer: initialState.view.layout.focus == 'customizer'
       }
     } else if (mode === 'single' && initialState.view.layout.mode === 'multi') {
+      const layout = initialState.view.layout;
+      const focus = layout.viewer ? 'viewer'
+        : layout.customizer ? 'customizer'
+        : 'editor';
       initialState.view.layout = {
         mode,
-        focus: initialState.view.layout.viewer ? 'viewer'
-          : initialState.view.layout.customizer ? 'customizer'
-          : 'editor'
+        focus
       }
     }
   }
 
   initialState.view.showAxes ??= true;
-
-  // fs.writeFile(initialState.params.sourcePath, initialState.params.source);
-  // if (initialState.params.sourcePath !== defaultSourcePath) {
-  //   fs.writeFile(defaultSourcePath, defaultScad);
-  // }
   
   const defaultFeatures = ['lazy-union'];
   defaultFeatures.forEach(f => {

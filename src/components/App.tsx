@@ -10,6 +10,7 @@ import { ModelContext, FSContext } from './contexts';
 import PanelSwitcher from './PanelSwitcher';
 import { ConfirmDialog } from 'primereact/confirmdialog';
 import CustomizerPanel from './CustomizerPanel';
+import ThemeToggle from './ThemeToggle';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -35,6 +36,16 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     link.rel = 'stylesheet';
     link.href = `/primereact/resources/themes/lara-${theme}-indigo/theme.css`;
     document.head.appendChild(link);
+
+    // Sync base app colors for background/text
+    const rootStyle = document.documentElement.style;
+    if (theme === 'light') {
+      rootStyle.setProperty('--app-bg-color', '#ffffff');
+      rootStyle.setProperty('--app-text-color', '#333333');
+    } else {
+      rootStyle.setProperty('--app-bg-color', '#1e1e1e');
+      rootStyle.setProperty('--app-text-color', 'rgba(255, 255, 255, 0.87)');
+    }
 
   }, [state.view.theme]);
 
@@ -123,6 +134,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
 
           <Footer />
           <ConfirmDialog />
+          <ThemeToggle />
         </div>
       </FSContext.Provider>
     </ModelContext.Provider>

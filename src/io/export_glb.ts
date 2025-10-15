@@ -108,5 +108,5 @@ export async function exportGlb(data: IndexedPolyhedron, defaultColor: Color = D
     scene.addChild(doc.createNode().setMesh(mesh));
 
     const glb = await new NodeIO().registerExtensions([KHRLightsPunctual]).writeBinary(doc);
-    return new Blob([glb], { type: 'model/gltf-binary' });
+    return new Blob([new Uint8Array(glb)], { type: 'model/gltf-binary' });
 }
