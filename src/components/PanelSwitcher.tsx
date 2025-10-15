@@ -28,34 +28,35 @@ export default function PanelSwitcher() {
         position: 'relative',
       }}>
 
-        {state.view.layout.mode === 'multi'
-          ?   <div className='flex flex-row gap-1' style={{
+        {state.view.layout.mode === 'multi' ? (
+          <div className='flex flex-row gap-1' style={{
             justifyContent: 'center',
             flex: 1,
             margin: '5px'
           }}>
-                {multiTargets.map(({icon, label, id}) => 
-                  <ToggleButton
-                    key={id}
-                    checked={(state.view.layout as any)[id]}
-                    onLabel={label}
-                    offLabel={label}
-                    onIcon={icon}
-                    offIcon={icon}
-                    onChange={e => model.changeMultiVisibility(id, e.value)}
-                    />
-                  )}
-              </div>
-          :   <>
-                <TabMenu
-                  activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
-                  style={{
-                    flex: 1,
-                  }}
-                  model={singleTargets.map(({icon, label, id}) => 
-                  ({icon, label, command: () => model.changeSingleVisibility(id)}))} />
-              </>
-        }
+            {multiTargets.map(({icon, label, id}) =>
+              <ToggleButton
+                key={id}
+                checked={(state.view.layout as any)[id]}
+                onLabel={label}
+                offLabel={label}
+                onIcon={icon}
+                offIcon={icon}
+                onChange={e => model.changeMultiVisibility(id, e.value)}
+              />
+            )}
+          </div>
+        ) : (
+          <div>
+            <TabMenu
+              activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
+              style={{
+                flex: 1,
+              }}
+              model={singleTargets.map(({icon, label, id}) =>
+              ({icon, label, command: () => model.changeSingleVisibility(id)}))} />
+          </div>
+        )}
       </div>
     </div>
   );

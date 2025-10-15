@@ -101,7 +101,8 @@ export async function readStateFromFragment(): Promise<State | null> {
           collapsedCustomizerTabs: validateArray(view?.collapsedCustomizerTabs, validateString),
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis, () => true),
-          lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false)
+          lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false),
+          theme: validateStringEnum(view?.theme, ['light', 'dark'], () => 'dark')
         }
       };
     } catch (e) {
