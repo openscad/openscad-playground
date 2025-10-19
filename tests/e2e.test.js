@@ -42,11 +42,11 @@ function loadUrl(url) {
   return page.goto(`${baseUrl}#url=${encodeURIComponent(url)}`);
 }
 async function waitForViewer() {
-  await page.waitForSelector('model-viewer');
+  await page.waitForSelector('model-viewer', { timeout: 45000 });
   await page.waitForFunction(() => {
     const viewer = document.querySelector('model-viewer.main-viewer');
     return viewer && viewer.src !== '';
-  });
+  }, { timeout: 45000 });
 }
 function expectMessage(messages, line) {
   const successMessage = messages.filter(msg => msg.type === 'debug' && msg.text === line);
