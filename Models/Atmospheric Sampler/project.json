@@ -1,10 +1,9 @@
 {
-  "title": "Atmospheric Sampler Showcase",
-  "entry": "model.gltf",
+  "title": "Atmospheric Sampler",
+  "entry": "Atmospheric Sampler Project v81.glb",
   "type": "static",
-  "description": "Pre-rendered Atmospheric Sampler example demonstrating static 3D models in the gallery.",
-  "category": "Showcase",
-  "tags": ["static", "model"],
-  "created": "2024-01-01",
+  "description": "3D model of an atmospheric sampler device with interactive viewing and AR support",
+  "category": "Examples",
+  "tags": ["static", "glb", "model", "3d"],
   "author": "OpenSCAD Playground"
 }

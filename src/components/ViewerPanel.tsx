@@ -173,9 +173,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
     <div className={className}
           style={{
               display: 'flex',
-              flexDirection: 'column', 
+              flexDirection: 'column',
               position: 'relative',
-              flex: 1, 
+              flex: 1,
               width: '100%',
               ...(style ?? {})
           }}>
@@ -190,7 +190,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         `}
       </style>
 
-      {!loaded && cachedImageHash && 
+      {!loaded && cachedImageHash &&
         <img
         src={cachedImageHash.uri}
         style={{

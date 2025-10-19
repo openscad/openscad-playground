@@ -36,6 +36,11 @@ const config = [
     devtool: isDev ? 'source-map' : 'nosources-source-map',
     mode: isDev ? 'development' : 'production',
     target: 'web',
+    ignoreWarnings: [
+      // Ignore TinyUSDZ warnings for optional fzstd dependency
+      /Module not found: Error: Can't resolve 'fzstd'/,
+      /Critical dependency: the request of a dependency is an expression/,
+    ],
     // devtool: 'inline-source-map',
     module: {
       rules: [
@@ -75,6 +80,18 @@ const config = [
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.js'],
+      fallback: {
+        // Tell webpack this is browser-only, no Node.js polyfills
+        fs: false,
+        path: false,
+        crypto: false,
+      },
+    },
+    node: {
+      // Disable Node.js globals in the browser bundle
+      global: false,
+      __filename: false,
+      __dirname: false,
     },
     output: {
       filename: 'index.js',
@@ -86,13 +103,22 @@ const config = [
       port: 4000,
       hot: false,
       liveReload: true,
+      client: {
+        overlay: {
+          errors: true,
+          warnings: false, // Don't show warnings in browser overlay
+        },
+      },
     },
     plugins: [
-      new webpack.EnvironmentPlugin({
-        'process.env.NODE_ENV': 'development',
-        PLAYGROUND_EDITOR_ENABLED: '',
-        PLAYGROUND_EDITOR_TOGGLE: '',
-        PLAYGROUND_CUSTOMIZER_OPEN: '',
+      new webpack.DefinePlugin({
+        'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
+        'process.env.PLAYGROUND_EDITOR_ENABLED': JSON.stringify(process.env.PLAYGROUND_EDITOR_ENABLED || ''),
+        'process.env.PLAYGROUND_EDITOR_TOGGLE': JSON.stringify(process.env.PLAYGROUND_EDITOR_TOGGLE || ''),
+        'process.env.PLAYGROUND_CUSTOMIZER_OPEN': JSON.stringify(process.env.PLAYGROUND_CUSTOMIZER_OPEN || ''),
+        'process.env.PLAYGROUND_KANBAN_ENABLED': JSON.stringify(process.env.PLAYGROUND_KANBAN_ENABLED || ''),
+        'typeof process': JSON.stringify('undefined'),
+        'process': 'undefined',
       }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({

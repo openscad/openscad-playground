@@ -1,9 +1,0 @@
-{
-  "title": "Simple Cube Example",
-  "entry": "cube.gltf",
-  "type": "static",
-  "description": "A simple cube demonstrating static GLTF model rendering with Google Model Viewer",
-  "category": "Examples",
-  "tags": ["static", "gltf", "simple"],
-  "author": "OpenSCAD Playground"
-}
