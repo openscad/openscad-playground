@@ -87,10 +87,9 @@ function waitForCustomizeButton() {
   }, { timeout: 45000 }); // Increase timeout to 45 seconds
 }
 function waitForLabel(text) {
-  return page.waitForFunction(() => {
-    return Array.from(document.querySelectorAll('label')).find(el => el.textContent === 'myVar');
-    // return Array.from(document.querySelectorAll('label')).find(el => el.textContent === text);
-  });
+  return page.waitForFunction((labelText) => {
+    return Array.from(document.querySelectorAll('label')).find(el => el.textContent === labelText);
+  }, {}, text);
 }
 
 describe('e2e', () => {

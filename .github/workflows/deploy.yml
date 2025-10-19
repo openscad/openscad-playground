@@ -29,10 +29,8 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
-      - name: Prepare static assets
-        run: make public
       - name: Build site
-        run: npm run build
+        run: npm run build:all
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
