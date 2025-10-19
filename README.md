@@ -29,6 +29,7 @@ Licenses: see [LICENSES](./LICENSE).
 
 - Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Using a trick to force $preview=true.
 - [Customizer](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Customizer) support
+- **Static 3D model support** - Display pre-rendered GLTF, GLB, STL, and other 3D formats alongside OpenSCAD projects (see [STATIC_MODELS.md](./STATIC_MODELS.md))
 - Syntax highlighting
 - Ships with many standard SCAD libraries (can browse through them in the UI)
 - Autocomplete of imports
