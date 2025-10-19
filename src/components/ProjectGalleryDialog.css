@@ -152,6 +152,10 @@
   color: #94a3b8;
 }
 
+[data-theme="light"] .gallery-eyebrow {
+  color: #64748b;
+}
+
 .gallery-title-main {
   font-size: clamp(1.75rem, 4vw, 2.5rem);
   font-weight: 700;
@@ -164,6 +168,10 @@
   color: #f1f5f9;
 }
 
+[data-theme="light"] .gallery-title-main {
+  color: #0f172a;
+}
+
 .gallery-subtitle {
   font-size: 1rem;
   line-height: 1.6;
@@ -174,6 +182,10 @@
 
 [data-theme="dark"] .gallery-subtitle {
   color: #94a3b8;
+}
+
+[data-theme="light"] .gallery-subtitle {
+  color: #64748b;
 }
 
 .gallery-header-actions {
@@ -387,6 +399,10 @@
   color: #f1f5f9;
 }
 
+[data-theme="light"] .gallery-card-title {
+  color: #1e293b;
+}
+
 .gallery-card-category {
   display: inline-flex;
   align-items: center;
@@ -407,6 +423,10 @@
   }
 }
 
+[data-theme="light"] .gallery-card-category {
+  background: rgba(37, 99, 235, 0.1);
+}
+
 .gallery-card-description {
   margin: 0;
   font-size: 0.95rem;
@@ -418,6 +438,10 @@
   .gallery-card-description {
     color: #94a3b8;
   }
+}
+
+[data-theme="light"] .gallery-card-description {
+  color: #64748b;
 }
 
 .gallery-card-tags {
@@ -451,6 +475,11 @@
     background: rgba(15, 23, 42, 0.55);
     border-color: rgba(148, 163, 184, 0.25);
   }
+}
+
+[data-theme="light"] .gallery-placeholder {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(148, 163, 184, 0.4);
 }
 
 .gallery-placeholder-icon {
@@ -511,6 +540,11 @@
   }
 }
 
+[data-theme="light"] .gallery-kanban-column {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 .gallery-kanban-header {
   display: flex;
   align-items: center;
@@ -543,6 +577,10 @@
   }
 }
 
+[data-theme="light"] .gallery-kanban-title {
+  color: #1e293b;
+}
+
 .gallery-kanban-count {
   font-size: 0.8rem;
   font-weight: 600;
@@ -557,6 +595,11 @@
     background: rgba(148, 163, 184, 0.3);
     color: #cbd5e1;
   }
+}
+
+[data-theme="light"] .gallery-kanban-count {
+  background: rgba(148, 163, 184, 0.25);
+  color: #475569;
 }
 
 .gallery-kanban-body {
