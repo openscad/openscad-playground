@@ -171,6 +171,48 @@ Available build commands:
 
 Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad2 demo.
 
+## Adding Static 3D Models
+
+In addition to OpenSCAD projects, the gallery can showcase pre-rendered static 3D models (GLTF, GLB, STL, PLY, OBJ, etc.). These models are displayed using the same Google [Model Viewer](https://modelviewer.dev/) that renders OpenSCAD outputs.
+
+### Creating a Static Model Project
+
+1. Create a new directory in the `Models` folder with your project name
+2. Add your 3D model file (e.g., `model.gltf`, `model.glb`, etc.)
+3. Create a `project.json` file with the following structure:
+
+```json
+{
+  "title": "My Static Model",
+  "entry": "model.gltf",
+  "type": "static",
+  "description": "A showcase of a pre-rendered 3D model",
+  "category": "Showcase",
+  "tags": ["static", "model"],
+  "author": "Your Name"
+}
+```
+
+4. Optionally, add a thumbnail image (`thumbnail.png`, `thumbnail.jpg`, etc.) for the gallery preview
+
+### Supported Model Formats
+
+The viewer supports various 3D model formats through the browser's native capabilities:
+- **GLTF/GLB** (`.gltf`, `.glb`) - Recommended format with best features
+- **STL** (`.stl`) - Common 3D printing format
+- **OBJ** (`.obj`) - Wavefront object format
+- **PLY** (`.ply`) - Polygon file format
+- **OFF** (`.off`) - Object file format
+
+**Example:** See `Models/Atmospheric Sampler/` for a complete static model project example.
+
+### Benefits of Static Models
+
+- **Faster loading** - No need to render or compile OpenSCAD code
+- **Complex models** - Display models that may be too complex to render in real-time
+- **External sources** - Showcase models created in other 3D software (Blender, CAD tools, etc.)
+- **Interactive viewing** - Same AR and camera controls as OpenSCAD renders
+
 ## Runtime configuration
 
 You can control the default UI via environment variables stored in a local `.env` file (loaded by the webpack config) before build or `npm start`.
