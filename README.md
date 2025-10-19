@@ -176,6 +176,10 @@ Send us a PR, then once it's merged request an update to the hosted https://ocha
 
 In addition to OpenSCAD projects, the gallery can showcase pre-rendered static 3D models (GLTF, GLB, STL, PLY, OBJ, etc.). These models are displayed using the same Google [Model Viewer](https://modelviewer.dev/) that renders OpenSCAD outputs.
 
+**Quick Start**: See [QUICK_START.md](./QUICK_START.md) for a step-by-step guide to adding static models.
+
+**Detailed Documentation**: See [STATIC_MODELS.md](./STATIC_MODELS.md) for technical details and architecture.
+
 ### Creating a Static Model Project
 
 1. Create a new directory in the `Models` folder with your project name
