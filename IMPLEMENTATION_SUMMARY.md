@@ -1,7 +1,9 @@
 # Implementation Summary: Static 3D Model Support
 
-## Problem Statement
-The user wanted to be able to render either static models or OpenSCAD models, potentially using Google Model Viewer. They specifically mentioned the Atmospheric Sampler as an example GLTF file.
+> **Note**: This is internal documentation for developers. For user-facing documentation, see [STATIC_MODELS.md](./STATIC_MODELS.md) and [STATIC_MODELS_VISUAL_GUIDE.md](./STATIC_MODELS_VISUAL_GUIDE.md).
+
+## Original Request
+The requirement was to enable rendering of both static models and OpenSCAD models using Google Model Viewer, with the Atmospheric Sampler GLTF file as an example.
 
 ## Discovery
 Upon investigation, I discovered that **the feature was already fully implemented** in the codebase! The repository already had:
@@ -155,11 +157,13 @@ Interactive 3D view with AR support
    npm run build:libs
    ```
 
-5. View in gallery at `http://localhost:4000/?model=My%20Model`
+5. View in gallery:
+   - Development: `http://localhost:4000/?model=My%20Model`
+   - Production: Depends on your deployment configuration (see README.md)
 
-## Testing Status
+## Testing Status (Development Notes)
 
-⚠️ **Note**: Due to network restrictions in the environment, I was unable to:
+⚠️ **Note**: During this development session, I was unable to:
 - Build the complete libraries (requires downloading external resources)
 - Run the development server
 - Test the feature in a browser
