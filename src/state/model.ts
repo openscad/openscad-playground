@@ -310,7 +310,7 @@ export class Model {
     if (this.state.params.sources.length == 1) {
       const content = this.state.params.sources[0].content;
       const contentBytes = new TextEncoder().encode(content);
-      const blob = new Blob([contentBytes], {type: 'text/plain'});
+      const blob = new Blob([new Uint8Array(contentBytes)], {type: 'text/plain'});
       const file = new File([blob], this.state.params.activePath.split('/').pop()!);
       downloadUrl(URL.createObjectURL(file), file.name);
     } else {
