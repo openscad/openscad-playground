@@ -1,0 +1,162 @@
+// -----------------------------------------------------------------------------
+// 3D-Printable Module 3.0 Spur Gear Set (2:1 Ratio)
+//
+// This code generates two involute spur gears optimized for 3D printing
+// (Module 3.0, Pressure Angle 20 degrees).
+// -----------------------------------------------------------------------------
+
+// =============================================================================
+// 1. GLOBAL PARAMETERS
+// =============================================================================
+
+// Basic Gear Parameters
+m = 3;             // Module (m): determines tooth size. (3.0 mm)
+N1 = 20;           // Number of teeth for the Pinion (Gear 1)
+N2 = 40;           // Number of teeth for the Gear (Gear 2)
+pressure_angle = 20; // Pressure angle (phi): standard 20 degrees
+gear_thickness = 15; // Overall thickness of the gear body (Z-axis)
+
+// Hub and Bore (Shaft Hole) Dimensions
+bore_diameter = 8.2; // Diameter of the shaft hole (8.0mm shaft + 0.2mm tolerance)
+hub_diameter = 25;   // Diameter of the central hub
+hub_thickness = 10;  // Thickness of the hub, protruding from the gear body
+
+// 3D Printing Tolerance & Resolution
+backlash = 0.02 * m; // Backlash: 2% of module for better 3D printing fit
+$fn = 100;          // Facets per circle (increase for smoother curves)
+
+// Derived Gear Constants
+addendum = m;        // a = m
+dedendum = 1.25 * m; // b = 1.25m
+clearance = 0.25 * m; // c = 0.25m (dedendum - addendum)
+
+// =============================================================================
+// 2. INVOLUTE FUNCTIONS & GEOMETRY
+// =============================================================================
+
+// Base Radius
+function base_r(N) = (N * m / 2) * cos(pressure_angle);
+
+// Pitch Radius
+function pitch_r(N) = N * m / 2;
+
+// Outside Radius
+function outside_r(N) = pitch_r(N) + addendum;
+
+// Root Radius
+function root_r(N) = pitch_r(N) - dedendum;
+
+// Involute Curve Angle (Calculates the angle theta for a point at radius r)
+function involute_theta(N, r) =
+    sqrt((r / base_r(N))^2 - 1) - acos(base_r(N) / r);
+
+// Angular spacing for one tooth pair (tooth + space)
+tooth_angle = 360 / N1;
+
+// Base Tooth Angle (Half the angular width of the tooth at the base circle)
+alpha = (90 / N1) + (involute_theta(N1, pitch_r(N1)) / 180 * 360) + backlash / (2 * pitch_r(N1)) * 360 / (2 * PI);
+
+// -----------------------------------------------------------------------------
+// 3. GEAR MODULE
+// -----------------------------------------------------------------------------
+
+module gear(N) {
+    // Pitch and Base Radii for this gear
+    P_r = pitch_r(N);
+    B_r = base_r(N);
+    O_r = outside_r(N);
+    R_r = root_r(N);
+
+    // Angular width of the tooth at the Pitch Circle
+    // The '+ backlash' adjustment is key for 3D printing fit.
+    tooth_width_angle = 180 / N - (involute_theta(N, P_r) * 360 / (2 * PI)) - (backlash / P_r * 360 / (2 * PI));
+
+    // Array of points defining one tooth profile (half tooth, right side)
+    pts = [];
+    max_r = min(O_r, 10 * m); // Limit radius to outside diameter
+
+    // Loop from the base circle radius to the outside radius
+    for (r = B_r; r <= max_r; r = r + 0.5) {
+        // Calculate the involute curve angle
+        angle = involute_theta(N, r);
+        // Calculate the angular position of the point
+        current_angle = tooth_width_angle / 2 + (angle * 360 / (2 * PI));
+        pts = concat(pts, [[r * cos(current_angle), r * sin(current_angle)]]);
+    }
+
+    // --- Tooth Shape Construction ---
+    // The tooth is constructed using the involute profile, mirrored, and joined
+    // at the top and base.
+    tooth_poly_pts = concat(
+        // 1. Root Point (connects to the root circle)
+        [[R_r * cos(tooth_width_angle / 2), R_r * sin(tooth_width_angle / 2)]],
+        // 2. Right Involute Profile (from base to tip)
+        pts,
+        // 3. Tip Corner (arc between involute curves) - use Outside Radius for top
+        [[O_r * cos(tooth_width_angle / 2), O_r * sin(tooth_width_angle / 2)]],
+        // 4. Left Involute Profile (mirrored from tip to base)
+        [for (p = reverse(pts)) [p[0], -p[1]]],
+        // 5. Left Root Point
+        [[R_r * cos(-tooth_width_angle / 2), R_r * sin(-tooth_width_angle / 2)]]
+    );
+
+    // --- Main Gear Body and Extrusion ---
+    union() {
+        // 1. Gear Teeth (Rotate and extrude the single tooth profile)
+        for (i = [0:N-1]) {
+            rotate([0, 0, i * 360 / N]) {
+                // Extrude the tooth profile
+                linear_extrude(height = gear_thickness, center = true) {
+                    polygon(points = tooth_poly_pts);
+                }
+            }
+        }
+
+        // 2. Main Gear Disc (from root radius to center)
+        // This fills the volume under the teeth (root circle)
+        cylinder(h = gear_thickness, r = R_r, center = true);
+
+        // 3. Central Hub (for stability and mounting)
+        translate([0, 0, (gear_thickness - hub_thickness) / 2]) {
+            cylinder(h = hub_thickness, r = hub_diameter / 2, center = false);
+        }
+
+        // 4. Bore (Subtract the shaft hole)
+        difference() {
+            children(); // Use the gear teeth and body created above
+            // Subtract the bore hole from the whole gear
+            cylinder(h = gear_thickness + hub_thickness + 1, r = bore_diameter / 2, center = true);
+        }
+    }
+}
+
+// =============================================================================
+// 4. RENDERING THE GEAR SET
+// =============================================================================
+
+// Calculate Center Distance (D1 + D2) / 2
+center_distance = (pitch_r(N1) * 2 + pitch_r(N2) * 2) / 2;
+
+// Increase center distance slightly for 3D printed backlash clearance (0.2mm)
+center_distance_adj = center_distance + 0.2;
+
+
+// --- Pinion (Gear 1: N=20) ---
+// Positioned at the origin
+color("blue")
+gear(N1);
+
+
+// --- Gear (Gear 2: N=40) ---
+// Translated along the X-axis by the adjusted center distance
+translate([center_distance_adj, 0, 0])
+color("red")
+gear(N2);
+
+// Optionally: Add a visual line for the center distance
+/*
+translate([0, 0, gear_thickness / 2])
+    linear_extrude(height = 0.5)
+        square([center_distance_adj, 1], center = true);
+*/
+
