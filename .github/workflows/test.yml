@@ -19,7 +19,7 @@ jobs:
     env:
       CI: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup node ${{ matrix.node.name }}
         uses: actions/setup-node@v6
         with:
