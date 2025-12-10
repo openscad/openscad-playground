@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { CSSProperties, useContext, useRef, useState } from 'react';
+import React, { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import openscadEditorOptions from '../language/openscad-editor-options.ts';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
@@ -36,6 +36,22 @@ export default function EditorPanel({className, style}: {className?: string, sty
 
   const [editor, setEditor] = useState(null as monaco.editor.IStandaloneCodeEditor | null)
 
+  // Update Monaco editor theme when state theme changes
+  useEffect(() => {
+    if (editor && monacoInstance) {
+      const theme = state.view.theme === 'dark' ? 'vs-dark' : 'vs';
+      monacoInstance.editor.setTheme(theme);
+    }
+  }, [state.view.theme, editor, monacoInstance]);
+
+  // Set initial Monaco editor theme when Monaco loads
+  useEffect(() => {
+    if (monacoInstance && !editor) {
+      const theme = state.view.theme === 'dark' ? 'vs-dark' : 'vs';
+      monacoInstance.editor.setTheme(theme);
+    }
+  }, [state.view.theme, monacoInstance, editor]);
+
   if (editor) {
     const checkerRun = state.lastCheckerRun;
     const editorModel = editor.getModel();
@@ -47,6 +63,10 @@ export default function EditorPanel({className, style}: {className?: string, sty
   }
 
   const onMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
+    // Set initial theme based on current state
+    const theme = state.view.theme === 'dark' ? 'vs-dark' : 'vs';
+    monacoInstance?.editor.setTheme(theme);
+
     editor.addAction({
       id: "openscad-render",
       label: "Render OpenSCAD",
@@ -85,7 +105,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
         margin: '5px',
       }}>
           
-        <Menu model={[
+        <Menu key={`editor-menu-${state.view.theme}`} model={[
           {
             label: "New project",
             icon: 'pi pi-plus-circle',
@@ -196,7 +216,7 @@ export default function EditorPanel({className, style}: {className?: string, sty
           <pre key={i}>{text}</pre>
         ))}
       </div>
-    
+
     </div>
   )
 }
