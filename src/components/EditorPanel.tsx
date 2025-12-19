@@ -17,7 +17,8 @@ import FilePicker, {  } from './FilePicker.tsx';
 const isMonacoSupported = (() => {
   const ua = window.navigator.userAgent;
   const iosWk = ua.match(/iPad|iPhone/i) && ua.match(/WebKit/i);
-  return !iosWk;
+  const android = ua.match(/Android/i);
+  return !(iosWk || android);
 })();
 
 let monacoInstance: Monaco | null = null;
