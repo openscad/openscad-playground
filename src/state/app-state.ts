@@ -52,10 +52,11 @@ export interface State {
     } & { [K in MultiLayoutComponentId]: boolean })
 
     collapsedCustomizerTabs?: string[],
-    
+
     color: string,
     showAxes?: boolean,
     lineNumbers?: boolean,
+    theme: 'light' | 'dark',
   }
 
   currentRunLogs?: ['stderr'|'stdout', string][],

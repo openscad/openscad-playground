@@ -10,13 +10,44 @@ import { ModelContext, FSContext } from './contexts';
 import PanelSwitcher from './PanelSwitcher';
 import { ConfirmDialog } from 'primereact/confirmdialog';
 import CustomizerPanel from './CustomizerPanel';
+import ThemeToggle from './ThemeToggle';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
   const [state, setState] = useState(initialState);
-  
+
   const model = new Model(fs, state, setState, statePersister);
   useEffect(() => model.init());
+
+  // Dynamic theme loading
+  useEffect(() => {
+    const theme = state.view.theme;
+    const themeCssId = 'primereact-theme-css';
+
+    // Remove existing theme CSS
+    const existingTheme = document.getElementById(themeCssId);
+    if (existingTheme) {
+      existingTheme.remove();
+    }
+
+    // Load new theme CSS
+    const link = document.createElement('link');
+    link.id = themeCssId;
+    link.rel = 'stylesheet';
+    link.href = `/primereact/resources/themes/lara-${theme}-indigo/theme.css`;
+    document.head.appendChild(link);
+
+    // Sync base app colors for background/text
+    const rootStyle = document.documentElement.style;
+    if (theme === 'light') {
+      rootStyle.setProperty('--app-bg-color', '#ffffff');
+      rootStyle.setProperty('--app-text-color', '#333333');
+    } else {
+      rootStyle.setProperty('--app-bg-color', '#1e1e1e');
+      rootStyle.setProperty('--app-text-color', 'rgba(255, 255, 255, 0.87)');
+    }
+
+  }, [state.view.theme]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -79,9 +110,9 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
         <div className='flex flex-column' style={{
             flex: 1,
           }}>
-          
+
           <PanelSwitcher />
-    
+
           <div className={mode === 'multi' ? 'flex flex-row' : 'flex flex-column'}
               style={mode === 'multi' ? {flex: 1} : {
                 flex: 1,
@@ -103,6 +134,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
 
           <Footer />
           <ConfirmDialog />
+          <ThemeToggle />
         </div>
       </FSContext.Provider>
     </ModelContext.Provider>
