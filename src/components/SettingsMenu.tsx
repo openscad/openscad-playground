@@ -40,6 +40,11 @@ export default function SettingsMenu({className, style}: {className?: string, st
           // disabled: true,
           command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
         },
+        {
+          label: state.view.autoCompile !== false ? 'Enable manual compile' : 'Enable auto compile',
+          icon: 'pi pi-play',
+          command: () => model.mutate(s => s.view.autoCompile = !(s.view.autoCompile !== false))
+        },
         ...(isInStandaloneMode() ? [
           {
             separator: true

@@ -4,6 +4,7 @@ import React, { useContext } from 'react';
 import { SingleLayoutComponentId } from '../state/app-state.ts'
 import { TabMenu } from 'primereact/tabmenu';
 import { ToggleButton } from 'primereact/togglebutton';
+import { Button } from 'primereact/button';
 import { ModelContext } from './contexts.ts';
 
 export default function PanelSwitcher() {
@@ -21,6 +22,23 @@ export default function PanelSwitcher() {
   }
   const multiTargets = singleTargets;
 
+  const autoCompileEnabled = state.view.autoCompile !== false;
+  
+  const createMenuItems = () => {
+    const items = singleTargets.map(({icon, label, id}) => 
+      ({icon, label, command: () => model.changeSingleVisibility(id)}));
+    
+    if (!autoCompileEnabled) {
+      items.push({
+        icon: 'pi pi-play',
+        label: 'Build',
+        command: () => model.render({isPreview: true, now: true}),
+      });
+    }
+    
+    return items;
+  };
+
   return (
     <div className="">
       <div className='flex flex-row' style={{
@@ -29,11 +47,12 @@ export default function PanelSwitcher() {
       }}>
 
         {state.view.layout.mode === 'multi'
-          ?   <div className='flex flex-row gap-1' style={{
-            justifyContent: 'center',
-            flex: 1,
-            margin: '5px'
-          }}>
+          ?   <>
+              <div className='flex flex-row gap-1' style={{
+                justifyContent: 'center',
+                flex: 1,
+                margin: '5px'
+              }}>
                 {multiTargets.map(({icon, label, id}) => 
                   <ToggleButton
                     key={id}
@@ -45,15 +64,27 @@ export default function PanelSwitcher() {
                     onChange={e => model.changeMultiVisibility(id, e.value)}
                     />
                   )}
+                  {!autoCompileEnabled && (
+                    <Button
+                      label="Build"
+                      icon="pi pi-play"
+                      title="Build (Ctrl+Enter)"
+                      onClick={() => model.render({isPreview: true, now: true})}
+                      loading={state.previewing || state.rendering}
+                      style={{
+                        marginRight: '5px',
+                      }}
+                    />
+                  )}
               </div>
+            </>
           :   <>
                 <TabMenu
                   activeIndex={singleTargets.map(t => t.id).indexOf(state.view.layout.focus)}
                   style={{
                     flex: 1,
                   }}
-                  model={singleTargets.map(({icon, label, id}) => 
-                  ({icon, label, command: () => model.changeSingleVisibility(id)}))} />
+                  model={createMenuItems()} />
               </>
         }
       </div>
