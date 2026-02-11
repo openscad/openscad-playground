@@ -16,7 +16,7 @@ export default function SettingsMenu({className, style}: {className?: string, st
   const settingsMenu = useRef<Menu>(null);
   return (
     <>
-      <Menu model={[
+      <Menu key={`settings-menu-${state.view.theme}`} model={[
         {
           label: state.view.layout.mode === 'multi'
             ? 'Switch to single panel mode'
@@ -39,6 +39,21 @@ export default function SettingsMenu({className, style}: {className?: string, st
           icon: 'pi pi-list',
           // disabled: true,
           command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
+        },
+        {
+          label: state.view.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',
+          icon: state.view.theme === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
+          command: () => {
+            const newTheme = state.view.theme === 'dark' ? 'light' : 'dark';
+            model.mutate(s => { s.view.theme = newTheme; });
+            if (typeof localStorage !== 'undefined') {
+              if (newTheme === 'light') {
+                localStorage.setItem('theme', 'light');
+              } else {
+                localStorage.setItem('theme', 'dark');
+              }
+            }
+          }
         },
         ...(isInStandaloneMode() ? [
           {

@@ -109,6 +109,16 @@ const config = [
             toType: 'dir',
           },
           {
+            from: path.resolve(__dirname, 'node_modules/primereact/resources/themes/lara-dark-indigo'),
+            to: path.resolve(__dirname, 'dist/primereact/resources/themes/lara-dark-indigo'),
+            toType: 'dir',
+          },
+          {
+            from: path.resolve(__dirname, 'node_modules/primereact/resources/themes/lara-light-indigo'),
+            to: path.resolve(__dirname, 'dist/primereact/resources/themes/lara-light-indigo'),
+            toType: 'dir',
+          },
+          {
             from: path.resolve(__dirname, 'src/wasm/openscad.js'),
             to: path.resolve(__dirname, 'dist'),
           },
