@@ -10,9 +10,8 @@ import { InputNumber } from 'primereact/inputnumber';
 import { InputText } from 'primereact/inputtext';
 import { Fieldset } from 'primereact/fieldset';
 import { Parameter } from '../state/customizer-types.ts';
-import { Button } from 'primereact/button';
 
-export default function CustomizerPanel({className, style}: {className?: string, style?: CSSProperties}) {
+export default function CustomizerPanel({className, style, dark}: {className?: string, style?: CSSProperties, dark?: boolean}) {
 
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
@@ -59,11 +58,10 @@ export default function CustomizerPanel({className, style}: {className?: string,
           bottom: 'unset',
         }}>
       {groups.map(([group, params]) => (
-        <Fieldset 
+        <Fieldset
             style={{
               margin: '5px 10px 5px 10px',
-              // backgroundColor: 'transparent',
-              backgroundColor: 'rgba(255,255,255,0.4)',
+              backgroundColor: dark ? 'rgba(40, 40, 40, 0.9)' : 'rgba(255,255,255,0.4)',
             }}
             onCollapse={() => setTabOpen(group, false)}
             onExpand={() => setTabOpen(group, true)}
@@ -76,6 +74,7 @@ export default function CustomizerPanel({className, style}: {className?: string,
               key={param.name}
               value={(state.params.vars ?? {})[param.name]}
               param={param}
+              dark={dark}
               handleChange={handleChange} />
           ))}
         </Fieldset>
@@ -84,16 +83,16 @@ export default function CustomizerPanel({className, style}: {className?: string,
   );
 };
 
-function ParameterInput({param, value, className, style, handleChange}: {param: Parameter, value: any, className?: string, style?: CSSProperties, handleChange: (key: string, value: any) => void}) {
+function ParameterInput({param, value, className, style, dark, handleChange}: {param: Parameter, value: any, className?: string, style?: CSSProperties, dark?: boolean, handleChange: (key: string, value: any) => void}) {
   return (
-    <div 
+    <div
       style={{
         flex: 1,
         ...style,
         display: 'flex',
         flexDirection: 'column',
       }}>
-      <div 
+      <div
         style={{
           flex: 1,
           display: 'flex',
@@ -102,7 +101,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-        <div 
+        <div
           style={{
             flex: 1,
             display: 'flex',
@@ -111,7 +110,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           <label><b>{param.name}</b></label>
           <div>{param.caption}</div>
         </div>
-        <div 
+        <div
           style={{
             display: 'flex',
             flexDirection: 'row',
@@ -183,15 +182,19 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
               ))}
             </div>
           )}
-          <Button
+          <button
             onClick={() => handleChange(param.name, param.initial)}
             style={{
-              marginRight: '0',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '16px',
+              padding: '4px 8px',
+              color: dark ? '#aaa' : '#666',
               visibility: value === undefined || (JSON.stringify(value) === JSON.stringify(param.initial)) ? 'hidden' : 'visible',
             }}
-            tooltipOptions={{position: 'left'}}
-            icon='pi pi-refresh'
-            className='p-button-text'/>
+            title="Reset to default"
+          >↻</button>
         </div>
       </div>
       {!Array.isArray(param.initial) && param.type === 'number' && param.min !== undefined && (

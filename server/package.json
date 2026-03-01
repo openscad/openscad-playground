@@ -1,0 +1,32 @@
+{
+  "name": "openscad-mcp-server",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc 1>&2",
+    "start": "npm run start:http",
+    "start:http": "node --import tsx index.ts",
+    "start:stdio": "node --import tsx index.ts --stdio",
+    "start:self-serve": "node --import tsx index.ts --serve-dist",
+    "dev": "node --import tsx index.ts",
+    "test": "node --import tsx test-e2e.ts && node --import tsx test-interact.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/express": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

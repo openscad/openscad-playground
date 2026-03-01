@@ -198,6 +198,9 @@ export class Model {
       });
     } catch (err) {
       console.error('Error while checking syntax:', err)
+      // Clear the flag or everything that waits for idle (e.g. MCP tool
+      // handlers) blocks on its timeout forever after a checker failure.
+      this.mutate(s => s.checkingSyntax = false);
     }
   }
 

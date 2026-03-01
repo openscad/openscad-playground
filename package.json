@@ -7,6 +7,8 @@
   "dependencies": {
     "@gltf-transform/core": "4.5.1",
     "@gltf-transform/extensions": "4.5.1",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.0",
     "@monaco-editor/loader": "^1.4.0",
     "@monaco-editor/react": "^4.6.0",
     "blurhash": "^2.0.5",
@@ -21,7 +23,8 @@
     "react-dom": "19.3.1",
     "thumbhash": "^0.1.1",
     "uuid": "^14.0.1",
-    "uzip": "^0.20201231.0"
+    "uzip": "^0.20201231.0",
+    "zod": "^4.2.0"
   },
   "scripts": {
     "test:e2e": "jest",
