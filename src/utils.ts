@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { Source } from "./state/app-state.ts";
+import { getResourceLoader, ResourceLoader } from "./resource-loader.ts";
 
 export function mapObject(o: any, f: (key: string, value: any) => any, ifPred: (key: string) => boolean) {
   const ret = [];
@@ -151,20 +152,18 @@ export function downloadUrl(url: string, filename: string) {
   link.parentNode?.removeChild(link);
 }
 
-export async function fetchSource(fs: FS, {content, path, url}: Source): Promise<Uint8Array> {
+export async function fetchSource(fs: FS, {content, path, url}: Source, loader?: ResourceLoader): Promise<Uint8Array> {
+  const resolvedLoader = loader ?? getResourceLoader();
   const isText = path.endsWith('.scad') || path.endsWith('.json');
   if (content) {
     return new TextEncoder().encode(content);
   } else if (url) {
     if (isText) {
-      content = await (await fetch(url)).text();
+      content = await resolvedLoader.fetchText(url);
       return new TextEncoder().encode(content.replace(/\r\n/g, '\n'));
     } else {
-      // Fetch bytes
-      const response = await fetch(url);
-      const buffer = await response.arrayBuffer();
-      const data = new Uint8Array(buffer);
-      return data;
+      const buffer = await resolvedLoader.fetchBinary(url);
+      return new Uint8Array(buffer);
     }
   } else if (path) {
     const data = fs.readFileSync(path);
@@ -175,14 +174,5 @@ export async function fetchSource(fs: FS, {content, path, url}: Source): Promise
 }
 
 export function readFileAsDataURL(file: File) {
-  // TO data URI:
-  return new Promise<string>((res, rej) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      res(reader.result as string);
-    }
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
-  });
-  // return URL.createObjectURL(file);
+  return Promise.resolve(URL.createObjectURL(file));
 }

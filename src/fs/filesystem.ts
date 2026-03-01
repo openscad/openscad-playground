@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import { deployedArchiveNames, zipArchives } from "./zip-archives";
+import { getResourceLoader, ResourceLoader } from "../resource-loader";
 
 declare var BrowserFS: BrowserFSInterface
 
@@ -21,12 +22,12 @@ export function join(a: string, b: string): string {
   return b === '.' ? a : `${a}/${b}`;
 }
 
-export async function getBrowserFSLibrariesMounts(archiveNames: string[]) {
+export async function getBrowserFSLibrariesMounts(archiveNames: string[], loader?: ResourceLoader) {
+  const resolvedLoader = loader ?? getResourceLoader();
   const Buffer = BrowserFS.BFSRequire('buffer').Buffer;
-  const fetchData = async (url: string) => (await fetch(url)).arrayBuffer();
   const results: [string, ArrayBuffer][] =
-    await Promise.all(archiveNames.map(async (n: string) => [n, await fetchData(`./libraries/${n}.zip`)]));
-  
+    await Promise.all(archiveNames.map(async (n: string) => [n, await resolvedLoader.fetchBinary(`./libraries/${n}.zip`)]));
+
   const zipMounts: FSMounts = {};
   for (const [n, zipData] of results) {
     zipMounts[n] = {
@@ -79,12 +80,14 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS({prefix, allowPersistence}: {prefix: string, allowPersistence: boolean}): Promise<FS> {
-  const archiveNames = deployedArchiveNames;
-  const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
+export async function createEditorFS({prefix, allowPersistence, skipLibraries}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean}): Promise<FS> {
   const allMounts: FSMounts = {};
-  for (const n in librariesMounts) {
-    allMounts[`${prefix}${n}`] = librariesMounts[n];
+  if (!skipLibraries) {
+    const archiveNames = deployedArchiveNames;
+    const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
+    for (const n in librariesMounts) {
+      allMounts[`${prefix}${n}`] = librariesMounts[n];
+    }
   }
 
   await configureAndInstallFS(typeof window === 'object' && window || self, {

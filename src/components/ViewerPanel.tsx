@@ -1,9 +1,25 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { CSSProperties, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { CSSProperties, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ModelContext } from './contexts.ts';
 import { Toast } from 'primereact/toast';
 import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes.ts';
+import { resolveUrl } from '../resource-loader.ts';
+
+export interface CameraInfo {
+  theta: number;
+  phi: number;
+  closestView: string;
+}
+
+export interface ViewerPanelHandle {
+  captureScreenshot(): Promise<string | null>;
+  setCameraOrbit(theta: number, phi: number): void;
+  getModelViewerRef(): any;
+  zoom(factor: number): void;
+  autoFit(): void;
+  getCameraInfo(): CameraInfo | null;
+}
 
 declare module 'react' {
   namespace JSX {
@@ -50,7 +66,7 @@ function getClosestPredefinedOrbitIndex(theta: number, phi: number): [number, nu
 
 const originalOrbit = (([name, theta, phi]) => `${theta}rad ${phi}rad auto`)(PREDEFINED_ORBITS[0]);
 
-export default function ViewerPanel({className, style}: {className?: string, style?: CSSProperties}) {
+function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraChange}: {className?: string, style?: CSSProperties, viewerRef?: React.Ref<ViewerPanelHandle>, disableZoom?: boolean, onCameraChange?: () => void}) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
 
@@ -66,6 +82,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
 
   const modelUri = state.output?.displayFileURL ?? state.output?.outFileURL ?? '';
   const loaded = loadedUri === modelUri;
+
+  const skyboxUrl = useMemo(() => resolveUrl('./skybox-lights.jpg'), []);
+  const axesUrl = useMemo(() => resolveUrl('./axes.glb'), []);
 
   if (state?.preview) {
     let {hash, uri} = cachedImageHash ?? {};
@@ -115,8 +134,10 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         if (e.detail.source === 'user-interaction') {
           const cameraOrbit = ref.current.getCameraOrbit();
           cameraOrbit.radius = otherRef.current.getCameraOrbit().radius;
-        
+
           otherRef.current.cameraOrbit = cameraOrbit.toString();
+          // Notify parent (e.g. McpApp) when camera changes on main viewer
+          if (ref === modelViewerRef) onCameraChange?.();
         }
       }
       const element = ref.current;
@@ -124,6 +145,24 @@ export default function ViewerPanel({className, style}: {className?: string, sty
       return () => element.removeEventListener('camera-change', handleCameraChange);
     }, [ref.current, otherRef.current]);
   }
+
+  // Shift+scroll zoom when model-viewer's built-in zoom is disabled (inline mode)
+  useEffect(() => {
+    if (!disableZoom) return; // built-in zoom handles it
+    const el = modelViewerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      const orbit = el.getCameraOrbit();
+      orbit.radius *= factor;
+      el.cameraOrbit = orbit.toString();
+      onCameraChange?.();
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [modelViewerRef.current, disableZoom, onCameraChange]);
 
   // Cycle through predefined views when user clicks on the axes viewer
   useEffect(() => {
@@ -154,7 +193,9 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         const newIndex = dist < euclEps && radDist < radEps ? (currentIndex + 1) % PREDEFINED_ORBITS.length : currentIndex;
         const [name, theta, phi] = PREDEFINED_ORBITS[newIndex];
         Object.assign(modelOrbit, {theta, phi});
-        const newOrbit = modelViewerRef.current.cameraOrbit = axesViewerRef.current.cameraOrbit = modelOrbit.toString();
+        modelViewerRef.current.cameraOrbit = modelOrbit.toString();
+        // Sync axes viewer angles only — keep axes radius as 'auto' to prevent clipping
+        axesViewerRef.current.cameraOrbit = `${modelOrbit.theta}rad ${modelOrbit.phi}rad auto`;
         toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
         setInteractionPrompt('none');
       }
@@ -169,13 +210,64 @@ export default function ViewerPanel({className, style}: {className?: string, sty
     };
   });
 
+  // Expose methods for MCP integration
+  useImperativeHandle(viewerRef, () => ({
+    async captureScreenshot(): Promise<string | null> {
+      if (!modelViewerRef.current) return null;
+      try {
+        return await modelViewerRef.current.toDataURL('image/png', 0.5);
+      } catch {
+        return null;
+      }
+    },
+    setCameraOrbit(theta: number, phi: number) {
+      if (modelViewerRef.current) {
+        const orbit = modelViewerRef.current.getCameraOrbit();
+        Object.assign(orbit, { theta, phi });
+        modelViewerRef.current.cameraOrbit = orbit.toString();
+        if (axesViewerRef.current) {
+          axesViewerRef.current.cameraOrbit = `${theta}rad ${phi}rad auto`;
+        }
+      }
+    },
+    getModelViewerRef() {
+      return modelViewerRef.current;
+    },
+    zoom(factor: number) {
+      const mv = modelViewerRef.current;
+      if (!mv) return;
+      const orbit = mv.getCameraOrbit();
+      orbit.radius *= factor;
+      mv.cameraOrbit = orbit.toString();
+      // Don't sync radius to axes — only angles
+    },
+    autoFit() {
+      const mv = modelViewerRef.current;
+      if (!mv) return;
+      // Setting radius to 'auto' makes model-viewer recalculate ideal framing
+      const orbit = mv.getCameraOrbit();
+      mv.cameraOrbit = `${orbit.theta}rad ${orbit.phi}rad auto`;
+      if (axesViewerRef.current) {
+        const axOrbit = axesViewerRef.current.getCameraOrbit();
+        axesViewerRef.current.cameraOrbit = `${axOrbit.theta}rad ${axOrbit.phi}rad auto`;
+      }
+    },
+    getCameraInfo(): CameraInfo | null {
+      const mv = modelViewerRef.current;
+      if (!mv) return null;
+      const orbit = mv.getCameraOrbit();
+      const [idx] = getClosestPredefinedOrbitIndex(orbit.theta, orbit.phi);
+      return { theta: orbit.theta, phi: orbit.phi, closestView: PREDEFINED_ORBITS[idx][0] };
+    },
+  }), [modelViewerRef.current, axesViewerRef.current]);
+
   return (
     <div className={className}
           style={{
               display: 'flex',
-              flexDirection: 'column', 
+              flexDirection: 'column',
               position: 'relative',
-              flex: 1, 
+              flex: 1,
               width: '100%',
               ...(style ?? {})
           }}>
@@ -215,10 +307,11 @@ export default function ViewerPanel({className, style}: {className?: string, sty
         }}
         camera-orbit={originalOrbit}
         interaction-prompt={interactionPrompt}
-        environment-image="./skybox-lights.jpg"
+        environment-image={skyboxUrl}
         max-camera-orbit="auto 180deg auto"
         min-camera-orbit="auto 0deg auto"
         camera-controls
+        {...(disableZoom ? { 'disable-zoom': true } : {})}
         ar
         ref={modelViewerRef}
       >
@@ -227,7 +320,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
       {state.view.showAxes && (
         <model-viewer
                 orientation="0deg -90deg 0deg"
-                src="./axes.glb"
+                src={axesUrl}
                 style={{
                   position: 'absolute',
                   bottom: 0,
@@ -239,7 +332,7 @@ export default function ViewerPanel({className, style}: {className?: string, sty
                 loading="eager"
                 camera-orbit={originalOrbit}
                 // interpolation-decay="0"
-                environment-image="./skybox-lights.jpg"
+                environment-image={skyboxUrl}
                 max-camera-orbit="auto 180deg auto"
                 min-camera-orbit="auto 0deg auto"
                 orbit-sensitivity="5"
@@ -256,3 +349,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
     </div>
   )
 }
+
+const ViewerPanel = forwardRef<ViewerPanelHandle, {className?: string, style?: CSSProperties, disableZoom?: boolean, onCameraChange?: () => void}>(
+  (props, ref) => <ViewerPanelInner {...props} viewerRef={ref} />
+);
+export default ViewerPanel;
