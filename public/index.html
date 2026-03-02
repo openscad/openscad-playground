@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="logo192.png">
     <!-- https://developers.google.com/web/fundamentals/web-app-manifest/ -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#1e1e1e">
 
     <link rel="prefetch" href="openscad.wasm">
     <link rel="prefetch" href="openscad-worker.js">
@@ -30,18 +30,16 @@
     <link rel="prefetch" href="libraries/UB.scad.zip">
     <link rel="prefetch" href="libraries/openscad-tray.zip">
 
-    <!-- <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js" defer></script> -->
     <script type="module" src="./model-viewer.min.js" defer></script>
-    
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/BrowserFS/2.0.0/browserfs.min.js" defer></script> -->
     <script src="./browserfs.min.js" defer></script>
 
     <script src="./index.js" defer></script>
 
-    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css"> -->
-    <link rel="stylesheet" href="./gh-fork-ribbon.min.css">
+    <link rel="stylesheet" href="./css/theme.css">
+    <link rel="stylesheet" href="./css/primereact.min.css">
 
     <style>
+      /* App layout base styles */
       #root,
       body,
       html {
@@ -52,17 +50,13 @@
 
         height: 100vh;
         height: var(--app-height);
+        background-color: var(--app-bg-color, #1e1e1e);
+        color: var(--app-text-color, rgba(255, 255, 255, 0.87));
       }
 
-      .p-tabmenu-nav {
-        justify-content: center;
-      }
 
       .p-fieldset .p-fieldset-content {
         padding: 0 !important;
-      }
-      .p-fieldset-legend {
-        background-color: rgba(255,255,255,0.4) !important;
       }
 
       .p-fieldset-legend,
@@ -79,10 +73,6 @@
         bottom: 0;
       }
 
-      .monaco-editor,
-      .openscad-editor {
-        background-color: rgba(255,255,255,0.5) !important;
-      }
       textarea.openscad-editor {
         font-family: "Droid Sans Mono", "monospace", monospace;
         font-weight: normal;
@@ -90,11 +80,6 @@
         font-feature-settings: "liga" 0, "calt" 0;
         line-height: 22px;
         letter-spacing: 0px;
-      }
-      .overflow-guard,
-      .monaco-scrollable-element,
-      .monaco-editor-background {
-        background-color: transparent !important;
       }
 
       .opacity-animated {
@@ -104,20 +89,6 @@
         opacity: 0;
       }
 
-      @media only screen and (max-height: 600px),
-           only screen and (max-width: 600px),
-           only screen and (max-width: 767px),
-           only screen and (max-aspect-ratio: 1/2) {
-        .github-fork-ribbon {
-          display: none;
-        }
-      }
-
-      .p-tabmenu-nav {
-        padding-right: 30px;
-      }
-
-      .github-fork-ribbon:before { background-color: #333; }
     </style>
   </head>
   <body>
@@ -125,14 +96,10 @@
       <source src="complete.wav" type="audio/wav">
       Your browser does not support the audio element.
     </audio>
-    <a target="_blank" class="github-fork-ribbon"
-       href="https://github.com/openscad/openscad-playground"
-       data-ribbon="Fork me on GitHub"
-       title="Fork me on GitHub">
-       Fork me on GitHub
-    </a>
 
     <noscript>You need to enable JavaScript to run the OpenSCAD Playground.</noscript>
     <div id="root"></div>
+
+    
   </body>
 </html>

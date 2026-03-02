@@ -14,11 +14,14 @@ import debug from 'debug';
 import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils.ts';
 import { State, StatePersister } from './state/app-state.ts';
 import { writeStateInFragment } from "./state/fragment-state.ts";
+import { PrimeReactProvider } from 'primereact/api';
 
-import "primereact/resources/themes/lara-light-indigo/theme.css";
+// Theme imports - will be loaded dynamically based on state
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import "primeflex/primeflex.min.css";
+
+// Dynamic theme loading will be handled in the App component
 
 const log = debug('app:log');
 
@@ -96,7 +99,9 @@ window.addEventListener('load', async () => {
   );
   root.render(
     <React.StrictMode>
-      <App initialState={initialState} statePersister={statePersister} fs={fs} />
+      <PrimeReactProvider value={{ ripple: true }}>
+        <App initialState={initialState} statePersister={statePersister} fs={fs} />
+      </PrimeReactProvider>
     </React.StrictMode>
   );
 });

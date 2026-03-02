@@ -10,6 +10,7 @@
     "rootDir": "src",
     "allowJs": true,
     "skipLibCheck": true,
+    "types": ["node", "react", "react-dom"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -31,7 +32,8 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/**/*.js"
+    "src/**/*.js",
+    "src/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
