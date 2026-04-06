@@ -90,8 +90,8 @@ var conf: monaco.languages.LanguageConfiguration = {
 };
 
 var language: monaco.languages.IMonarchLanguage = {
-  defaultToken: "invalid",
-  tokenPostfix: ".js",
+  defaultToken: "",
+  tokenPostfix: ".scad",
   keywords: [...builtInFunctionNames, ...builtInModuleNames, ...builtInVarNames, 'each'],
   typeKeywords: [],
   operators: [
@@ -124,6 +124,7 @@ var language: monaco.languages.IMonarchLanguage = {
   tokenizer: {
     root: [[/[{}]/, "delimiter.bracket"], { include: "common" }],
     common: [
+      [/\$[a-zA-Z_]\w*/, "variable.predefined"],
       [
         /[a-z_$][\w$]*/,
         {
