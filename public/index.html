@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="logo192.png">
     <!-- https://developers.google.com/web/fundamentals/web-app-manifest/ -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#1e1e1e">
 
     <link rel="prefetch" href="openscad.wasm">
     <link rel="prefetch" href="openscad-worker.js">
@@ -52,6 +52,8 @@
 
         height: 100vh;
         height: var(--app-height);
+        background-color: var(--app-bg-color, #1e1e1e);
+        color: var(--app-text-color, rgba(255, 255, 255, 0.87));
       }
 
       .p-tabmenu-nav {
@@ -60,9 +62,6 @@
 
       .p-fieldset .p-fieldset-content {
         padding: 0 !important;
-      }
-      .p-fieldset-legend {
-        background-color: rgba(255,255,255,0.4) !important;
       }
 
       .p-fieldset-legend,
@@ -79,10 +78,6 @@
         bottom: 0;
       }
 
-      .monaco-editor,
-      .openscad-editor {
-        background-color: rgba(255,255,255,0.5) !important;
-      }
       textarea.openscad-editor {
         font-family: "Droid Sans Mono", "monospace", monospace;
         font-weight: normal;
@@ -90,11 +85,6 @@
         font-feature-settings: "liga" 0, "calt" 0;
         line-height: 22px;
         letter-spacing: 0px;
-      }
-      .overflow-guard,
-      .monaco-scrollable-element,
-      .monaco-editor-background {
-        background-color: transparent !important;
       }
 
       .opacity-animated {

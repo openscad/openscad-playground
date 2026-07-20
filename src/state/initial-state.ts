@@ -48,6 +48,7 @@ export function createInitialState(state: State | null, source?: {content?: stri
         } as any,
 
         color: defaultModelColor,
+        theme: (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'light' | 'dark') || (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
       },
       preview: blurhash ? {blurhash} : undefined,
     };

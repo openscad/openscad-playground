@@ -105,7 +105,8 @@ export default function FilePicker({className, style}: {className?: string, styl
   }
 
   return (
-      <TreeSelect 
+      <TreeSelect
+          key={`file-picker-${state.view.theme}`} // Force re-render on theme change
           className={className}
           title='OpenSCAD Playground Files'
           value={state.params.activePath}

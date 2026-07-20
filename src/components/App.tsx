@@ -19,6 +19,32 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
   useEffect(() => model.init());
 
   useEffect(() => {
+    const theme = state.view.theme;
+    const themeCssId = 'primereact-theme-css';
+
+    const existingTheme = document.getElementById(themeCssId);
+    if (existingTheme) {
+      existingTheme.remove();
+    }
+
+    const link = document.createElement('link');
+    link.id = themeCssId;
+    link.rel = 'stylesheet';
+    link.href = `primereact/resources/themes/lara-${theme}-indigo/theme.css`;
+    document.head.appendChild(link);
+
+    const rootStyle = document.documentElement.style;
+    if (theme === 'light') {
+      rootStyle.setProperty('--app-bg-color', '#ffffff');
+      rootStyle.setProperty('--app-text-color', '#333333');
+    } else {
+      rootStyle.setProperty('--app-bg-color', '#1e1e1e');
+      rootStyle.setProperty('--app-text-color', 'rgba(255, 255, 255, 0.87)');
+    }
+
+  }, [state.view.theme]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'F5') {
         event.preventDefault();
