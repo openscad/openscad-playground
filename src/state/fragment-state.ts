@@ -61,7 +61,10 @@ export async function readStateFromFragment(): Promise<State | null> {
         return createInitialState(null, {path}); 
       } else if (serialized.startsWith('url=')) {
         // For testing
-        const url = decodeURIComponent(serialized.substring('url='.length));
+        const rawUrl = decodeURIComponent(serialized.substring('url='.length));
+        const url = rawUrl
+          .split('#')[0]
+          .replace(/^https:\/\/github\.com\/(.+)\/blob\/(.+)$/, 'https://raw.githubusercontent.com/$1/$2');
         const path = '/' + new URL(url).pathname.split('/').pop();
         return createInitialState(null, {path, url});
       }

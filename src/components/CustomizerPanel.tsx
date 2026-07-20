@@ -116,7 +116,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           {param.type === 'number' && 'options' in param && (
             <Dropdown
               style={{flex: 1}}
-              value={value || param.initial}
+              value={value ?? param.initial}
               options={param.options}
               onChange={(e) => handleChange(param.name, e.value)}
               optionLabel="name"
@@ -125,7 +125,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           )}
           {param.type === 'string' && param.options && (
             <Dropdown
-              value={value || param.initial}
+              value={value ?? param.initial}
               options={param.options}
               onChange={(e) => handleChange(param.name, e.value)}
               optionLabel="name"
@@ -140,7 +140,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           )}
           {!Array.isArray(param.initial) && param.type === 'number' && !('options' in param) && (
             <InputNumber
-              value={value || param.initial}
+              value={value ?? param.initial}
               showButtons
               size={5}
               onValueChange={(e) => handleChange(param.name, e.value)}
@@ -149,7 +149,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
           {param.type === 'string' && !param.options && (
             <InputText
               style={{flex: 1}}
-              value={value || param.initial}
+              value={value ?? param.initial}
               onChange={(e) => handleChange(param.name, e.target.value)}
             />
           )}
@@ -196,7 +196,7 @@ function ParameterInput({param, value, className, style, handleChange}: {param: 
             minHeight: '5px',
             margin: '5px 40px 5px 5px',
           }}
-          value={value || param.initial}
+          value={value ?? param.initial}
           min={param.min}
           max={param.max}
           step={param.step}
