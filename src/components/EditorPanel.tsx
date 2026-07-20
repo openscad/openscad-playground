@@ -59,6 +59,12 @@ export default function EditorPanel({className, style}: {className?: string, sty
       run: () => model.render({isPreview: true, now: true})
     });
     editor.addAction({
+      id: "openscad-build",
+      label: "Build (Preview)",
+      keybindings: [monaco.KeyCode.F5, monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => model.render({isPreview: true, now: true})
+    });
+    editor.addAction({
       id: "openscad-save-do-nothing",
       label: "Save (disabled)",
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
@@ -123,9 +129,6 @@ export default function EditorPanel({className, style}: {className?: string, sty
             label: 'Download sources',
             icon: 'pi pi-download',
             disabled: true,
-          },
-          {
-            separator: true
           },
           {
             separator: true

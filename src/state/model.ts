@@ -176,7 +176,9 @@ export class Model {
         s.params.sources = s.params.sources.map(src => src.path === s.params.activePath ? {...src, content} : src);
       });
     }
-    if (this.source.trim() !== '') {
+    // Only auto-compile if autoCompile is enabled (defaults to true for backward compatibility)
+    const autoCompile = this.state.view.autoCompile !== false;
+    if (this.source.trim() !== '' && autoCompile) {
       if (this.state.params.activePath.endsWith('.scad')) {
         this.checkSyntax();
       }

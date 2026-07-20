@@ -4,7 +4,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { ParameterSet } from './customizer-types.ts';
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
 
-export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer';
+export type MultiLayoutComponentId = 'editor' | 'viewer' | 'customizer' | 'build';
 export type SingleLayoutComponentId = MultiLayoutComponentId;
 
 export type Source = {
@@ -56,6 +56,7 @@ export interface State {
     color: string,
     showAxes?: boolean,
     lineNumbers?: boolean,
+    autoCompile?: boolean,
   }
 
   currentRunLogs?: ['stderr'|'stdout', string][],
