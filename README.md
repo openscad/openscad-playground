@@ -46,6 +46,48 @@ Licenses: see [LICENSES](./LICENSE).
 - Detect which bundled libraries are included / used in the sources and only download these rather than wait for all of the zips. Means the file explorer would need to be more lazy or have some prebuilt hierarchy.
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
+## Docker
+
+A multi-stage [`Dockerfile`](./Dockerfile) builds the playground and serves the
+static output with nginx. The app is built once and only the small runtime image
+is built per architecture, so the image is published for both `linux/amd64` and
+`linux/arm64`.
+
+```bash
+docker build -t openscad-playground .
+docker run --rm -p 8080:80 openscad-playground
+# open http://localhost:8080/
+```
+
+Or use the example [`docker-compose.yml`](./docker-compose.yml):
+
+```bash
+docker compose up -d
+```
+
+Released images are published to the GitHub Container Registry as
+`ghcr.io/<owner>/openscad-playground`:
+
+```bash
+docker run --rm -p 8080:80 ghcr.io/<owner>/openscad-playground:latest
+```
+
+### Releasing
+
+Releases are **tag-driven**. The version in the tag is the single source of
+truth for the Docker tags and the GitHub Release:
+
+```bash
+# 1. bump "version" in package.json, then commit
+# 2. tag and push
+git tag -a v0.2.0 -m "v0.2.0"
+git push origin v0.2.0
+```
+
+Stable tags publish `0.2.0`, `0.2`, `0` and `latest`; pre-release tags such as
+`v0.2.0-rc.1` are published as GitHub pre-releases and never move `latest`.
+See [`.github/workflows/release.yml`](./.github/workflows/release.yml).
+
 ## Building
 
 The project uses a **webpack-based build system** that reads library metadata from `libs-config.json` to automatically download, clone, and package OpenSCAD libraries and dependencies. This replaces the previous Makefile approach with a more standard, maintainable solution.

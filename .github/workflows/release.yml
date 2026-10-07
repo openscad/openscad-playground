@@ -1,0 +1,146 @@
+name: Release
+
+# Best-practice, tag-driven releases:
+#   * Push an annotated semver tag (e.g. `git tag -a v0.2.0 -m "v0.2.0"` +
+#     `git push origin v0.2.0`) to cut a release. The tag is the single source
+#     of truth for the version, the Docker tags and the GitHub Release.
+#   * `workflow_dispatch` is a manual escape hatch that creates the same
+#     release (and the tag) from the repository's current state.
+#
+# The image is published to GitHub Container Registry as
+# `ghcr.io/<owner>/openscad-playground`.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version to release, e.g. 0.2.0 or 0.2.0-rc.1 (leading "v" optional). Creates the tag if it does not exist.'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as a pre-release (never published as the "latest" Docker tag).'
+        required: false
+        default: false
+        type: boolean
+
+# Least privilege: read the repo, write a GitHub Release and a GHCR package.
+permissions:
+  contents: write
+  packages: write
+
+# Never run two releases for the same ref concurrently.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and validate version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${VERSION#v}"
+          if ! printf '%s' "${VERSION}" \
+              | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'${VERSION}' is not a valid semantic version (expected MAJOR.MINOR.PATCH[-PRERELEASE])."
+            exit 1
+          fi
+          echo "value=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "${PKG_VERSION}" != "${VERSION}" ]; then
+            echo "::error::package.json version (${PKG_VERSION}) does not match release tag (${VERSION})."
+            exit 1
+          fi
+
+      - name: Lowercase image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          # Semver tags drive the automatic `1.2.3`, `1.2`, `1` and (for
+          # stable releases) `latest` tags. The default `flavor: latest=auto`
+          # correctly skips `latest` for pre-release versions.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=${{ steps.version.outputs.value }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' && !inputs.prerelease }}
+          labels: |
+            org.opencontainers.image.title=OpenSCAD Playground
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          prerelease: ${{ contains(steps.version.outputs.value, '-') || inputs.prerelease }}
+          body: |
+            Container image: `${{ steps.image.outputs.name }}:${{ steps.version.outputs.value }}`
+
+            ```bash
+            docker pull ${{ steps.image.outputs.name }}:${{ steps.version.outputs.value }}
+            docker run --rm -p 8080:80 ${{ steps.image.outputs.name }}:${{ steps.version.outputs.value }}
+            # then open http://localhost:8080/
+            ```
+
+            Multi-arch manifest for `linux/amd64` and `linux/arm64`.

@@ -1,0 +1,20 @@
+# Example Docker Compose file for self-hosting OpenSCAD Playground.
+#
+#   docker compose up -d          # start (pulls the image on first run)
+#   docker compose pull && docker compose up -d   # update to the latest image
+#   docker compose down           # stop and remove
+#
+# The playground is a stateless static site, so no volumes, secrets or
+# environment variables are required. Only the published port matters.
+services:
+  openscad-playground:
+    image: ghcr.io/forceconstant/openscad-playground:latest
+    # To build the image locally from this repository instead of pulling it,
+    # comment out the `image:` line above and uncomment the next line:
+    # build: .
+    container_name: openscad-playground
+    ports:
+      # host:container — browse to http://localhost:8080/
+      - "8080:80"
+    restart: unless-stopped
+    # A healthcheck is defined in the image and is picked up automatically.
