@@ -42,7 +42,23 @@ OPENSCAD_REPO="${OPENSCAD_REPO:-https://github.com/openscad/openscad.git}"
 OPENSCAD_REF="${OPENSCAD_REF:-b38f68881203d7fc9926b6d87d6abf64e21ad312}"
 
 # The base image is amd64-only, and the patched wasm2js runs inside it.
-PLATFORM="${PLATFORM:-linux/amd64}"
+# On a native x86-64 host (e.g. a GitHub-hosted runner) this is a no-op; set
+# PLATFORM= (empty) to omit --platform entirely.
+PLATFORM="${PLATFORM-linux/amd64}"
+PLATFORM_ARGS=()
+[ -n "${PLATFORM}" ] && PLATFORM_ARGS=(--platform "${PLATFORM}")
+
+# Parallelism for ninja (default: all cores).
+JOBS="${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)}"
+
+# ONLY=binaryen : build just the patched wasm2js, then stop. If WASM2JS_OUT is
+#                 set, the binary is also copied there (used by CI to cache and
+#                 pass it between jobs).
+ONLY="${ONLY:-}"
+WASM2JS_OUT="${WASM2JS_OUT:-}"
+
+# Optional: directory for a persistent ccache (CI caches it between runs).
+CCACHE_DIR="${CCACHE_DIR:-}"
 
 # Container CLI (set DOCKER=podman, or DOCKER_CONTEXT, as needed).
 DOCKER="${DOCKER:-docker}"
@@ -75,20 +91,28 @@ if [ -z "${PATCHED_WASM2JS}" ]; then
   git -C binaryen apply "${BINARYEN_PATCH}"
   if [ ! -x binaryen/build-linux/bin/wasm2js ]; then
     echo ">> Building patched Binaryen wasm2js (native Linux)..."
-    "${DOCKER}" run --rm --platform "${PLATFORM}" -v "${WORK}/binaryen:/src" -w /src ubuntu:22.04 bash -lc '
+    "${DOCKER}" run --rm ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -v "${WORK}/binaryen:/src" -w /src ubuntu:22.04 bash -lc '
       set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq
       apt-get install -y -qq cmake ninja-build g++ python3 git
       git config --global --add safe.directory "*"
       cmake -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_STATIC_LIB=ON
-      cmake --build build-linux --target wasm2js --parallel
+      cmake --build build-linux --target wasm2js --parallel '"${JOBS}"'
     '
   fi
   PATCHED_WASM2JS="${WORK}/binaryen/build-linux/bin/wasm2js"
 fi
 [ -x "${PATCHED_WASM2JS}" ] || { echo "error: patched wasm2js not found/executable at ${PATCHED_WASM2JS}" >&2; exit 1; }
 echo ">> Using patched wasm2js: ${PATCHED_WASM2JS}"
+if [ -n "${WASM2JS_OUT}" ]; then
+  mkdir -p "$(dirname "${WASM2JS_OUT}")"
+  cp "${PATCHED_WASM2JS}" "${WASM2JS_OUT}"
+fi
+if [ "${ONLY}" = "binaryen" ]; then
+  echo ">> ONLY=binaryen: done."
+  exit 0
+fi
 
 # --- 2. OpenSCAD source ----------------------------------------------------
 echo ">> Fetching OpenSCAD source (${OPENSCAD_REF})..."
@@ -125,17 +149,29 @@ FALLBACK_LINK_FLAGS="-sWASM=0 -sSINGLE_FILE=1 -sWASM_BIGINT=0 -sSUPPORT_LONGJMP=
 # Bind-mount the patched wasm2js binary over the emsdk's wasm2js inside the
 # build container, so emcc picks it up during the -sWASM=0 link.
 echo ">> Building OpenSCAD (wasm2js) inside ${BASE_IMAGE}, using patched wasm2js..."
-"${DOCKER}" run --rm --platform "${PLATFORM}" \
+CCACHE_ARGS=()
+if [ -n "${CCACHE_DIR}" ]; then
+  mkdir -p "${CCACHE_DIR}"
+  CCACHE_ARGS=(-v "${CCACHE_DIR}:/ccache" -e CCACHE_DIR=/ccache)
+fi
+"${DOCKER}" run --rm ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} ${CCACHE_ARGS[@]+"${CCACHE_ARGS[@]}"} \
   -v "${WORK}/openscad:/src" \
   -v "${PATCHED_WASM2JS}:/emsdk/upstream/bin/wasm2js:ro" \
   -w /src "${BASE_IMAGE}" bash -lc "
   set -euo pipefail
+  git config --global --add safe.directory '*'
+  if [ -d /ccache ]; then
+    command -v ccache >/dev/null || { apt-get update -qq && apt-get install -y -qq ccache; } || true
+    if command -v ccache >/dev/null; then export EM_COMPILER_WRAPPER=ccache; ccache -z; fi
+  fi
   emcmake cmake -B build-fallback -G Ninja \
     -DBoost_USE_STATIC_RUNTIME=ON -DBoost_USE_STATIC_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON \
     -DWASM_BUILD_TYPE=web \
     -DCMAKE_EXE_LINKER_FLAGS='${FALLBACK_LINK_FLAGS}'
-  cmake --build build-fallback --parallel || cmake --build build-fallback -j2 || cmake --build build-fallback
+  # Retry with fewer jobs if the parallel build dies (e.g. out of memory).
+  cmake --build build-fallback --parallel ${JOBS} || cmake --build build-fallback -j2 || cmake --build build-fallback
+  if command -v ccache >/dev/null; then ccache -s; fi
 "
 
 SRC_JS="${WORK}/openscad/build-fallback/openscad.js"

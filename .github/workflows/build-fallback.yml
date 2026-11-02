@@ -1,0 +1,151 @@
+name: Build wasm2js fallback
+
+# Builds public/openscad.fallback.js (see docs/WASM_FALLBACK.md): a pure-JS
+# OpenSCAD for browsers without WebAssembly. It is expensive (Binaryen +
+# OpenSCAD + emscripten wasm2js link), so it only runs when the recipe changes,
+# on release tags, or on demand — not on ordinary PRs.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+    paths:
+      - scripts/build-wasm-fallback.sh
+      - scripts/check-wasm-fallback.mjs
+      - scripts/patches/**
+      - .github/workflows/build-fallback.yml
+  pull_request:
+    paths:
+      - scripts/build-wasm-fallback.sh
+      - scripts/check-wasm-fallback.mjs
+      - scripts/patches/**
+      - .github/workflows/build-fallback.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Standard ubuntu-24.04 runners are native x86-64: no QEMU/--platform emulation.
+  PLATFORM: ''
+
+jobs:
+  # Patched Binaryen wasm2js. Depends only on the pinned Binaryen ref and the
+  # vendored patch, so it is cached across every OpenSCAD-side change.
+  binaryen:
+    name: Patched wasm2js
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compute cache key
+        id: key
+        run: |
+          # shellcheck disable=SC2016
+          ref=$(sed -n 's/^BINARYEN_REF="\${BINARYEN_REF:-\([0-9a-f]*\)}"/\1/p' scripts/build-wasm-fallback.sh)
+          [ -n "$ref" ] || { echo "could not extract BINARYEN_REF" >&2; exit 1; }
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Restore wasm2js
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: out/wasm2js
+          # Bump the v1 prefix if the way the binary is built changes.
+          key: wasm2js-v1-${{ steps.key.outputs.ref }}-${{ hashFiles('scripts/patches/**') }}
+      - name: Build patched wasm2js
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          ONLY: binaryen
+          WASM2JS_OUT: ${{ github.workspace }}/out/wasm2js
+        run: ./scripts/build-wasm-fallback.sh
+      - run: |
+          chmod +x out/wasm2js
+          file out/wasm2js
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wasm2js
+          path: out/wasm2js
+          retention-days: 7
+          if-no-files-found: error
+
+  # OpenSCAD built with -sWASM=0 against the patched wasm2js.
+  openscad:
+    name: OpenSCAD wasm2js module
+    needs: binaryen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v8
+        with:
+          name: wasm2js
+          path: out
+      - run: chmod +x out/wasm2js
+
+      # Whole-output cache: the result is a pure function of the build script
+      # (which pins the OpenSCAD ref and link flags), the Binaryen patch and the
+      # wasm2js binary's inputs. An exact hit skips the build entirely.
+      - name: Restore built module
+        id: built
+        uses: actions/cache@v6
+        with:
+          path: public/openscad.fallback.js
+          key: fallback-js-v1-${{ hashFiles('scripts/build-wasm-fallback.sh', 'scripts/patches/**') }}
+
+      # Partial reuse when only e.g. link flags changed: ccache keeps compiled
+      # objects (keyed by compiler command line + preprocessed source).
+      - name: Restore ccache
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache@v6
+        with:
+          path: .ccache
+          key: ccache-v1-${{ github.sha }}
+          restore-keys: ccache-v1-
+
+      # The runner has ~14 GB free; the base image plus the build tree is large.
+      - name: Free disk space
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af >/dev/null || true
+          df -h /
+
+      - name: Build openscad.fallback.js
+        if: steps.built.outputs.cache-hit != 'true'
+        env:
+          PATCHED_WASM2JS: ${{ github.workspace }}/out/wasm2js
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+        run: |
+          ( while sleep 60; do echo "[mem/disk] $(free -m | awk '/Mem/{print $3"/"$2" MB used"}'), $(df -h / | awk 'NR==2{print $4" free"}')"; done ) &
+          ./scripts/build-wasm-fallback.sh
+
+      - name: Sanity checks (size, syntax, nesting, headless render)
+        run: node scripts/check-wasm-fallback.mjs public/openscad.fallback.js
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openscad.fallback.js
+          path: public/openscad.fallback.js
+          retention-days: 30
+          if-no-files-found: error
+
+  # TODO(npm package): on `v*` tags, hand openscad.fallback.js to the npm
+  # package publish job (or attach it to the GitHub release). Intentionally
+  # not implemented: this workflow never publishes anything.
+  #
+  # release:
+  #   if: startsWith(github.ref, 'refs/tags/v')
+  #   needs: openscad
+  #   runs-on: ubuntu-24.04
+  #   permissions:
+  #     contents: write
+  #   steps:
+  #     - uses: actions/download-artifact@v8
+  #       with: { name: openscad.fallback.js }
+  #     - run: gh release upload "$GITHUB_REF_NAME" openscad.fallback.js
