@@ -50,6 +50,13 @@ npm run build:wasm-fallback     # runs scripts/build-wasm-fallback.sh
 npm run build                   # copies public/ into dist/
 ```
 
+In CI, `.github/workflows/build-fallback.yml` builds it on demand (workflow
+dispatch), on `v*` tags and when the recipe changes, caching the patched
+`wasm2js` binary, the final module and a ccache, and runs
+`scripts/check-wasm-fallback.mjs` (size, syntax, nesting depth, Node render).
+Cold: ~24 min on a standard `ubuntu-24.04` runner; cache hit: under 1 min.
+`ONLY=binaryen`, `JOBS`, `CCACHE_DIR` and an empty `PLATFORM` are the script's CI hooks.
+
 The script:
 
 1. clones upstream [WebAssembly/binaryen](https://github.com/WebAssembly/binaryen)
