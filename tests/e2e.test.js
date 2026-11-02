@@ -18,8 +18,9 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  messages.length = 0;
   await page.goto('about:blank');
+  // Leaving the previous page can log aborted prefetches/CORS errors against about:blank: not this test's.
+  messages.length = 0;
 });
 
 afterEach(async () => {

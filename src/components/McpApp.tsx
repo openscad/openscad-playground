@@ -24,8 +24,8 @@ import {
   applyHostStyles,
 } from '../state/mcp-app.ts';
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
-import { deliverViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
-import { bytesToBase64, buildFilename, chooseDelivery, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
+import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
+import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
@@ -225,7 +225,7 @@ export function McpApp({
       },
       fileCapabilities: () => hostFileCaps(app),
       exportFile: (format, filename) => exportAsFile(modelRef.current, format, filename),
-      deliver: (file, delivery) => deliverViaHost(app, file, delivery),
+      deliver: (file, steps) => deliverPlanViaHost(app, file, steps),
       setParameters: vars => modelRef.current.setVars(vars),
       resetParameters: names => modelRef.current.resetVars(names),
       setLayout(req) {
@@ -353,19 +353,13 @@ export function McpApp({
     if (m.state.output?.isPreview) await m.render({ isPreview: false, now: true });
     const file = await exportAsFile(m, format);
     const caps = hostFileCaps(app);
-    let how: 'download' | 'message' | 'return';
-    try {
-      how = chooseDelivery('auto', caps, file.size);
-    } catch (e) {
-      throw new Error(e instanceof Error ? e.message : String(e));
-    }
-    if (how === 'return') {
-      return {
-        message: `This host cannot save files; ${file.filename} (${formatSize(file.size)}) is ready below`,
-        fallback: { filename: file.filename, mimeType: file.mimeType, base64: file.base64, note: 'This host cannot download files or attach them to the chat. Try the link (it may be blocked by the sandbox), or use "Open in Browser" and download there.' },
-      };
-    }
-    return { message: await deliverViaHost(app, file, how) };
+    const plan = deliveryPlan('auto', caps, file.size);
+    const delivered = await deliverPlanViaHost(app, file, plan);
+    if (delivered) return { message: delivered.outcome };
+    return {
+      message: `This host cannot save files; ${file.filename} (${formatSize(file.size)}) is ready below`,
+      fallback: { filename: file.filename, mimeType: file.mimeType, base64: file.base64, note: 'This host cannot download files or attach them to the chat. Try the link (it may be blocked by the sandbox), or use "Open in Browser" and download there.' },
+    };
   }, [app]);
 
   // Fullscreen only where the host offers that display mode.

@@ -49,48 +49,75 @@ export function buildFilename(requested: string | undefined, fallbackStem: strin
   return `${stem}.${format}`;
 }
 
-export type Delivery = 'download' | 'message' | 'return';
+export type Channel = 'download' | 'message' | 'return';
+/** An embedded resource carries the bytes; a resource_link carries a (data:) URI the receiver must fetch. */
+export type Form = 'embedded' | 'link';
+export interface Step { channel: Channel; form: Form }
+export type Delivery = Channel;
+export type DeliveryRequest = 'auto' | Channel | 'link';
 
 export interface HostFileCapabilities {
-  /** Host implements ui/download-file. */
+  /** Host implements ui/download-file (embedded resources and resource links are both in its schema). */
   download: boolean;
   /** Host accepts ui/message with embedded resource blocks. */
   message: boolean;
+  /** Host accepts ui/message with resource_link blocks. */
+  messageLink?: boolean;
 }
 
-/** Maximum file size per channel, in bytes. */
-export const SIZE_CAPS: Record<Delivery, number> = {
+/** Maximum file size per channel for embedded resources, in bytes. */
+export const SIZE_CAPS: Record<Channel, number> = {
   download: 32 * 1024 * 1024,
   message: 4 * 1024 * 1024,
   return: 1024 * 1024,
 };
+/**
+ * resource_link needs a URI the receiver can fetch. A blob: URL only exists inside the (sandboxed, other-origin)
+ * iframe and the server is stateless and does not render, so the only portable URI is a data: URI, which inflates
+ * the bytes by a third and is rarely fetched by hosts: keep it small.
+ */
+export const LINK_CAP = 512 * 1024;
+
+export const stepCap = (s: Step) => (s.form === 'link' ? LINK_CAP : SIZE_CAPS[s.channel]);
+export const stepName = (s: Step) => `${s.channel}${s.form === 'link' ? ' (resource_link)' : ' (embedded resource)'}`;
+
+export function dataUri(mimeType: string, base64: string): string {
+  return `data:${mimeType};base64,${base64}`;
+}
 
 export function formatSize(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /**
- * Pick the delivery channel. 'auto' prefers a host download, then a chat
- * attachment, then returning the file in the tool result. An explicit choice
- * that the host cannot do, or a file over the channel's cap, is an error that
- * names the alternatives.
+ * Ordered delivery candidates for a file. 'auto' tries, in order: host download
+ * (embedded, then link), chat message (embedded, then link), tool result
+ * (embedded, then link), skipping channels the host lacks and steps the file is
+ * too big for. `download`/`message`/`return` restrict to that channel, `link`
+ * to resource_link forms. Throws when nothing fits, naming what would.
  */
-export function chooseDelivery(requested: Delivery | 'auto' | undefined, caps: HostFileCapabilities, size: number): Delivery {
-  const available: Delivery[] = [...(caps.download ? ['download' as const] : []), ...(caps.message ? ['message' as const] : []), 'return'];
-  const fits = (d: Delivery) => size <= SIZE_CAPS[d];
-  const tooBig = (d: Delivery) => new ExportError(
-    `The file is ${formatSize(size)}, over the ${formatSize(SIZE_CAPS[d])} limit for delivery "${d}".` +
-    (available.some(a => a !== d && fits(a)) ? ` Other available: ${available.filter(a => a !== d && fits(a)).join(', ')}.` : ' Try a smaller model or a more compact format (e.g. STL or GLB instead of OFF).'));
-  if (requested && requested !== 'auto') {
-    if (!available.includes(requested)) {
-      throw new ExportError(`Delivery "${requested}" is not supported by this host. Available: ${available.join(', ')}.`);
-    }
-    if (!fits(requested)) throw tooBig(requested);
-    return requested;
+export function deliveryPlan(requested: DeliveryRequest | undefined, caps: HostFileCapabilities, size: number): Step[] {
+  const all: Step[] = [
+    ...(caps.download ? [{ channel: 'download', form: 'embedded' }, { channel: 'download', form: 'link' }] as Step[] : []),
+    ...(caps.message ? [{ channel: 'message', form: 'embedded' }] as Step[] : []),
+    ...(caps.messageLink ? [{ channel: 'message', form: 'link' }] as Step[] : []),
+    { channel: 'return', form: 'embedded' },
+    { channel: 'return', form: 'link' },
+  ];
+  const req = requested ?? 'auto';
+  const wanted = all.filter(s => req === 'auto' || (req === 'link' ? s.form === 'link' : s.channel === req));
+  if (wanted.length === 0) {
+    const channels = [...new Set(all.map(s => s.channel))];
+    throw new ExportError(`Delivery "${req}" is not supported by this host. Available: ${channels.join(', ')}, link.`);
   }
-  const pick = available.find(fits);
-  if (!pick) throw tooBig(available[available.length - 1]);
-  return pick;
+  const fitting = wanted.filter(s => size <= stepCap(s));
+  if (fitting.length === 0) {
+    const others = all.filter(s => !wanted.includes(s) && size <= stepCap(s));
+    throw new ExportError(
+      `The file is ${formatSize(size)}, over the limit for delivery "${req}" (${wanted.map(s => `${stepName(s)} ${formatSize(stepCap(s))}`).join(', ')}).` +
+      (others.length ? ` Other available: ${[...new Set(others.map(s => s.channel))].join(', ')}.` : ' Try a smaller model or a more compact format (e.g. STL or GLB instead of OFF).'));
+  }
+  return fitting;
 }
 
 /** Base64 of bytes, chunked to avoid call-stack limits. */

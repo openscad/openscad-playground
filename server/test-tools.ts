@@ -21,7 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
-import { FORMAT_INFO, SIZE_CAPS, buildFilename, bytesToBase64, chooseDelivery, parseFormat, ExportError } from "../src/state/export-logic.ts";
+import { FORMAT_INFO, LINK_CAP, SIZE_CAPS, buildFilename, bytesToBase64, dataUri, deliveryPlan, parseFormat, ExportError } from "../src/state/export-logic.ts";
 import { fullAppUrl, isFramed, resolveMcpSetupUrl, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
 import {
   ToolError,
@@ -53,8 +53,8 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
   const captures: Array<{ theta: number; opts: CaptureOptions }> = [];
   const log: string[] = [];
   let renderKind: "preview" | "full" = "preview";
-  let caps = { download: false, message: false };
-  const opts = { bigFile: false };
+  let caps: { download: boolean; message: boolean; messageLink?: boolean } = { download: false, message: false };
+  const opts = { bigFile: false, rejectEmbedded: false };
   let params: ViewerSnapshot["parameters"] = [
     { name: "width", type: "number", group: "Dimensions", caption: "Box width", initial: 30, value: 30, min: 10, max: 100, step: 1 },
     { name: "style", type: "string", group: "Style", initial: "round", value: "round", options: [{ name: "Round", value: "round" }, { name: "Square", value: "sq" }] },
@@ -89,7 +89,15 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
       const bytes = new Uint8Array(opts.bigFile ? 2 * 1024 * 1024 : 200).fill(65);
       return { filename: buildFilename(filename, "playground", format), mimeType: FORMAT_INFO[format].mimeType, base64: bytesToBase64(bytes), size: bytes.length };
     },
-    deliver: async (file, d) => { log.push(`deliver ${d} ${file.filename}`); return d === "download" ? `Downloaded ${file.filename}` : `Sent ${file.filename} to the chat`; },
+    deliver: async (file, steps) => {
+      for (const step of steps) {
+        if (step.channel === "return") return undefined;
+        log.push(`deliver ${step.channel}/${step.form} ${file.filename}`);
+        if (opts.rejectEmbedded && step.form === "embedded") continue; // host throws on embedded resources
+        return { outcome: step.channel === "download" ? `Downloaded ${file.filename}` : `Sent ${file.filename} to the chat`, step };
+      }
+      return undefined;
+    },
     setParameters: (v) => {
       const changed = Object.entries(v).filter(([n, x]) => JSON.stringify(params.find((p) => p.name === n)!.value) !== JSON.stringify(x));
       if (!changed.length) return false;
@@ -126,7 +134,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     host, files, log, captures,
     setDiagnostics: (d: Diagnostic[]) => { diagnostics = d; },
     setParams: (p: ViewerSnapshot["parameters"]) => { params = p; },
-    setCaps: (c: { download: boolean; message: boolean }) => { caps = c; },
+    setCaps: (c: { download: boolean; message: boolean; messageLink?: boolean }) => { caps = c; },
     opts,
     setTimedOut: (t: boolean) => { timedOut = t; },
     camera: () => camera,
@@ -298,16 +306,24 @@ async function main() {
     assert.equal(buildFilename("../../etc/pass wd?.3mf", "x", "3mf"), "pass wd_.3mf");
     assert.equal(buildFilename("..", "x", "off"), "model.off");
     const none = { download: false, message: false };
-    assert.equal(chooseDelivery("auto", { download: true, message: true }, 100), "download");
-    assert.equal(chooseDelivery("auto", { download: false, message: true }, 100), "message");
-    assert.equal(chooseDelivery("auto", none, 100), "return");
-    assert.equal(chooseDelivery(undefined, none, 100), "return");
-    assert.equal(chooseDelivery("return", { download: true, message: true }, 100), "return");
-    assert.throws(() => chooseDelivery("download", none, 100), /not supported by this host. Available: return/);
-    assert.equal(chooseDelivery("auto", { download: true, message: true }, SIZE_CAPS.message + 1), "download");
-    assert.equal(chooseDelivery("auto", { download: false, message: true }, SIZE_CAPS.message + 1 > SIZE_CAPS.message ? SIZE_CAPS.message : 0), "message");
-    assert.throws(() => chooseDelivery("auto", none, SIZE_CAPS.return + 1), /over the .* limit.*Try a smaller model/);
-    assert.throws(() => chooseDelivery("message", { download: true, message: true }, SIZE_CAPS.message + 1), /Other available: download/);
+    const names = (steps: ReturnType<typeof deliveryPlan>) => steps.map((x) => `${x.channel}/${x.form}`);
+    // auto order: download (embedded, link), message (embedded, link), return (embedded, link)
+    assert.deepEqual(names(deliveryPlan("auto", { download: true, message: true, messageLink: true }, 100)),
+      ["download/embedded", "download/link", "message/embedded", "message/link", "return/embedded", "return/link"]);
+    assert.deepEqual(names(deliveryPlan(undefined, { download: false, message: true }, 100)), ["message/embedded", "return/embedded", "return/link"]);
+    assert.deepEqual(names(deliveryPlan("auto", none, 100)), ["return/embedded", "return/link"]);
+    assert.deepEqual(names(deliveryPlan("download", { download: true, message: true }, 100)), ["download/embedded", "download/link"]);
+    assert.deepEqual(names(deliveryPlan("link", { download: true, message: true, messageLink: true }, 100)), ["download/link", "message/link", "return/link"]);
+    assert.deepEqual(names(deliveryPlan("link", { download: false, message: true }, 100)), ["return/link"]);
+    assert.throws(() => deliveryPlan("download", none, 100), /not supported by this host. Available: return, link/);
+    assert.throws(() => deliveryPlan("message", { download: true, message: false }, 100), /not supported/);
+    // size caps: links are capped small, embedded per channel
+    assert.deepEqual(names(deliveryPlan("auto", { download: true, message: true }, SIZE_CAPS.message + 1)), ["download/embedded"]);
+    assert.deepEqual(names(deliveryPlan("auto", { download: true, message: true }, LINK_CAP + 1)), ["download/embedded", "message/embedded", "return/embedded"]);
+    assert.throws(() => deliveryPlan("auto", none, SIZE_CAPS.return + 1), /over the limit.*Try a smaller model/);
+    assert.throws(() => deliveryPlan("message", { download: true, message: true }, SIZE_CAPS.message + 1), /Other available: download/);
+    assert.throws(() => deliveryPlan("link", { download: true, message: true }, LINK_CAP + 1), /over the limit for delivery "link"/);
+    assert.equal(dataUri("model/stl", "QUJD"), "data:model/stl;base64,QUJD");
     assert.equal(bytesToBase64(new Uint8Array([72, 105])), "SGk=");
     assert.equal(bytesToBase64(new Uint8Array(100_000).fill(1)).length, Math.ceil(100_000 / 3) * 4);
   });
@@ -540,8 +556,8 @@ async function main() {
     h.setCaps({ download: true, message: true });
     const r = await call("download_model", { format: "glb", filename: "box" });
     assert.ok(!r.isError, textOf(r));
-    assert.match(textOf(r), /Downloaded box\.glb\. box\.glb: \d+ bytes .*format glb, model\/gltf-binary, delivery: download/);
-    assert.deepEqual(h.log, ["full-render", "deliver download box.glb"]); // preview output => full render first
+    assert.match(textOf(r), /Downloaded box\.glb\. box\.glb: \d+ bytes .*format glb, model\/gltf-binary, delivery: download, form: embedded resource/);
+    assert.deepEqual(h.log, ["full-render", "deliver download/embedded box.glb"]); // preview output => full render first
     h.log.length = 0;
     h.setCaps({ download: false, message: true });
     assert.match(textOf(await call("download_model")), /Sent playground\.stl to the chat.*delivery: message/);
@@ -552,15 +568,37 @@ async function main() {
     assert.equal(res.resource.mimeType, "model/off");
     assert.equal(res.resource.uri, "file:///playground.off");
     assert.ok(res.resource.blob.length > 0);
-    assert.match(textOf(ret), /delivery: return/);
+    assert.match(textOf(ret), /delivery: return, form: embedded resource/);
+  });
+  await test("download_model: resource_link delivery and fallbacks between forms", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    h.setCaps({ download: true, message: true, messageLink: true });
+    // host throws on embedded resources: auto falls through to the link form of the same channel
+    h.opts.rejectEmbedded = true;
+    const viaLink = await call("download_model");
+    assert.ok(!viaLink.isError, textOf(viaLink));
+    assert.match(textOf(viaLink), /delivery: download, form: resource_link \(data: URI\)/);
+    assert.deepEqual(h.log.filter((l) => l.startsWith("deliver")), ["deliver download/embedded playground.stl", "deliver download/link playground.stl"]);
+    h.opts.rejectEmbedded = false;
+    h.log.length = 0;
+    assert.match(textOf(await call("download_model", { delivery: "link" })), /delivery: download, form: resource_link/);
+    h.setCaps({ download: false, message: false });
+    const ret = await call("download_model", { delivery: "link", format: "glb" });
+    const link = ret.content.find((c) => c.type === "resource_link") as { uri: string; name: string; mimeType: string; size: number };
+    assert.ok(link.uri.startsWith("data:model/gltf-binary;base64,"));
+    assert.equal(link.name, "playground.glb");
+    assert.ok(link.size > 0);
+    h.opts.bigFile = true;
+    assert.match(textOf(await call("download_model", { delivery: "link" })), /over the limit for delivery "link"/);
   });
   await test("download_model: errors are explicit", async () => {
     const h = mockHost();
     const { call } = tools(h);
-    assert.match(textOf(await call("download_model", { delivery: "download" })), /not supported by this host. Available: return/);
+    assert.match(textOf(await call("download_model", { delivery: "download" })), /not supported by this host. Available: return, link/);
     assert.match(textOf(await call("download_model", { format: "svg" })), /SVG is not available for this 3D model/);
     h.opts.bigFile = true;
-    assert.match(textOf(await call("download_model", { delivery: "return" })), /over the 1\.0 MB limit/);
+    assert.match(textOf(await call("download_model", { delivery: "return" })), /over the limit for delivery/);
     h.setDiagnostics([err()]);
     const failed = await call("download_model");
     assert.ok(failed.isError);

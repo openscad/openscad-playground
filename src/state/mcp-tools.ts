@@ -11,7 +11,7 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import { z } from 'zod';
-import { ExportError, SIZE_CAPS, chooseDelivery, formatSize, formatsFor, parseFormat, type ExportFormat, type HostFileCapabilities } from './export-logic.ts';
+import { ExportError, LINK_CAP, dataUri, SIZE_CAPS, deliveryPlan, formatSize, stepName, formatsFor, parseFormat, type ExportFormat, type HostFileCapabilities, type Step } from './export-logic.ts';
 import type { ExportedFile } from './mcp-download.ts';
 import {
   CAMERA_PRESET_NAMES,
@@ -146,8 +146,8 @@ export interface ViewerHost {
   fileCapabilities(): HostFileCapabilities;
   /** Export the rendered model (a full render must have completed). */
   exportFile(format: ExportFormat, filename?: string): Promise<ExportedFile>;
-  /** Hand the file to the host (download dialog or chat attachment); resolves to what happened. */
-  deliver(file: ExportedFile, delivery: 'download' | 'message'): Promise<string>;
+  /** Try the host steps of a delivery plan (download dialog, chat attachment); undefined if none succeeded. Rejects when the host refuses. */
+  deliver(file: ExportedFile, steps: Step[]): Promise<{ outcome: string; step: Step } | undefined>;
   /** Merge customizer values and start a preview render. */
   /** Apply validated values like the customizer UI does (skipping unchanged ones). Returns whether anything changed (and a render started). */
   setParameters(vars: Record<string, unknown>): boolean;
@@ -518,13 +518,14 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       title: 'Download / export the model',
       description:
         'Export the rendered model as a file and deliver it. format: 3D stl (default), 3mf, glb, off; 2D svg (default), dxf. A full render is done first if only a preview exists. ' +
-        'delivery: "download" asks the host to save the file for the user (host dialog), "message" attaches it to the chat, "return" returns it in this tool result ' +
-        `(max ${formatSize(SIZE_CAPS.return)}), "auto" (default) uses the first the host supports in that order. Size limits: download ${formatSize(SIZE_CAPS.download)}, ` +
-        `message ${formatSize(SIZE_CAPS.message)}. Reports filename, bytes, format and how it was delivered.`,
+        'delivery: "download" asks the host to save the file for the user (host dialog), "message" attaches it to the chat, "return" returns it in this tool result, ' +
+        '"link" uses a resource_link block (data: URI) instead of embedding the bytes, "auto" (default) tries in order: download (embedded, then link), message (embedded, then link), ' +
+        `return (embedded, then link). Size limits: download ${formatSize(SIZE_CAPS.download)}, message ${formatSize(SIZE_CAPS.message)}, return ${formatSize(SIZE_CAPS.return)}, ` +
+        `links ${formatSize(LINK_CAP)}. Reports filename, bytes, format and how it was delivered.`,
       inputSchema: z.object({
         format: z.enum(['stl', '3mf', 'glb', 'off', 'svg', 'dxf']).optional().describe('Export format; default stl (3D) or svg (2D).'),
         filename: z.string().optional().describe('File name; the extension is added/normalised. Default: the model file name.'),
-        delivery: z.enum(['auto', 'download', 'message', 'return']).optional().describe('How to deliver. Default auto.'),
+        delivery: z.enum(['auto', 'download', 'message', 'return', 'link']).optional().describe('How to deliver. Default auto. "link" sends a resource_link (data: URI, max ' + formatSize(LINK_CAP) + ') through the first channel that takes it.'),
       }),
       annotations: { destructiveHint: false, idempotentHint: true },
       handler: async ({ format, filename, delivery }) => {
@@ -546,29 +547,34 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
           if (hasRenderFailure(snap) || snap.timedOut) throw new ToolError(`The full render did not succeed.\n${formatDiagnostics(snap)}`);
         }
         const file = await host.exportFile(fmt, filename);
-        let how: 'download' | 'message' | 'return';
+        let plan: Step[];
         try {
-          how = chooseDelivery(delivery, host.fileCapabilities(), file.size);
+          plan = deliveryPlan(delivery, host.fileCapabilities(), file.size);
         } catch (e) {
           if (e instanceof ExportError) throw new ToolError(e.message);
           throw e;
         }
         const summary = `${file.filename}: ${file.size} bytes (${formatSize(file.size)}), format ${fmt}, ${file.mimeType}`;
-        if (how === 'return') {
-          return {
-            content: [
-              { type: 'text', text: `Returned ${summary}, delivery: return (embedded in this result).` },
-              { type: 'resource', resource: { uri: `file:///${encodeURIComponent(file.filename)}`, mimeType: file.mimeType, blob: file.base64 } },
-            ],
-          };
-        }
-        let outcome: string;
+        let delivered: { outcome: string; step: Step } | undefined;
         try {
-          outcome = await host.deliver(file, how);
+          delivered = await host.deliver(file, plan);
         } catch (e) {
-          throw new ToolError(`${e instanceof Error ? e.message : String(e)} (${summary}, delivery: ${how})`);
+          throw new ToolError(`${e instanceof Error ? e.message : String(e)} (${summary})`);
         }
-        return text(`${outcome}. ${summary}, delivery: ${how}.`);
+        if (delivered) {
+          return text(`${delivered.outcome}. ${summary}, delivery: ${delivered.step.channel}, form: ${delivered.step.form === 'link' ? 'resource_link (data: URI)' : 'embedded resource'}.`);
+        }
+        const ret = plan.find(s => s.channel === 'return');
+        if (!ret) throw new ToolError(`The host did not accept the file in any form (tried ${plan.map(stepName).join(', ')}). ${summary}`);
+        const block = ret.form === 'link'
+          ? { type: 'resource_link' as const, uri: dataUri(file.mimeType, file.base64), name: file.filename, mimeType: file.mimeType, size: file.size }
+          : { type: 'resource' as const, resource: { uri: `file:///${encodeURIComponent(file.filename)}`, mimeType: file.mimeType, blob: file.base64 } };
+        return {
+          content: [
+            { type: 'text', text: `Returned ${summary}, delivery: return, form: ${ret.form === 'link' ? 'resource_link (data: URI)' : 'embedded resource'}.` },
+            block,
+          ],
+        };
       },
     }),
 
