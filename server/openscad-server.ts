@@ -77,10 +77,11 @@ export const INSTRUCTIONS = `OpenSCAD Playground: create and iterate on parametr
 
 Workflow:
 1. Call \`create\` ONCE (with initial \`source\` if you have one). It opens the viewer. Calling it again opens a separate viewer.
-2. Once the viewer has loaded it registers its own tools with the host: view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, set_parameters, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
+2. Once the viewer has loaded it registers its own tools with the host: view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, get_parameters, set_parameters, reset_parameters, set_layout, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
 3. Every edit re-renders and the tool result contains the render status, errors/warnings (file:line:col) and the OpenSCAD log tail. A result starting "EDIT APPLIED, BUT THE RENDER FAILED" means the source was changed but is broken: fix it (or undo_source_edit) before continuing.
 4. Verify visually with \`screenshot\` (use views such as ["iso","front","top"] to check several angles in one call), then adjust with set_camera / orbit_camera or edit the source again.
-5. Customizer variables (\`name = value; // [min:max]\`) can be changed without editing source via set_parameters.
+5. Customizer variables (\`name = value; // [min:max]\`): get_parameters shows the schema (ranges, dropdown options, current values); set_parameters / reset_parameters change them without editing source.
+6. The viewer opens in a compact embed layout (3D view + customizer button). set_layout mode \"full\" shows the code editor; use it if the user wants to see or edit the code.
 Units are millimetres, Z is up.`;
 
 /**
@@ -172,8 +173,9 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
               ui: {
                 permissions: { clipboardWrite: {} },
                 csp: {
-                  resourceDomains: [new URL(baseUrl).origin],
-                  connectDomains: [new URL(baseUrl).origin, "blob:", "data:"],
+                  // cdn.jsdelivr.net: the code editor (Monaco), only loaded when the model switches to the full layout.
+                  resourceDomains: [new URL(baseUrl).origin, "https://cdn.jsdelivr.net"],
+                  connectDomains: [new URL(baseUrl).origin, "https://cdn.jsdelivr.net", "blob:", "data:"],
                 },
               },
             },

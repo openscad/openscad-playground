@@ -313,3 +313,77 @@ export function fitSize(width: number, height: number, maxSize: number): { width
   const s = Math.min(1, maxSize / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * s)), height: Math.max(1, Math.round(height * s)) };
 }
+
+// ─── Customizer parameters ──────────────────────────────────────────────
+
+export interface ParamSchema {
+  name: string;
+  type: string;
+  initial: unknown;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: Array<{ name: string; value: number | string }>;
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+export function describeOptions(p: ParamSchema): string {
+  return (p.options ?? []).map(o => `${JSON.stringify(o.value)}${String(o.value) !== o.name ? ` (${o.name})` : ''}`).join(', ');
+}
+
+/**
+ * Validate (and normalize) a value for a customizer parameter. Dropdown
+ * options may be given by value or by label. Throws a ToolError naming the
+ * parameter and the allowed options / range.
+ */
+export function validateParameterValue(p: ParamSchema, value: unknown): unknown {
+  const bad = (why: string): never => { throw new ToolError(`${p.name}: ${why}`); };
+  if (p.options?.length) {
+    const hit = p.options.find(o => same(o.value, value)) ?? (typeof value === 'string' ? p.options.find(o => o.name.toLowerCase() === value.toLowerCase()) : undefined);
+    if (!hit) bad(`${JSON.stringify(value)} is not one of the allowed options: ${describeOptions(p)}`);
+    return hit!.value;
+  }
+  if (p.type === 'boolean') {
+    if (typeof value !== 'boolean') bad(`expected a boolean (true/false), got ${JSON.stringify(value)}`);
+    return value;
+  }
+  if (p.type === 'string') {
+    if (typeof value !== 'string') bad(`expected a string, got ${JSON.stringify(value)}`);
+    return value;
+  }
+  const inRange = (n: number) => (p.min == null || n >= p.min) && (p.max == null || n <= p.max);
+  const range = `${p.min ?? '-inf'}..${p.max ?? 'inf'}`;
+  if (Array.isArray(p.initial)) {
+    const want = p.initial.length;
+    if (!Array.isArray(value) || value.length !== want || value.some(v => typeof v !== 'number' || !Number.isFinite(v))) {
+      bad(`expected an array of ${want} numbers, got ${JSON.stringify(value)}`);
+    }
+    if ((value as number[]).some(v => !inRange(v))) bad(`every component must be within ${range}, got ${JSON.stringify(value)}`);
+    return value;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) bad(`expected a number, got ${JSON.stringify(value)}`);
+  if (!inRange(value as number)) bad(`${value} is out of range ${range}`);
+  return value;
+}
+
+/** Validate a name->value map; collects every error (one line per parameter) instead of stopping at the first. */
+export function validateParameterValues(schema: ParamSchema[], values: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const errors: string[] = [];
+  const known = schema.map(p => p.name);
+  for (const [name, value] of Object.entries(values)) {
+    const p = schema.find(s => s.name === name);
+    if (!p) {
+      errors.push(`${name}: unknown parameter. Known: ${known.join(', ') || '(none; the active file has no customizer parameters)'}`);
+      continue;
+    }
+    try {
+      out[name] = validateParameterValue(p, value);
+    } catch (e) {
+      if (e instanceof ToolError) errors.push(e.message); else throw e;
+    }
+  }
+  if (errors.length) throw new ToolError(`No parameter was changed.\n${errors.map(e => `  ${e}`).join('\n')}`);
+  return out;
+}
