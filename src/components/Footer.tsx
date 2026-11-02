@@ -2,7 +2,7 @@
 
 import React, { CSSProperties, useContext, useRef } from 'react';
 import { ModelContext } from './contexts.ts';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import * as monaco from 'monaco-editor/editor/editor.api';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
 import { Badge } from 'primereact/badge';
