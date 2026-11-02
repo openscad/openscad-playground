@@ -1,4 +1,4 @@
-import { MergedOutputs } from "./openscad-worker";
+import { MergedOutputs } from "./openscad-worker-core.ts";
 import { type MarkerData, MarkerSeverity } from './marker-types';
 
 const ignoredLogs = new Set([

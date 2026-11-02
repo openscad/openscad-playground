@@ -3,12 +3,15 @@
 import { MergedOutputs } from "./openscad-worker-core.ts";
 import { AbortablePromise } from "../utils.ts";
 import { Source } from "../state/app-state.ts";
+import { getForcedEngine, type RenderEngine } from "./wasm-support.ts";
 
 export type OpenSCADInvocation = {
   mountArchives: boolean,
   inputs?: Source[],
   args: string[],
   outputPaths?: string[],
+  // Testing override (see getForcedEngine); the worker can't read the page URL.
+  forceEngine?: RenderEngine,
 }
 
 export type OpenSCADInvocationResults = {
@@ -17,6 +20,8 @@ export type OpenSCADInvocationResults = {
   outputs?: [string, string][],
   mergedOutputs: MergedOutputs,
   elapsedMillis: number,
+  // Engine that ran the invocation; undefined if it failed before one was loaded.
+  engine?: RenderEngine,
 };
 
 export type ProcessStreams = {stderr: string} | {stdout: string}
@@ -48,7 +53,7 @@ export function spawnOpenSCAD(
         streamsCallback(e.data);
       }
     }
-    worker.postMessage(invocation)
+    worker.postMessage({...invocation, forceEngine: invocation.forceEngine ?? getForcedEngine()})
     
     return () => {
       terminate();
