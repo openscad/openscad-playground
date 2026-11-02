@@ -45,7 +45,11 @@ export function McpApp({
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const model = new Model(fs, state, setState, statePersister);
+  // One Model for the component's lifetime: a Model per render left in-flight
+  // async work (checks, renders) mutating a stale state snapshot, silently
+  // reverting edits made by tool calls in the meantime. Model.state always
+  // tracks the latest state (setState assigns it synchronously).
+  const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const viewerRef = useRef<ViewerPanelHandle>(null);
   const updateContextRef = useRef<(() => Promise<void>) | null>(null);
   const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,7 +108,6 @@ export function McpApp({
   // Always act on the latest model/viewer — tool handlers and buffered-event
   // replay outlive any single render's closures.
   const modelRef = useRef(model);
-  modelRef.current = model;
 
   const applySource = useCallback((source: string) => {
     const m = modelRef.current;
