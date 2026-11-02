@@ -108,7 +108,7 @@ npm install && npm run build:all
 
 # Start server with self-serve
 cd server
-OPENSCAD_BASE_URL=http://localhost:3001/ npm run start:self-serve
+npm run start:self-serve
 ```
 
 This adds `express.static` serving of the `dist/` directory and points the app's base URL to the server itself.
@@ -125,7 +125,7 @@ The CSP metadata automatically includes the `OPENSCAD_BASE_URL` origin in `resou
 
 The server is a standard Node.js/Express app. Deploy `server/` with:
 - `npm install && npm start` as the start command
-- Set `PORT` and `OPENSCAD_BASE_URL` environment variables
+- Set `PORT` (the asset base follows the request host; see the table below for overrides)
 
 ## Environment Variables
 
@@ -133,7 +133,9 @@ The server is a standard Node.js/Express app. Deploy `server/` with:
 |---|---|---|
 | `PORT` | `3001` | HTTP server port |
 | `HOST` | `localhost` | HTTP server bind address |
-| `OPENSCAD_BASE_URL` | `https://ochafik.com/openscad2/` | Base URL for loading app assets (JS, WASM, CSS). Also controls CSP `resourceDomains` and `connectDomains`. |
+| `OPENSCAD_BASE_URL` | _(derived per request)_ | Explicit override of the asset base URL (JS, WASM, CSS, libraries, fallback). When unset, the base is the request's own origin (`Host`; `X-Forwarded-Host`/`-Proto` only behind a trusted proxy), then `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL`, then `https://ochafik.com/openscad2/`. Also feeds the CSP `resourceDomains`/`connectDomains`. Without `--serve-dist` the request origin is not used (nothing would serve assets there). |
+| `OPENSCAD_ALLOWED_HOSTS` | _(unset)_ | Comma-separated hostnames (`example.com`, `host:port`, `*.example.com`) the per-request base may use; other hosts fall back to the env chain. |
+| `OPENSCAD_TRUST_PROXY` | _(unset)_ | Honour `X-Forwarded-Host`/`X-Forwarded-Proto` (always on when `VERCEL` is set). Hosts must be plain `hostname[:port]`. |
 | `OPENSCAD_DIST_DIR` | `../dist` (relative to server/) | Path to the built dist/ directory (for `--serve-dist`) |
 | `OPENSCAD_SERVE_DIST` | _(unset)_ | Set to any value to enable static file serving (alternative to `--serve-dist` flag) |
 | `ASSET_PORT` | `0` (auto) | Port for the stdio-mode asset server (only used with `--stdio --serve-dist`) |

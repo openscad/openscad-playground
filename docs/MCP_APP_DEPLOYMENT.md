@@ -13,10 +13,14 @@ development see [server/README.md](../server/README.md).
 | Static app | `dist/` from `npm run build:all` | any static host / CDN |
 | MCP server | `server/index.ts` (stateless, Streamable HTTP at `/mcp`) | Node, or a serverless function |
 
-The two can live on different hosts or the same one. The only coupling is the
-`OPENSCAD_BASE_URL` environment variable of the MCP server: the URL (with
-trailing slash) under which `dist/` is served, e.g. `https://openscad.example.com/`.
-It is embedded in the UI resource as `<meta name="openscad-base-url">` and its
+The recommended setup serves both from one deployment: the web app at `/` and
+the MCP endpoint at `/mcp`. The server then needs **no configuration**: it
+derives the asset base URL from each request (`Host`, or `X-Forwarded-Host` /
+`X-Forwarded-Proto` behind a trusted proxy such as Vercel), so it works on any
+host, including preview URLs. Set `OPENSCAD_ALLOWED_HOSTS` to restrict which
+hosts are accepted. To serve assets from elsewhere (a CDN), set
+`OPENSCAD_BASE_URL` (trailing slash), which always wins, e.g.
+`https://assets.example.com/`. The base is embedded in the UI resource as `<meta name="openscad-base-url">` and its
 origin is added to the CSP (`resourceDomains`, `connectDomains`; `blob:` and
 `data:` are always added to `connectDomains`).
 
@@ -48,7 +52,8 @@ The function file is not provided; a minimal version:
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { createServer, NodeStreamableHTTPServerTransport } = require("./_server.js");
-  const server = createServer();
+  const { resolveBaseUrl } = require("./_server.js");
+  const server = createServer(resolveBaseUrl(req));
   const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => { transport.close().catch(() => {}); server.close().catch(() => {}); });
   await server.connect(transport);
@@ -57,13 +62,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ```
 
 with `server/vercel-entry.ts` re-exporting `createServer` from
-`./openscad-server.js` and `NodeStreamableHTTPServerTransport` from
+`./openscad-server.js`, `resolveBaseUrl` from `./base-url.js` and `NodeStreamableHTTPServerTransport` from
 `@modelcontextprotocol/node`.
 
 Then in the project settings:
 
-- Environment variable `OPENSCAD_BASE_URL=https://openscad.example.com/`
-  (your final domain, trailing slash).
+- No `OPENSCAD_BASE_URL` is needed (the base follows the request host). Optionally
+  set `OPENSCAD_ALLOWED_HOSTS=openscad.example.com,*.vercel.app`.
 - Add the custom domain and DNS record at your registrar.
 
 You get `https://openscad.example.com/` (the playground) and
@@ -71,7 +76,7 @@ You get `https://openscad.example.com/` (the playground) and
 
 ## Other platforms
 
-Run `cd server && npm ci && OPENSCAD_BASE_URL=https://assets.example.com/ PORT=8080 npx tsx index.ts`
+Run `cd server && npm ci && PORT=8080 npx tsx index.ts`
 behind your usual process manager, and publish `dist/` anywhere that satisfies
 the requirements above. With `OPENSCAD_SERVE_DIST=1` the server also serves
-`dist/` itself, in which case `OPENSCAD_BASE_URL` must be the server's own public URL.
+`dist/` itself, and the asset base follows the request host (set `OPENSCAD_TRUST_PROXY=1` behind a reverse proxy, and `OPENSCAD_BASE_URL` if assets live elsewhere).

@@ -10,7 +10,7 @@
     "start:stdio": "node --import tsx index.ts --stdio",
     "start:self-serve": "node --import tsx index.ts --serve-dist",
     "dev": "node --import tsx index.ts",
-    "test": "node --import tsx test-e2e.ts && node --import tsx test-interact.ts"
+    "test": "node --import tsx test-e2e.ts && node --import tsx test-interact.ts && node --import tsx test-base-url.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/express": "^2.0.0",
