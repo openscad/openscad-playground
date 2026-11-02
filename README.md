@@ -90,6 +90,8 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 # Now commit and push changes, wait for site update and enjoy!
 ```
 
+Libraries and fonts are pinned to exact commits in `libs-config.json` (`commit` fields), so builds are reproducible. To bump them to the current branch heads, run `npm run libs:update`, review the diff, and commit (`npm run libs:check` reports out-of-date pins without writing).
+
 ## Build your own WASM binary
 
 The build system fetches a prebuilt OpenSCAD web WASM binary, but you can build your own in a couple of minutes:
