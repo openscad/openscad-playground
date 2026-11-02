@@ -25,7 +25,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - run: npm install
+          cache: npm
+      - run: npm ci
       - run: npm run build:all
       - name: Archive production artifacts
         uses: actions/upload-artifact@v7
@@ -33,5 +34,15 @@ jobs:
           name: dist-node-v${{ matrix.node }}
           path: dist
           retention-days: 30
-      - run: NODE_ENV=development npm run test:e2e
-      - run: NODE_ENV=production  npm run test:e2e
+      # E2E runs on a single Node version: the browser tests exercise the built
+      # app, not Node. Dev (port 4000) and prod (port 3000) don't clash, so run
+      # them concurrently.
+      - name: E2E tests (development and production)
+        if: matrix.node == '24'
+        run: |
+          NODE_ENV=development npm run test:e2e & dev=$!
+          NODE_ENV=production npm run test:e2e & prod=$!
+          status=0
+          wait $dev || status=1
+          wait $prod || status=1
+          exit $status
