@@ -5,6 +5,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -27,6 +34,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm install
       - run: npm run build:all
+      # After build:all: src/wasm/openscad.js is produced by the libs build.
+      - run: npx tsc --noEmit
       - name: Archive production artifacts
         uses: actions/upload-artifact@v7
         with:
