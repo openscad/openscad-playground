@@ -88,6 +88,9 @@ The patch makes wasm2js track its JS nesting depth and, past a threshold (40),
 lower the remaining chain of nested blocks / then-only ifs into a single
 `while (1) { switch (state) { ... } }` dispatch loop. Maximum nesting drops
 from ~1514 to ~70, and code under the threshold is emitted unchanged.
+The patch also adds Binaryen's regression test `test/wasm2js/deep-control-flow.wast`
+with its generated expected outputs (`*.2asm.js`, `*.2asm.js.opt`); `check.py
+wasm2js` passes and no pre-existing expected output changes.
 
 The patch is vendored (`scripts/patches/`) and applies to upstream Binaryen
 `58e27a24d`. It has not been submitted upstream yet; drafts of the upstream
