@@ -17,7 +17,7 @@
 #   ~1500 levels for OpenSCAD; JS parsers overflow their stack on that. The
 #   vendored patch (scripts/patches/) flattens deep chains, bringing it to ~70.
 #
-# See docs/WASM_FALLBACK.md.
+# See docs/WASM_FALLBACK.md. CI: .github/workflows/build-fallback.yml.
 
 set -euo pipefail
 
