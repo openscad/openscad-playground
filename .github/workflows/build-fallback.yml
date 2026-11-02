@@ -110,14 +110,6 @@ jobs:
           key: ccache-v1-${{ github.sha }}
           restore-keys: ccache-v1-
 
-      # The runner has ~14 GB free; the base image plus the build tree is large.
-      - name: Free disk space
-        if: steps.built.outputs.cache-hit != 'true'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          docker image prune -af >/dev/null || true
-          df -h /
-
       - name: Build openscad.fallback.js
         if: steps.built.outputs.cache-hit != 'true'
         env:
