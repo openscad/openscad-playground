@@ -106,6 +106,28 @@ describe('e2e', () => {
     expect3DPolySet();
   }, longTimeout);
 
+  test('displayed model is a valid GLB', async () => {
+    await loadSrc('cube([10, 20, 30]);');
+    await waitForViewer();
+    await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer').src.startsWith('data:'));
+    const glb = await page.evaluate(async () => {
+      const src = document.querySelector('model-viewer.main-viewer').src;
+      return Array.from(new Uint8Array(await (await fetch(src)).arrayBuffer()));
+    });
+    const buf = Buffer.from(glb);
+    expect(buf.toString('ascii', 0, 4)).toBe('glTF');
+    expect(buf.readUInt32LE(4)).toBe(2);
+    expect(buf.readUInt32LE(8)).toBe(buf.length);
+    const json = JSON.parse(buf.toString('utf8', 20, 20 + buf.readUInt32LE(12)));
+    expect(json.meshes).toHaveLength(1);
+    const prim = json.meshes[0].primitives[0];
+    const position = json.accessors[prim.attributes.POSITION];
+    expect(position.count).toBe(8);
+    expect(position.min).toEqual([0, 0, 0]);
+    expect(position.max).toEqual([10, 20, 30]);
+    expect(json.accessors[prim.indices].count).toBe(36);
+  }, longTimeout);
+
   test('use BOSL2', async () => {
     await loadSrc(`
       include <BOSL2/std.scad>;
