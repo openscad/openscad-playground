@@ -12,6 +12,7 @@ import type { App } from '@modelcontextprotocol/ext-apps';
 import { State, StatePersister } from '../state/app-state.ts';
 import { Model } from '../state/model.ts';
 import { ViewerPanelHandle } from './ViewerPanel.tsx';
+import { useEmbedClass } from './use-embed-class.ts';
 import EmbedView, { CornerButton, EmbedIcons } from './EmbedView.tsx';
 import { ModelContext, FSContext, McpContext } from './contexts.ts';
 import {
@@ -87,6 +88,7 @@ export function McpApp({
   // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const modelRef = useRef(model);
+  useEmbedClass(state.view.embed);
   const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
   const updateContextRef = useRef<(() => Promise<void>) | null>(null);

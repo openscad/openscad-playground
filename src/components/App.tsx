@@ -8,6 +8,7 @@ import EmbedView from './EmbedView';
 import { ModelContext, FSContext } from './contexts';
 import { fullAppUrl, isFramed } from '../state/embed';
 import { useFullscreenApi } from './use-fullscreen';
+import { useEmbedClass } from './use-embed-class';
 import { EmbedIcons } from './EmbedView';
 import { startBackgroundLoading } from '../background-loading';
 import { buildFilename, type ExportFormat } from '../state/export-logic';
@@ -51,6 +52,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     };
   }, []);
 
+  useEmbedClass(state.view.embed);
   const fullscreen = useFullscreenApi();
   // Plain browser download (works at top level; a sandboxed frame may block it).
   const onDownload = async (format: ExportFormat) => {

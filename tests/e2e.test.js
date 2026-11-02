@@ -669,6 +669,44 @@ describe('embed render and download', () => {
   }, longTimeout);
 });
 
+describe('GitHub ribbon', () => {
+  const ribbonVisible = (target) => target.evaluate(() => {
+    const r = document.querySelector('.github-fork-ribbon');
+    return !!r && getComputedStyle(r).display !== 'none';
+  });
+  const src = `#src=${encodeURIComponent('cube(5);')}`;
+
+  test('visible in the full UI, hidden in embed (?embed=1, framed, runtime toggle)', async () => {
+    await page.setViewport({ width: 1200, height: 900 }); // the ribbon is also hidden on small viewports
+    await page.goto(`${baseUrl}?embed=0${src}`);
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 45000 });
+    expect(await ribbonVisible(page)).toBe(true);
+
+    // Runtime toggle through the settings menu, both ways.
+    await page.click('button[title="Settings menu"]');
+    await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Embed mode')).click());
+    await page.waitForSelector('button[aria-label="Copy source"]', { timeout: 20000 });
+    expect(await ribbonVisible(page)).toBe(false);
+    await page.click('button[aria-label^="Exit embed mode"]');
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 20000 });
+    expect(await ribbonVisible(page)).toBe(true);
+
+    await page.goto('about:blank');
+    await page.goto(`${baseUrl}?embed=1${src}`);
+    await page.waitForSelector('button[aria-label="Copy source"]', { timeout: 45000 });
+    expect(await ribbonVisible(page)).toBe(false);
+
+    // Framed: no ?embed at all.
+    await page.goto(`${baseUrl}manifest.json`);
+    await page.evaluate((u) => { document.body.innerHTML = `<iframe style="width:1100px;height:800px" src="${u}"></iframe>`; }, `${baseUrl}${src}`);
+    const frame = await (await page.waitForSelector('iframe')).contentFrame();
+    await frame.waitForSelector('button[aria-label="Copy source"]', { timeout: 45000 });
+    expect(await ribbonVisible(frame)).toBe(false);
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].location?.url?.endsWith('/favicon.ico')) messages.splice(i, 1);
+    await page.setViewport({ width: 800, height: 600 });
+  }, longTimeout * 2);
+});
+
 describe('Configure MCP menu entry', () => {
   // The entry is driven by the build-time OPENSCAD_MCP_URL define: hidden by default. Run the suite with
   // OPENSCAD_MCP_URL=/mcp (dev server or build) to exercise the configured case.
