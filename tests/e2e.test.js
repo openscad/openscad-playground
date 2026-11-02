@@ -124,6 +124,18 @@ describe('e2e', () => {
     expect3DManifold();
   }, longTimeout);
 
+  // Libraries whose entry points live at the root of the zip (or in a sub-folder matched by a wildcard).
+  test.each([
+    ['NopSCADlib/lib.scad', `include <NopSCADlib/lib.scad>\nball_bearing(BB608);`],
+    ['YAPP_Box template', `include <YAPP_Box/YAPP_Template_v3.scad>\ncube(5);`],
+    ['UB.scad', `include <UB.scad/libraries/ub.scad>\ncube(5);`],
+    ['MCAD', `use <MCAD/boxes.scad>\nroundedCube([20,20,10], 3, true, true);`],
+  ])('library entry point resolves: %s', async (_, src) => {
+    await loadSrc(src);
+    await waitForViewer();
+    expect(messages.filter(m => m.text.includes("Can't open include file") || m.text.includes("Can't open library"))).toHaveLength(0);
+  }, longTimeout);
+
   test('load a demo by path', async () => {
     await loadPath('/libraries/closepoints/demo_3D_art.scad');
     await waitForViewer();

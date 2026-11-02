@@ -37,6 +37,7 @@
     "build:wasm-fallback": "./scripts/build-wasm-fallback.sh",
     "libs:update": "node scripts/update-libs-commits.mjs",
     "libs:check": "node scripts/update-libs-commits.mjs --check",
+    "libs:test": "node scripts/test-libs-render.mjs",
     "build:all": "npm run build:libs && npm run build"
   },
   "browserslist": {
