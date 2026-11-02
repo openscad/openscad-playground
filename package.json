@@ -9,9 +9,6 @@
     "@gltf-transform/extensions": "4.1.1",
     "@monaco-editor/loader": "^1.4.0",
     "@monaco-editor/react": "^4.6.0",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.6.1",
     "blurhash": "^2.0.5",
     "chroma-js": "^3.1.2",
     "debug": "^4.4.0",
@@ -39,12 +36,6 @@
     "build:libs:fonts": "LIBS_BUILD_MODE=fonts webpack --config webpack.libs.config.js",
     "build:all": "npm run build:libs && npm run build"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
   "browserslist": {
     "production": [
       ">0.2%",
@@ -69,17 +60,15 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/uzip": "^0.20201231.2",
-    "@types/web": "^0.0.352",
+    "@types/web": "^0.0.359",
     "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^7.1.2",
     "jest": "^29.7.0",
     "jest-puppeteer": "^11.0.0",
-    "livereload": "^0.9.3",
     "puppeteer": "^25.3.0",
     "serve": "^14.2.4",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.1",
-    "tslib": "^2.8.1",
     "typescript": "^5.9.2",
     "webpack": "^5.108.4",
     "webpack-cli": "^7.2.1",

@@ -6,3 +6,6 @@ public/openscad.js
 public/openscad.wasm
 src/wasm
 .DS_Store
+.vercel
+.env*.local
+*.log
