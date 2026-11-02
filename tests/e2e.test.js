@@ -378,3 +378,30 @@ describe('embed layout', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(src);
   }, longTimeout);
 });
+
+describe('Configure MCP menu entry', () => {
+  // The entry is driven by the build-time OPENSCAD_MCP_URL define: hidden by default. Run the suite with
+  // OPENSCAD_MCP_URL=/mcp (dev server or build) to exercise the configured case.
+  const configured = process.env.OPENSCAD_MCP_URL;
+  const openSettings = async () => {
+    await page.goto(`${baseUrl}#src=${encodeURIComponent('cube(5);')}`);
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 45000 });
+    await page.click('button[title="Settings menu"]');
+    await page.waitForSelector('.p-menuitem-link');
+  };
+  (configured ? test.skip : test)('is absent by default', async () => {
+    await openSettings();
+    expect(await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).some(a => a.textContent.includes('Configure MCP')))).toBe(false);
+  }, longTimeout);
+  (configured ? test : test.skip)('is a new-tab link to the configured URL when set', async () => {
+    await openSettings();
+    const link = await page.evaluate(() => {
+      const a = Array.from(document.querySelectorAll('a')).find(a => a.textContent.includes('Configure MCP'));
+      return a && { href: a.href, target: a.target, rel: a.rel };
+    });
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noopener');
+    expect(link.href).toBe(new URL(configured, baseUrl).toString());
+  }, longTimeout);
+});
+

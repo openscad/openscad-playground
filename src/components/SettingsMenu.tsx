@@ -9,6 +9,10 @@ import { State } from '../state/app-state.ts';
 import { isInStandaloneMode } from '../utils.ts';
 import { confirmDialog } from 'primereact/confirmdialog';
 import { Toast } from 'primereact/toast';
+import { isFramed, resolveMcpSetupUrl } from '../state/embed.ts';
+
+// Build-time define (webpack EnvironmentPlugin); empty unless the deployment serves an MCP endpoint.
+const mcpSetupUrl = resolveMcpSetupUrl(process.env.OPENSCAD_MCP_URL, window.location.href, isFramed());
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 
 /** iframe snippet for the current model: `?embed=1` plus the usual URL state fragment. */
@@ -75,6 +79,19 @@ export default function SettingsMenu({className, style}: {className?: string, st
           // disabled: true,
           command: () => model.mutate(s => s.view.lineNumbers = !s.view.lineNumbers)
         },
+        ...(mcpSetupUrl ? [
+          {
+            label: 'Configure MCP',
+            icon: 'pi pi-link',
+            // A real link: opens the setup help page in a new tab.
+            template: (item: MenuItem, options: any) => (
+              <a className={options.className} href={mcpSetupUrl} target="_blank" rel="noopener" role="menuitem">
+                <span className={options.iconClassName} />
+                <span className={options.labelClassName}>{item.label}</span>
+              </a>
+            ),
+          },
+        ] : []),
         ...(isInStandaloneMode() ? [
           {
             separator: true

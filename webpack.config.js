@@ -77,6 +77,10 @@ const config = [
       new webpack.EnvironmentPlugin({
         'process.env.NODE_ENV': 'development',
       }),
+      // URL of the MCP setup page (e.g. '/mcp'): shows a 'Configure MCP' settings entry when non-empty.
+      new webpack.DefinePlugin({
+        'process.env.OPENSCAD_MCP_URL': JSON.stringify(process.env.OPENSCAD_MCP_URL ?? ''),
+      }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({
           exclude: [
