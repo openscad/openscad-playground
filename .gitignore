@@ -9,3 +9,4 @@ src/wasm
 .vercel
 .env*.local
 *.log
+public/openscad.fallback.js

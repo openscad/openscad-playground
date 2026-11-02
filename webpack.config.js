@@ -81,6 +81,8 @@ const config = [
             /(^|\/)\./,
             /\.map$/,
             /^manifest.*\.js$/,
+            // Large wasm2js fallback: only fetched when WebAssembly is unavailable.
+            /openscad\.fallback\.js$/,
           ],
           // these options encourage the ServiceWorkers to get in there fast
           // and not allow any straggling 'old' SWs to hang around
@@ -106,6 +108,14 @@ const config = [
           {
             from: path.resolve(__dirname, 'public'),
             toType: 'dir',
+            globOptions: { ignore: ['**/openscad.fallback.js'] },
+          },
+          {
+            // Optional wasm2js build; marked as minimized so Terser skips its ~21MB.
+            from: path.resolve(__dirname, 'public/openscad.fallback.js'),
+            to: path.resolve(__dirname, 'dist'),
+            noErrorOnMissing: true,
+            info: { minimized: true },
           },
           {
             from: path.resolve(__dirname, 'node_modules/primeicons/fonts'),
