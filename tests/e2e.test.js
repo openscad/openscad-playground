@@ -235,7 +235,7 @@ describe('embed layout', () => {
   const src = 'width = 30; // [10:100]\ncube(width);';
   const embedProbe = () => ({
     customize: !!document.querySelector('button[aria-label="Customize"]'),
-    overlay: !!document.querySelector('[role=dialog][aria-label=Customizer]'),
+    overlay: !!document.querySelector('[role=complementary][aria-label=Customizer]'),
     tabs: !!document.querySelector('.p-togglebutton, .p-tabmenu'),
     editor: !!document.querySelector('.monaco-editor'),
   });
@@ -246,9 +246,9 @@ describe('embed layout', () => {
     await page.waitForSelector('button[aria-label="Customize"]', { timeout: 45000 });
     expect(await page.evaluate(embedProbe)).toEqual({ customize: true, overlay: false, tabs: false, editor: false });
     await page.click('button[aria-label="Customize"]');
-    await page.waitForSelector('[role=dialog][aria-label=Customizer]');
+    await page.waitForSelector('[role=complementary][aria-label=Customizer]');
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('[role=dialog][aria-label=Customizer]'));
+    await page.waitForFunction(() => !document.querySelector('[role=complementary][aria-label=Customizer]'));
   }, longTimeout);
 
   test('a framed page defaults to embed, ?embed=0 keeps the full UI', async () => {
@@ -305,5 +305,63 @@ describe('embed layout', () => {
     expect(await page.evaluate(embedProbe)).toMatchObject({ customize: true, editor: false });
     await page.click('button[aria-label="Exit embed mode (full app)"]');
     await page.waitForSelector('button[title="Settings menu"]', { timeout: 20000 });
+  }, longTimeout);
+
+  const toolbarLabels = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role=toolbar][aria-label="Viewer actions"] [aria-label]')).map(e => e.getAttribute('aria-label')));
+
+  test('one top-right toolbar, with the customizer toggle only when there are parameters', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(src)}`);
+    await waitForViewer();
+    await page.waitForSelector('[role=toolbar] button[aria-label="Customize"]', { timeout: 45000 });
+    const withParams = await toolbarLabels();
+    expect(withParams).toEqual(expect.arrayContaining(['Customize', 'Copy source']));
+    expect(withParams.some(l => l.startsWith('Exit embed mode'))).toBe(true);
+    const box = await page.$eval('[role=toolbar][aria-label="Viewer actions"]', el => {
+      const r = el.getBoundingClientRect();
+      return { right: r.right, top: r.top, w: innerWidth, h: r.height };
+    });
+    expect(box.top).toBeLessThan(20);
+    expect(box.w - box.right).toBeLessThan(20);
+
+    await page.goto('about:blank'); // a hash-only change would not reload
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent('cube(5);')}`);
+    await waitForViewer();
+    await page.waitForSelector('[role=toolbar] button[aria-label="Copy source"]', { timeout: 45000 });
+    const without = await toolbarLabels();
+    expect(without).not.toContain('Customize');
+    expect(without).toContain('Copy source');
+  }, longTimeout);
+
+  test('the customizer docks on the right without resizing the viewer', async () => {
+    await page.setViewport({ width: 1000, height: 600 });
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(src)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Customize"]', { timeout: 45000 });
+    const viewerBox = () => page.$eval('model-viewer.main-viewer', el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round); });
+    const before = await viewerBox();
+    await page.click('button[aria-label="Customize"]');
+    await page.waitForSelector('[role=complementary][aria-label=Customizer]');
+    await new Promise(r => setTimeout(r, 500)); // slide-in animation
+    const panel = await page.$eval('[role=complementary][aria-label=Customizer]', el => { const r = el.getBoundingClientRect(); return { right: r.right, left: r.left, bottom: r.bottom, w: innerWidth, h: innerHeight }; });
+    expect(Math.round(panel.right)).toBe(panel.w);
+    expect(panel.left).toBeGreaterThan(panel.w - 400);
+    expect(Math.round(panel.bottom)).toBe(panel.h);
+    expect(await viewerBox()).toEqual(before);
+    // Desktop: clicking the model keeps the (non-modal) panel open.
+    await page.mouse.click(200, 300);
+    expect(await page.$('[role=complementary][aria-label=Customizer]')).not.toBeNull();
+    await page.setViewport({ width: 800, height: 600 });
+  }, longTimeout);
+
+  test('copy source puts the active file on the clipboard and confirms', async () => {
+    const origin = new URL(baseUrl).origin;
+    await page.browserContext().overridePermissions(origin, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write']);
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(src)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Copy source"]', { timeout: 45000 });
+    await page.click('button[aria-label="Copy source"]');
+    await page.waitForFunction(() => /^Copied /.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''));
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(src);
   }, longTimeout);
 });
