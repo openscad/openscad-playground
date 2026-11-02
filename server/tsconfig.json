@@ -12,5 +12,5 @@
     "skipLibCheck": true
   },
   "include": ["*.ts"],
-  "exclude": ["test-interact.ts"]
+  "exclude": ["test-tools.ts"]
 }
