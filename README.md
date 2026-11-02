@@ -94,7 +94,9 @@ Libraries and fonts are pinned to exact commits in `libs-config.json` (`commit` 
 
 ## Embedding
 
-The playground can be embedded in any page with an iframe. When it runs inside a frame it defaults to **embed mode**: no tab bar or footer, just the 3D viewer filling the frame, a small customizer button (shown only when the model has customizer parameters) that opens the customizer as an overlay (Escape or an outside click closes it), and an "open in full app" button. A fullscreen button appears if the iframe allows it.
+The playground can be embedded in any page with an iframe. When it runs inside a frame it defaults to **embed mode**: no tab bar or footer, just the 3D viewer filling the frame, a small customizer button (shown only when the model has customizer parameters) that opens the customizer as an overlay (Escape or an outside click closes it), and, in the top-right corner, an always-present escape hatch to the full UI (also in files without customizer parameters; the overlay header has a labelled "Full editor" button too). In a top-level window it switches to the full UI in place; inside an iframe it opens the same state in a new tab (`?embed=0`). A fullscreen button appears if the iframe allows it.
+
+In the full UI, the settings menu has an **Embed mode** item (session-level: not saved in links or persisted) and **Copy embed code**, which copies an `<iframe>` snippet for the current model.
 
 ```html
 <iframe

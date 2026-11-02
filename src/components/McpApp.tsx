@@ -395,10 +395,27 @@ export function McpApp({
                 showHint={!isFullscreen}
                 onCameraChange={scheduleContextUpdate}
                 fullscreen={fullscreen}
-                toolbar={toolbar} />
+                toolbar={toolbar}
+                exit={{
+                  label: 'Full editor',
+                  icon: EmbedIcons.layout,
+                  onClick: () => model.mutate(s => { s.view.embed = false; s.view.customizerOverlay = false; }),
+                }} />
             : <FullLayoutBoundary key={state.view.layoutError ?? 'ok'} model={model}>
                 <Suspense fallback={<ProgressBar mode="indeterminate" style={{ height: '4px' }} />}>
-                  <FullMounted model={model}><LazyFullLayout viewerRef={viewerRef} /></FullMounted>
+                  <FullMounted model={model}>
+                    <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <LazyFullLayout viewerRef={viewerRef} />
+                      {/* Top-right is free: the panel switcher is centered */}
+                      <div style={{ position: 'absolute', top: 4, right: 4, zIndex: 1000, opacity: 0.55 }}
+                        className="mcp-toolbar">
+                        <CornerButton
+                          icon={EmbedIcons.minimize}
+                          label="Back to embed mode"
+                          onClick={() => model.mutate(s => { s.view.embed = true; })} />
+                      </div>
+                    </div>
+                  </FullMounted>
                 </Suspense>
               </FullLayoutBoundary>}
         </McpContext.Provider>

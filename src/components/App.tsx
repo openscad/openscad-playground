@@ -1,14 +1,14 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {State, StatePersister} from '../state/app-state'
 import { Model } from '../state/model';
 import FullLayout from './FullLayout';
 import EmbedView from './EmbedView';
 import { ModelContext, FSContext } from './contexts';
-import { fullAppUrl } from '../state/embed';
+import { fullAppUrl, isFramed } from '../state/embed';
 import { useFullscreenApi } from './use-fullscreen';
-import { CornerButton, EmbedIcons } from './EmbedView';
+import { EmbedIcons } from './EmbedView';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -37,14 +37,6 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
   }, []);
 
   const fullscreen = useFullscreenApi();
-  const openFullApp = useCallback(() => {
-    try {
-      window.open(fullAppUrl(window.location.href), '_blank', 'noopener');
-    } catch (e) {
-      console.warn('Could not open the full app:', e);
-    }
-  }, []);
-
   const isDark = false; // the web app has a light theme
 
   return (
@@ -55,9 +47,11 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
               viewerRef={null}
               isDark={isDark}
               fullscreen={fullscreen}
-              toolbar={
-                <CornerButton icon={EmbedIcons.externalLink} label="Open in full app" onClick={openFullApp} />
-              } />
+              // Framed: open the same state as the full app in a new tab (the embedder wants the iframe to stay
+              // compact). Top-level: switch in place.
+              exit={isFramed()
+                ? { label: 'Open full app in a new tab', icon: EmbedIcons.externalLink, href: () => fullAppUrl(window.location.href) }
+                : { label: 'Exit embed mode (full app)', icon: EmbedIcons.layout, onClick: () => model.mutate(s => { s.view.embed = false; s.view.customizerOverlay = false; }) }} />
           : <FullLayout />}
       </FSContext.Provider>
     </ModelContext.Provider>

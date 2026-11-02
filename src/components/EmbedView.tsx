@@ -25,9 +25,22 @@ export interface EmbedViewProps {
   fullscreen?: { active: boolean; toggle: () => void };
   /** Extra corner buttons, rendered before the built-in ones. */
   toolbar?: ReactNode;
+  /**
+   * Escape hatch to the full UI, always present (files without customizer
+   * parameters have no overlay button). Either switches in place (`onClick`) or
+   * is a link opening the full app in a new tab (`href`, evaluated on click).
+   */
+  exit: ExitAction;
 }
 
-export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar }: EmbedViewProps) {
+export interface ExitAction {
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  href?: () => string;
+}
+
+export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit }: EmbedViewProps) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
@@ -165,10 +178,10 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
           className={isDark ? 'mcp-dark' : ''}
           style={{
             position: 'absolute',
-            ...(panelPos ? { left: panelPos.x, top: panelPos.y } : { right: 8, top: 48 }),
+            ...(panelPos ? { left: panelPos.x, top: panelPos.y } : { right: 8, bottom: 52 }),
             width: '300px',
             maxWidth: 'calc(100% - 16px)',
-            maxHeight: isFullscreen ? 'calc(100vh - 100px)' : 'calc(100% - 60px)',
+            maxHeight: isFullscreen ? 'calc(100vh - 110px)' : 'calc(100% - 110px)',
             backgroundColor: `var(--color-background-secondary, ${isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)'})`,
             backdropFilter: 'blur(12px)',
             borderRadius: 'var(--border-radius-lg, 10px)',
@@ -195,6 +208,8 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
               userSelect: 'none',
             }}>
             <strong style={{ fontSize: 'var(--font-text-sm-size, 13px)' }}>Customizer</strong>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ExitLink exit={exit} text="Full editor" isDark={isDark} />
             <button
               type="button"
               onClick={() => { setShowCustomizer(false); buttonRef.current?.focus(); }}
@@ -210,6 +225,7 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
               title="Close"
               aria-label="Close customizer"
             >&times;</button>
+            </span>
           </div>
           <CustomizerPanel dark={isDark} style={{
             maxHeight: 'unset',
@@ -249,7 +265,7 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
               </div>
             )}
 
-      {/* Corner toolbar */}
+      {/* Top-right: the escape hatch to the full UI (and fullscreen), never hidden behind the customizer */}
       <div className="mcp-toolbar" style={{
         position: 'absolute',
         top: '8px',
@@ -257,10 +273,32 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
         display: 'flex',
         gap: '4px',
         zIndex: 60,
-        // Subtle but visible at rest (touch screens have no hover); full opacity on hover/focus/open.
+        // Subtle but visible at rest (touch screens have no hover); full opacity on hover/focus.
+        opacity: 0.55,
+        transition: 'opacity 0.2s ease',
+      }}>
+        {fullscreen && (
+          <CornerButton
+            icon={isFullscreen ? EmbedIcons.minimize : EmbedIcons.maximize}
+            label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            onClick={fullscreen.toggle}
+          />
+        )}
+        <CornerButton icon={exit.icon} label={exit.label} onClick={exit.onClick} href={exit.href} />
+      </div>
+
+      {/* Bottom-right: customizer toggle and extra actions */}
+      <div className="mcp-toolbar" style={{
+        position: 'absolute',
+        bottom: '8px',
+        right: '8px',
+        display: 'flex',
+        gap: '4px',
+        zIndex: 60,
         opacity: showCustomizer ? 1 : 0.55,
         transition: 'opacity 0.2s ease',
       }}>
+        {toolbar}
         {hasParams && (
           <CornerButton
             icon={EmbedIcons.sliders}
@@ -273,17 +311,28 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             onClick={() => setShowCustomizer(!showCustomizer)}
           />
         )}
-        {toolbar}
-        {fullscreen && (
-          <CornerButton
-            icon={isFullscreen ? EmbedIcons.minimize : EmbedIcons.maximize}
-            label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            onClick={fullscreen.toggle}
-          />
-        )}
       </div>
     </div>
   );
+}
+
+/** Labelled text variant of the exit action, for the overlay header. */
+function ExitLink({ exit, text, isDark }: { exit: ExitAction; text: string; isDark: boolean }) {
+  const style: CSSProperties = {
+    background: 'none',
+    border: `1px solid var(--color-border-secondary, ${isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'})`,
+    borderRadius: '6px',
+    padding: '2px 8px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    color: 'inherit',
+    textDecoration: 'none',
+    lineHeight: 1.4,
+  };
+  return exit.href
+    ? <a href={exit.href()} target="_blank" rel="noopener" style={style} aria-label={exit.label}
+        onClick={e => { e.currentTarget.href = exit.href!(); }}>{text}</a>
+    : <button type="button" style={style} aria-label={exit.label} onClick={exit.onClick}>{text}</button>;
 }
 
 // Inline SVG icons (no font dependency — works in sandboxed iframes)
@@ -299,6 +348,7 @@ export const EmbedIcons = {
   minimize: <SVG><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
   copy: <SVG><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></SVG>,
   check: <SVG><polyline points="20 6 9 17 4 12" /></SVG>,
+  layout: <SVG><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" /></SVG>,
   externalLink: <SVG><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></SVG>,
 };
 
@@ -311,22 +361,27 @@ export function CornerButton({
   ariaExpanded,
   ariaControls,
   buttonRef,
+  href,
 }: {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
   badge?: number;
-  onClick: () => void;
+  onClick?: () => void;
+  /** Render a link opening this URL (evaluated at click time) in a new tab. */
+  href?: () => string;
   ariaExpanded?: boolean;
   ariaControls?: string;
   buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const [hovered, setHovered] = useState(false);
+  const Tag: any = href ? 'a' : 'button';
+  const tagProps = href
+    ? { href: href(), target: '_blank', rel: 'noopener', onClick: (e: React.MouseEvent<HTMLAnchorElement>) => { e.currentTarget.href = href(); } }
+    : { ref: buttonRef, type: 'button', onClick };
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      onClick={onClick}
+    <Tag
+      {...tagProps}
       title={label}
       aria-label={label}
       aria-expanded={ariaExpanded}
@@ -334,6 +389,7 @@ export function CornerButton({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
+        textDecoration: 'none',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
@@ -370,7 +426,7 @@ export function CornerButton({
           lineHeight: 1,
         }}>{badge}</span>
       )}
-    </button>
+    </Tag>
   );
 }
 
