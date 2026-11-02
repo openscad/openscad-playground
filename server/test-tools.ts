@@ -21,6 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
+import { FORMAT_INFO, SIZE_CAPS, buildFilename, bytesToBase64, chooseDelivery, parseFormat, ExportError } from "../src/state/export-logic.ts";
 import { fullAppUrl, isFramed, resolveMcpSetupUrl, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
 import {
   ToolError,
@@ -51,6 +52,9 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
   let camera: CameraState = { theta: Math.PI / 4, phi: Math.PI / 4, radius: 10, fitRadius: 10, target: { x: 0, y: 0, z: 0 }, fov: 45 };
   const captures: Array<{ theta: number; opts: CaptureOptions }> = [];
   const log: string[] = [];
+  let renderKind: "preview" | "full" = "preview";
+  let caps = { download: false, message: false };
+  const opts = { bigFile: false };
   let params: ViewerSnapshot["parameters"] = [
     { name: "width", type: "number", group: "Dimensions", caption: "Box width", initial: 30, value: 30, min: 10, max: 100, step: 1 },
     { name: "style", type: "string", group: "Style", initial: "round", value: "round", options: [{ name: "Round", value: "round" }, { name: "Square", value: "sq" }] },
@@ -67,7 +71,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     diagnostics,
     logTail: ["Rendering..."],
     hasOutput: true,
-    renderKind: "preview",
+    renderKind,
     elapsedMs: 12,
     parameters: params,
     showAxes: false,
@@ -79,7 +83,13 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     readFile: (p) => files.get(p),
     writeFile: (p, c, o) => { files.set(p, c); if (o?.activate) active = p; log.push(`write ${p}`); },
     removeFile: (p) => { files.delete(p); if (active === p) active = [...files.keys()][0]; },
-    startFullRender: () => { log.push("full-render"); },
+    startRender: (m) => { log.push(m === "full" ? "full-render" : "preview-render"); if (m === "full") renderKind = "full"; },
+    fileCapabilities: () => caps,
+    exportFile: async (format, filename) => {
+      const bytes = new Uint8Array(opts.bigFile ? 2 * 1024 * 1024 : 200).fill(65);
+      return { filename: buildFilename(filename, "playground", format), mimeType: FORMAT_INFO[format].mimeType, base64: bytesToBase64(bytes), size: bytes.length };
+    },
+    deliver: async (file, d) => { log.push(`deliver ${d} ${file.filename}`); return d === "download" ? `Downloaded ${file.filename}` : `Sent ${file.filename} to the chat`; },
     setParameters: (v) => {
       const changed = Object.entries(v).filter(([n, x]) => JSON.stringify(params.find((p) => p.name === n)!.value) !== JSON.stringify(x));
       if (!changed.length) return false;
@@ -116,6 +126,8 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     host, files, log, captures,
     setDiagnostics: (d: Diagnostic[]) => { diagnostics = d; },
     setParams: (p: ViewerSnapshot["parameters"]) => { params = p; },
+    setCaps: (c: { download: boolean; message: boolean }) => { caps = c; },
+    opts,
     setTimedOut: (t: boolean) => { timedOut = t; },
     camera: () => camera,
   };
@@ -274,6 +286,30 @@ async function main() {
     assert.equal(resolveMcpSetupUrl("https://mcp.example/mcp", base, false), "https://mcp.example/mcp");
     assert.equal(resolveMcpSetupUrl("/mcp", base, true), undefined);
     assert.equal(resolveMcpSetupUrl("http://", base, false), undefined);
+  });
+  await test("export-logic: formats, filenames, delivery choice", () => {
+    assert.equal(parseFormat(undefined, false), "stl");
+    assert.equal(parseFormat("GLB", false), "glb");
+    assert.equal(parseFormat(undefined, true), "svg");
+    assert.throws(() => parseFormat("stl", true), (e) => e instanceof ExportError && /not available for this 2D/.test(e.message));
+    assert.throws(() => parseFormat("obj", false), /Unknown format/);
+    assert.equal(buildFilename(undefined, "playground", "stl"), "playground.stl");
+    assert.equal(buildFilename("my part.STL", "x", "stl"), "my part.stl");
+    assert.equal(buildFilename("../../etc/pass wd?.3mf", "x", "3mf"), "pass wd_.3mf");
+    assert.equal(buildFilename("..", "x", "off"), "model.off");
+    const none = { download: false, message: false };
+    assert.equal(chooseDelivery("auto", { download: true, message: true }, 100), "download");
+    assert.equal(chooseDelivery("auto", { download: false, message: true }, 100), "message");
+    assert.equal(chooseDelivery("auto", none, 100), "return");
+    assert.equal(chooseDelivery(undefined, none, 100), "return");
+    assert.equal(chooseDelivery("return", { download: true, message: true }, 100), "return");
+    assert.throws(() => chooseDelivery("download", none, 100), /not supported by this host. Available: return/);
+    assert.equal(chooseDelivery("auto", { download: true, message: true }, SIZE_CAPS.message + 1), "download");
+    assert.equal(chooseDelivery("auto", { download: false, message: true }, SIZE_CAPS.message + 1 > SIZE_CAPS.message ? SIZE_CAPS.message : 0), "message");
+    assert.throws(() => chooseDelivery("auto", none, SIZE_CAPS.return + 1), /over the .* limit.*Try a smaller model/);
+    assert.throws(() => chooseDelivery("message", { download: true, message: true }, SIZE_CAPS.message + 1), /Other available: download/);
+    assert.equal(bytesToBase64(new Uint8Array([72, 105])), "SGk=");
+    assert.equal(bytesToBase64(new Uint8Array(100_000).fill(1)).length, Math.ceil(100_000 / 3) * 4);
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };
@@ -489,6 +525,54 @@ async function main() {
     const r = await tools(h).call("screenshot");
     assert.ok(!r.isError);
     assert.match(textOf(r), /last render FAILED/);
+  });
+  await test("render_model passes the mode", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    await call("render_model");
+    await call("render_model", { mode: "preview" });
+    assert.deepEqual(h.log, ["full-render", "preview-render"]);
+    assert.ok((await call("render_model", { mode: "weird" })).isError);
+  });
+  await test("download_model: auto delivery follows host capabilities, renders in full first", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    h.setCaps({ download: true, message: true });
+    const r = await call("download_model", { format: "glb", filename: "box" });
+    assert.ok(!r.isError, textOf(r));
+    assert.match(textOf(r), /Downloaded box\.glb\. box\.glb: \d+ bytes .*format glb, model\/gltf-binary, delivery: download/);
+    assert.deepEqual(h.log, ["full-render", "deliver download box.glb"]); // preview output => full render first
+    h.log.length = 0;
+    h.setCaps({ download: false, message: true });
+    assert.match(textOf(await call("download_model")), /Sent playground\.stl to the chat.*delivery: message/);
+    h.setCaps({ download: false, message: false });
+    const ret = await call("download_model", { format: "off" });
+    assert.ok(!ret.isError);
+    const res = ret.content.find((c) => c.type === "resource") as { resource: { blob: string; mimeType: string; uri: string } };
+    assert.equal(res.resource.mimeType, "model/off");
+    assert.equal(res.resource.uri, "file:///playground.off");
+    assert.ok(res.resource.blob.length > 0);
+    assert.match(textOf(ret), /delivery: return/);
+  });
+  await test("download_model: errors are explicit", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    assert.match(textOf(await call("download_model", { delivery: "download" })), /not supported by this host. Available: return/);
+    assert.match(textOf(await call("download_model", { format: "svg" })), /SVG is not available for this 3D model/);
+    h.opts.bigFile = true;
+    assert.match(textOf(await call("download_model", { delivery: "return" })), /over the 1\.0 MB limit/);
+    h.setDiagnostics([err()]);
+    const failed = await call("download_model");
+    assert.ok(failed.isError);
+    assert.match(textOf(failed), /last render failed/);
+  });
+  await test("every tool has MCP annotations; mutating source tools are destructive, readers read-only", () => {
+    const defs = createTools(async () => mockHost().host);
+    for (const d of defs) assert.ok(d.annotations && Object.keys(d.annotations).length > 0, `${d.name} lacks annotations`);
+    const a = (n: string) => defs.find((d) => d.name === n)!.annotations!;
+    for (const n of ["view_source", "get_viewer_state", "get_parameters", "get_camera", "screenshot"]) assert.equal(a(n).readOnlyHint, true, n);
+    for (const n of ["str_replace_source", "insert_source", "delete_source_lines", "write_source", "delete_source_file", "undo_source_edit"]) assert.equal(a(n).destructiveHint, true, n);
+    for (const n of ["set_camera", "orbit_camera", "set_layout", "set_view_options", "download_model", "render_model"]) assert.equal(a(n).destructiveHint, false, n);
   });
   await test("tool names are unique and every tool has a description", () => {
     const defs = createTools(async () => mockHost().host);

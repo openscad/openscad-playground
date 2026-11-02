@@ -13,6 +13,7 @@ import { ProgressBar } from 'primereact/progressbar';
 import { ModelContext } from './contexts.ts';
 import ViewerPanel, { ViewerPanelHandle } from './ViewerPanel.tsx';
 import CustomizerPanel from './CustomizerPanel.tsx';
+import { FORMAT_INFO, formatsFor, type ExportFormat } from '../state/export-logic.ts';
 
 export interface EmbedViewProps {
   viewerRef: React.Ref<ViewerPanelHandle>;
@@ -31,6 +32,18 @@ export interface EmbedViewProps {
    * is a link opening the full app in a new tab (`href`, evaluated on click).
    */
   exit: ExitAction;
+  /**
+   * Export the model in `format` and deliver it (host download, chat attachment,
+   * browser download...). Resolves to the confirmation to show, plus a manual
+   * fallback when nothing could deliver the file.
+   */
+  onDownload?: (format: ExportFormat) => Promise<DownloadOutcome>;
+}
+
+export interface DownloadOutcome {
+  message: string;
+  /** Set when the host cannot take the file: shown in a dialog for manual saving. */
+  fallback?: { filename: string; mimeType: string; base64: string; note: string };
 }
 
 export interface ExitAction {
@@ -40,7 +53,7 @@ export interface ExitAction {
   href?: () => string;
 }
 
-export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit }: EmbedViewProps) {
+export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit, onDownload }: EmbedViewProps) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
@@ -91,6 +104,10 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
 
   // Copy the active file's OpenSCAD source.
   const [copyNote, setCopyNote] = useState<string>('');
+  const flash = useCallback((msg: string, ms = 3000) => {
+    setCopyNote(msg);
+    setTimeout(() => setCopyNote(cur => (cur === msg ? '' : cur)), ms);
+  }, []);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const copySource = useCallback(async () => {
     const source = model.source;
@@ -114,6 +131,57 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
     }
   }, [copyFallback]);
 
+  // Render: the full render (F6). Announces completion or the first error.
+  const userRender = useRef(false);
+  const busyNow = !!(state.rendering || state.previewing || state.checkingSyntax);
+  const doRender = useCallback(() => {
+    userRender.current = true;
+    model.render({ isPreview: false, now: true });
+  }, [model]);
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busyNow && userRender.current) {
+      userRender.current = false;
+      const s = model.state;
+      const err = s.error ?? s.lastCheckerRun?.markers.find(m => m.severity === 8)?.message;
+      flash(err ? `Render failed: ${err}` : `Rendered${s.output ? ` in ${s.output.formattedElapsedMillis}` : ''}`, err ? 8000 : 3000);
+    }
+    wasBusy.current = busyNow;
+  }, [busyNow, model, flash]);
+
+  // Download: format menu, then onDownload.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [dlFallback, setDlFallback] = useState<NonNullable<DownloadOutcome['fallback']> | null>(null);
+  const downloadBtnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const runDownload = useCallback(async (format: ExportFormat) => {
+    if (!onDownload) return;
+    setMenuOpen(false);
+    setDownloading(true);
+    try {
+      const outcome = await onDownload(format);
+      flash(outcome.message);
+      setDlFallback(outcome.fallback ?? null);
+    } catch (e) {
+      flash(`Download failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+    } finally {
+      setDownloading(false);
+    }
+  }, [onDownload, flash]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setMenuOpen(false); downloadBtnRef.current?.focus(); } };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !downloadBtnRef.current?.contains(t)) setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [menuOpen]);
+
   const busy = state.rendering || state.previewing || state.checkingSyntax;
   const isFullscreen = !!fullscreen?.active;
 
@@ -127,6 +195,9 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
       overflow: 'hidden',
     }}>
       <style>{`
+              @keyframes embed-spin { to { transform: rotate(360deg); } }
+              .embed-spin svg { animation: embed-spin 1s linear infinite; }
+              @media (prefers-reduced-motion: reduce) { .embed-spin svg { animation: none; } }
               .embed-panel {
                 --embed-bg: var(--color-background-secondary, #ffffff);
                 background: var(--embed-bg);
@@ -300,6 +371,25 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             onClick={() => setShowCustomizer(!showCustomizer)}
           />
         )}
+        <span className={busyNow ? 'embed-spin' : undefined} style={{ display: 'flex' }}>
+          <CornerButton
+            icon={busyNow ? EmbedIcons.spinner : EmbedIcons.render}
+            label={busyNow ? 'Rendering…' : 'Render'}
+            disabled={busyNow}
+            onClick={doRender}
+          />
+        </span>
+        {onDownload && (
+          <CornerButton
+            icon={EmbedIcons.download}
+            label={downloading ? 'Exporting…' : 'Download'}
+            disabled={downloading || !state.output}
+            ariaExpanded={menuOpen}
+            ariaHaspopup="menu"
+            buttonRef={downloadBtnRef}
+            onClick={() => setMenuOpen(o => !o)}
+          />
+        )}
         <CornerButton icon={EmbedIcons.copy} label="Copy source" onClick={copySource} />
         {toolbar}
         {fullscreen && (
@@ -328,6 +418,37 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
         opacity: copyNote ? 1 : 0,
         transition: 'opacity 0.2s ease',
       }}>{copyNote}</div>
+
+      {menuOpen && (
+        <div ref={menuRef} role="menu" aria-label="Download format" style={{
+          position: 'absolute', top: 52, right: 8, zIndex: 80, minWidth: 190, padding: 4, borderRadius: 8,
+          background: isDark ? '#252525' : '#fff', color: isDark ? '#eee' : '#222',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontFamily: 'var(--font-sans, system-ui, sans-serif)', fontSize: 13,
+        }}>
+          {formatsFor(!!state.is2D).map(f => (
+            <button key={f} role="menuitem" type="button" onClick={() => runDownload(f)} style={{
+              display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'none',
+              border: 'none', color: 'inherit', cursor: 'pointer', borderRadius: 6, font: 'inherit',
+            }}>{FORMAT_INFO[f].label}</button>
+          ))}
+        </div>
+      )}
+
+      {dlFallback && (
+        <div role="dialog" aria-label="Save file" style={{
+          position: 'absolute', top: 52, right: 8, left: 8, maxWidth: 420, marginLeft: 'auto', zIndex: 80,
+          padding: 10, borderRadius: 8, background: isDark ? '#222' : '#fff', color: isDark ? '#eee' : '#222',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 12, fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span>{dlFallback.note}</span>
+            <button type="button" aria-label="Close" onClick={() => setDlFallback(null)}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>&times;</button>
+          </div>
+          <a href={`data:${dlFallback.mimeType};base64,${dlFallback.base64}`} download={dlFallback.filename}
+            target="_blank" rel="noopener" style={{ color: 'inherit' }}>{dlFallback.filename}</a>
+        </div>
+      )}
 
       {/* Fallback when the clipboard is unavailable: the source, selected, for manual copy */}
       {copyFallback != null && (
@@ -362,6 +483,9 @@ export const EmbedIcons = {
   minimize: <SVG><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
   copy: <SVG><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></SVG>,
   check: <SVG><polyline points="20 6 9 17 4 12" /></SVG>,
+  render: <SVG><polygon points="6 4 20 12 6 20 6 4" /></SVG>,
+  spinner: <SVG><path d="M21 12a9 9 0 1 1-6.2-8.55" /></SVG>,
+  download: <SVG><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></SVG>,
   layout: <SVG><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" /></SVG>,
   externalLink: <SVG><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></SVG>,
 };
@@ -376,6 +500,8 @@ export function CornerButton({
   ariaControls,
   buttonRef,
   href,
+  disabled,
+  ariaHaspopup,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -386,13 +512,15 @@ export function CornerButton({
   href?: () => string;
   ariaExpanded?: boolean;
   ariaControls?: string;
+  disabled?: boolean;
+  ariaHaspopup?: 'menu';
   buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const [hovered, setHovered] = useState(false);
   const Tag: any = href ? 'a' : 'button';
   const tagProps = href
     ? { href: href(), target: '_blank', rel: 'noopener', onClick: (e: React.MouseEvent<HTMLAnchorElement>) => { e.currentTarget.href = href(); } }
-    : { ref: buttonRef, type: 'button', onClick };
+    : { ref: buttonRef, type: 'button', onClick, disabled, 'aria-haspopup': ariaHaspopup };
   return (
     <Tag
       {...tagProps}

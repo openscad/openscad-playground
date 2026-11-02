@@ -15,6 +15,7 @@ import { parseOff } from "../io/import_off.ts";
 import { exportGlb } from "../io/export_glb.ts";
 import { export3MF } from "../io/export_3mf.ts";
 import chroma from "chroma-js";
+import type { ExportFormat } from "./export-logic.ts";
 
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
 
@@ -343,6 +344,42 @@ export class Model {
         s.error = `${err}`;
       });
     }
+  }
+
+  /**
+   * Produce the current model in `format` as a File, without downloading it
+   * (the delivery channel is the caller's business: browser download, MCP host
+   * download, ...). Same conversions as export(): OFF/SVG/GLB come straight
+   * from the render, 3MF is built from the OFF, STL/DXF go through OpenSCAD.
+   */
+  async exportFile(format: ExportFormat): Promise<File> {
+    const out = this.state.output;
+    if (!out?.outFile || !out.outFileURL) throw new Error('No rendered model to export yet');
+    const stem = out.outFile.name.replace(/\.[^.]+$/, '');
+    const is2D = !!this.state.is2D;
+    if ((is2D && format === 'svg') || (!is2D && format === 'off')) return out.outFile;
+    if (!is2D && format === 'glb') {
+      if (out.displayFile?.name.endsWith('.glb')) return out.displayFile;
+      return new File([await exportGlb(parseOff(await out.outFile.text()))], `${stem}.glb`);
+    }
+    if (format === '3mf') {
+      const data = parseOff(await out.outFile.text());
+      const colors = this.state.params.extruderColors?.map(c => chroma(c));
+      return new File([export3MF(data, colors)], `${stem}.3mf`);
+    }
+    const result = await render({
+      mountArchives: false,
+      scadPath: '/export.scad',
+      sources: [
+        { path: '/export.scad', content: `import("${out.outFile.name}");` },
+        { path: out.outFile.name, url: out.outFileURL },
+      ],
+      extraArgs: [], isPreview: false,
+      features: this.state.params.features,
+      renderFormat: format as 'stl' | 'dxf',
+      streamsCallback: ps => console.log('Export', JSON.stringify(ps)),
+    })({now: true});
+    return result.outFile;
   }
 
   async saveProject() {

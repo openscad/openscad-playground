@@ -628,6 +628,47 @@ describe('embed layout', () => {
   }, longTimeout);
 });
 
+describe('embed render and download', () => {
+  const cube = 'cube([5, 5, 5]);';
+  const labels = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role=toolbar][aria-label="Viewer actions"] [aria-label]')).map(e => e.getAttribute('aria-label')));
+
+  test('the toolbar has Render and Download; Render reports completion', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(cube)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Render"]', { timeout: 45000 });
+    expect(await labels()).toEqual(expect.arrayContaining(['Render', 'Download', 'Copy source']));
+    await page.click('button[aria-label="Render"]');
+    await page.waitForFunction(() => /^Rendered/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''), { timeout: 60000 });
+  }, longTimeout);
+
+  test('Download offers the 3D formats and delivers a valid binary STL', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(cube)}`);
+    await waitForViewer();
+    await page.waitForFunction(() => !document.querySelector('button[aria-label="Download"]')?.disabled, { timeout: 45000 });
+    await page.evaluate(() => {
+      window.__downloads = [];
+      HTMLAnchorElement.prototype.click = function () { window.__downloads.push({ href: this.href, name: this.download }); };
+    });
+    await page.click('button[aria-label="Download"]');
+    await page.waitForSelector('[role=menu][aria-label="Download format"]');
+    const items = await page.evaluate(() => Array.from(document.querySelectorAll('[role=menuitem]')).map(e => e.textContent));
+    expect(items.map(t => t.split(' ')[0])).toEqual(['STL', '3MF', 'GLB', 'OFF']);
+    await page.click('[role=menuitem]'); // STL
+    await page.waitForFunction(() => window.__downloads.length === 1, { timeout: 60000 });
+    const dl = await page.evaluate(async () => {
+      const d = window.__downloads[0];
+      return { name: d.name, bytes: Array.from(new Uint8Array(await (await fetch(d.href)).arrayBuffer())) };
+    });
+    expect(dl.name).toBe('playground.stl');
+    // Binary STL: 80-byte header, uint32 triangle count, 50 bytes per triangle; a cube has 12.
+    const buf = Buffer.from(dl.bytes);
+    expect(buf.readUInt32LE(80)).toBe(12);
+    expect(buf.length).toBe(84 + 12 * 50);
+    await page.waitForFunction(() => /^Downloaded playground\.stl/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''));
+  }, longTimeout);
+});
+
 describe('Configure MCP menu entry', () => {
   // The entry is driven by the build-time OPENSCAD_MCP_URL define: hidden by default. Run the suite with
   // OPENSCAD_MCP_URL=/mcp (dev server or build) to exercise the configured case.

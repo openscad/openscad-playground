@@ -162,7 +162,8 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `delete_source_file` | Delete a file (never the last one). |
 | `undo_source_edit` | Undo the last tool edit (history of 20; refuses if the file changed since, e.g. by the user). |
 | `get_viewer_state` | Active file, file list, render status, errors/warnings (`file:line:col`), OpenSCAD log tail, customizer parameters, camera, view options. |
-| `render_model` | Force a full (non-preview) render and wait for it. |
+| `render_model` | Render and wait for it: `mode` `full` (default, F6) or `preview` (F5). |
+| `download_model` | Export the rendered model (`format`: stl default, 3mf, glb, off; svg/dxf for 2D; `filename`) and deliver it: `delivery` `download` (host `ui/download-file`, the host shows a save dialog), `message` (chat attachment via `ui/message`), `return` (embedded resource in the tool result, max 1 MB) or `auto` (default: first the host supports). Does a full render first when only a preview exists; size caps: download 32 MB, message 4 MB. Reports filename, bytes, format and how it was delivered. |
 | `get_parameters` | The active file's customizer schema: name, type, caption, group, default, current value (and whether it differs), min/max/step or dropdown options (value + label). Says so when the file has none; reflects source edits after the re-render. |
 | `set_parameters` | Set one or many values (same path as the customizer UI; unchanged values are skipped). All values are validated first; if any is unknown/invalid nothing changes and every problem is listed with the allowed range/options. Waits for the render. |
 | `reset_parameters` | Reset all (or the named) parameters to the defaults in the source. |
@@ -172,6 +173,8 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `get_camera` | Current camera in model-friendly units. |
 | `set_view_options` | `show_axes`. (There is no shadows or wireframe mode.) |
 | `screenshot` | PNG/JPEG image blocks of the 3D canvas (`max_size` up to 1024). `views: ["iso","front","top"]` returns several angles in one call; the camera is restored unless `keep_camera`. |
+
+The embed toolbar also has **Render** (full render, spinner while running, result announced) and **Download** (format menu; uses the host's `ui/download-file`, else attaches the file to the chat, else shows a manual save link, since the sandboxed iframe cannot save files itself).
 
 The viewer opens in **embed mode** (see the main README): only the 3D view and a top-right toolbar (customizer toggle, copy source, fullscreen when the host offers it, exit to the full editor). The customizer is a translucent side sheet docked on the right that overlays, and never resizes, the viewer; it closes with the toggle, Escape, or a tap outside on small screens. `set_layout` and the toolbar share the same state, so `get_viewer_state` always reports what the user sees.
 

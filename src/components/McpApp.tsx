@@ -23,6 +23,8 @@ import {
   applyHostStyles,
 } from '../state/mcp-app.ts';
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
+import { deliverViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
+import { bytesToBase64, buildFilename, chooseDelivery, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
@@ -216,9 +218,12 @@ export function McpApp({
         });
         m.processSource();
       },
-      startFullRender() {
-        modelRef.current.render({ isPreview: false, now: true });
+      startRender(mode) {
+        modelRef.current.render({ isPreview: mode === 'preview', now: true });
       },
+      fileCapabilities: () => hostFileCaps(app),
+      exportFile: (format, filename) => exportAsFile(modelRef.current, format, filename),
+      deliver: (file, delivery) => deliverViaHost(app, file, delivery),
       setParameters: vars => modelRef.current.setVars(vars),
       resetParameters: names => modelRef.current.resetVars(names),
       setLayout(req) {
@@ -340,6 +345,27 @@ export function McpApp({
     />
   );
 
+  // Toolbar Download: host download, else chat attachment, else a manual-save dialog.
+  const onDownload = useCallback(async (format: ExportFormat) => {
+    const m = modelRef.current;
+    if (m.state.output?.isPreview) await m.render({ isPreview: false, now: true });
+    const file = await exportAsFile(m, format);
+    const caps = hostFileCaps(app);
+    let how: 'download' | 'message' | 'return';
+    try {
+      how = chooseDelivery('auto', caps, file.size);
+    } catch (e) {
+      throw new Error(e instanceof Error ? e.message : String(e));
+    }
+    if (how === 'return') {
+      return {
+        message: `This host cannot save files; ${file.filename} (${formatSize(file.size)}) is ready below`,
+        fallback: { filename: file.filename, mimeType: file.mimeType, base64: file.base64, note: 'This host cannot download files or attach them to the chat. Try the link (it may be blocked by the sandbox), or use "Open in Browser" and download there.' },
+      };
+    }
+    return { message: await deliverViaHost(app, file, how) };
+  }, [app]);
+
   // Fullscreen only where the host offers that display mode.
   const hostModes = app.getHostContext()?.availableDisplayModes;
   const fullscreen = hostModes?.includes('fullscreen') ? { active: isFullscreen, toggle: toggleFullscreen } : undefined;
@@ -357,6 +383,7 @@ export function McpApp({
                 onCameraChange={scheduleContextUpdate}
                 fullscreen={fullscreen}
                 toolbar={toolbar}
+                onDownload={onDownload}
                 exit={{
                   label: 'Full editor',
                   icon: EmbedIcons.layout,
@@ -383,6 +410,18 @@ export function McpApp({
       </FSContext.Provider>
     </ModelContext.Provider>
   );
+}
+
+/** Export the rendered model as a base64 file for delivery through the host. */
+async function exportAsFile(model: Model, format: ExportFormat, filename?: string): Promise<ExportedFile> {
+  const file = await model.exportFile(format);
+  const stem = (model.state.params.activePath.split('/').pop() ?? 'model').replace(/\.[^.]+$/, '');
+  return {
+    filename: buildFilename(filename, stem, format),
+    mimeType: FORMAT_INFO[format].mimeType,
+    base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
+    size: file.size,
+  };
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────
