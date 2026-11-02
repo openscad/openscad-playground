@@ -162,7 +162,7 @@ export class Model {
     }
   }
 
-  private async processSource() {
+  async processSource() {
     let src = this.state.params.sources.find(src => src.path === this.state.params.activePath);
     if (src && src.content == null) {
       let {path, url} = src;

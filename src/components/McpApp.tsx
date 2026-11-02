@@ -1,10 +1,10 @@
 /**
  * MCP App mode: minimal UI with viewer, customizer overlay, and toolbar.
  *
- * The App (created in index.tsx) registers the `interact` tool with the
- * host before connecting; this component installs the processor those tool
- * handlers delegate to, and reports passive state changes back to the model
- * via updateModelContext.
+ * The App (created in index.tsx) registers the app tools (mcp-tools.ts) with
+ * the host before connecting; this component installs the ViewerHost those
+ * tool handlers delegate to, and reports passive state changes back to the
+ * model via updateModelContext.
  */
 
 import React, { CSSProperties, useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -15,16 +15,15 @@ import ViewerPanel, { ViewerPanelHandle } from './ViewerPanel.tsx';
 import CustomizerPanel from './CustomizerPanel.tsx';
 import { ModelContext, FSContext, McpContext } from './contexts.ts';
 import {
-  OpenSCADCommand,
-  McpToolProcessor,
   ToolEventBuffer,
   ToolInputParams,
   ToolResultParams,
-  setActiveProcessor,
+  setActiveHost,
   publishModelContext,
   applyHostStyles,
 } from '../state/mcp-app.ts';
-import { PREDEFINED_ORBITS } from './ViewerPanel.tsx';
+import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
+import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
 
@@ -45,11 +44,12 @@ export function McpApp({
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // One Model for the component's lifetime: a Model per render left in-flight
-  // async work (checks, renders) mutating a stale state snapshot, silently
-  // reverting edits made by tool calls in the meantime. Model.state always
-  // tracks the latest state (setState assigns it synchronously).
+  // One Model for the component's lifetime: a Model per render would leave
+  // in-flight async work (checks, renders) mutating a stale state snapshot,
+  // silently reverting edits made by tool calls in the meantime. Model.state
+  // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
+  const modelRef = useRef(model);
   const viewerRef = useRef<ViewerPanelHandle>(null);
   const updateContextRef = useRef<(() => Promise<void>) | null>(null);
   const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,10 +105,8 @@ export function McpApp({
 
   useEffect(() => model.init());
 
-  // Always act on the latest model/viewer — tool handlers and buffered-event
-  // replay outlive any single render's closures.
-  const modelRef = useRef(model);
-
+  // Tool handlers and buffered-event replay outlive any single render's
+  // closures, so they go through modelRef / viewerRef.
   const applySource = useCallback((source: string) => {
     const m = modelRef.current;
     m.mutate(s => {
@@ -121,11 +119,10 @@ export function McpApp({
   }, []);
 
   const applyCameraPreset = useCallback((view: string) => {
-    const preset = PREDEFINED_ORBITS.find(
-      ([name]) => name.toLowerCase() === view.toLowerCase()
-    );
-    if (preset) {
-      viewerRef.current?.setCameraOrbit(preset[1], preset[2]);
+    const name = canonicalPreset(view);
+    if (name) {
+      const { theta, phi } = presetOrbit(name);
+      viewerRef.current?.setCameraOrbit(theta, phi);
     }
   }, []);
 
@@ -174,115 +171,67 @@ export function McpApp({
     app.ontoolresult = applyToolResult;
   }, [app, toolEvents, applyToolInput, applyToolResult]);
 
-  // Install the processor that the view-registered `interact` tool delegates to
+  // Install the host that the view-registered app tools delegate to
   useEffect(() => {
-    const processor: McpToolProcessor = {
-      async processCommand(command: OpenSCADCommand): Promise<unknown> {
-        const model = modelRef.current;
-        switch (command.type) {
-          case 'write_source': {
-            applySource(command.content as string);
-            return { timedOut: !(await waitForIdle(modelRef.current, 5000)) };
-          }
-          case 'edit_source': {
-            const oldText = command.old_text as string;
-            const newText = command.new_text as string;
-            const current = model.source;
-            if (!current.includes(oldText)) {
-              return { notFound: true }; // caller reports "old_text not found"
-            }
-            // Replacement callback: a literal new_text must not have its
-            // $-sequences ($$, $&, …) interpreted by String.replace.
-            applySource(current.replace(oldText, () => newText));
-            return { timedOut: !(await waitForIdle(modelRef.current, 5000)) };
-          }
-          case 'set_camera': {
-            const { view, theta, phi } = command as any;
-            if (typeof view === 'string') {
-              applyCameraPreset(view);
-            } else if (typeof theta === 'number' && typeof phi === 'number') {
-              viewerRef.current?.setCameraOrbit(theta, phi);
-            }
-            return;
-          }
-          case 'set_var': {
-            const { name, value } = command as any;
-            model.setVar(name as string, value);
-            return { timedOut: !(await waitForIdle(modelRef.current, 10000)) };
-          }
-          case 'set_vars': {
-            const vars = (command as any).vars as Record<string, unknown>;
-            for (const [name, value] of Object.entries(vars)) {
-              model.mutate(s => s.params.vars = { ...s.params.vars ?? {}, [name]: value });
-            }
-            // Trigger single preview render
-            model.render({ isPreview: true, now: false });
-            return { timedOut: !(await waitForIdle(modelRef.current, 10000)) };
-          }
-          case 'render': {
-            model.render({ isPreview: false, now: true });
-            return { timedOut: !(await waitForIdle(modelRef.current, 30000)) };
-          }
-          case 'zoom': {
-            const factor = (command as any).factor as number;
-            viewerRef.current?.zoom(factor);
-            return;
-          }
-          case 'auto_fit': {
-            viewerRef.current?.autoFit();
-            return;
-          }
-          case 'get_screenshot': {
-            const screenshot = await viewerRef.current?.captureScreenshot();
-            return { screenshot: screenshot ?? null };
-          }
-          case 'get_state': {
-            await waitForIdle(modelRef.current, 5000);
-            return processor.getContextState();
-          }
-        }
+    const snapshot = (timedOut?: boolean): ViewerSnapshot => buildSnapshot(modelRef.current, timedOut);
+    const host: ViewerHost = {
+      snapshot: () => snapshot(),
+      async settle(timeoutMs) {
+        const idle = await waitForIdle(() => modelRef.current, timeoutMs);
+        return snapshot(!idle);
       },
-
-      async captureScreenshot(): Promise<string | null> {
-        return viewerRef.current?.captureScreenshot() ?? null;
+      readFile: path => modelRef.current.state.params.sources.find(src => src.path === path)?.content,
+      writeFile(path, content, opts) {
+        const m = modelRef.current;
+        m.mutate(s => {
+          const exists = s.params.sources.some(src => src.path === path);
+          s.params.sources = exists
+            ? s.params.sources.map(src => src.path === path ? { path, content } : src)
+            : [...s.params.sources, { path, content }];
+          if (opts?.activate && s.params.activePath !== path) {
+            s.params.activePath = path;
+            s.lastCheckerRun = undefined;
+            s.error = undefined;
+          }
+        });
+        m.processSource();
       },
-
-      getContextState(): Record<string, unknown> {
-        const model = modelRef.current;
-        const s = model.state;
-        const cam = viewerRef.current?.getCameraInfo();
-        return {
-          source: model.source,
-          errors: s.lastCheckerRun?.markers
-            ?.filter(m => m.severity === 8) // MarkerSeverity.Error
-            .map(m => ({ line: m.startLineNumber, message: m.message })) ?? [],
-          warnings: s.lastCheckerRun?.markers
-            ?.filter(m => m.severity === 4) // MarkerSeverity.Warning
-            .map(m => ({ line: m.startLineNumber, message: m.message })) ?? [],
-          customizerParams: s.parameterSet?.parameters?.map(p => ({
-            name: p.name,
-            type: p.type,
-            group: p.group,
-            caption: p.caption,
-            initial: p.initial,
-            currentValue: s.params.vars?.[p.name] ?? p.initial,
-            ...('min' in p ? { min: p.min, max: p.max, step: p.step } : {}),
-            ...('options' in p && p.options ? { options: p.options } : {}),
-          })) ?? [],
-          camera: cam ? { theta: cam.theta, phi: cam.phi, view: cam.closestView } : null,
-          is2D: s.is2D,
-          rendering: s.rendering || s.previewing,
-        };
+      removeFile(path) {
+        const m = modelRef.current;
+        m.mutate(s => {
+          s.params.sources = s.params.sources.filter(src => src.path !== path);
+          if (s.params.activePath === path) {
+            s.params.activePath = s.params.sources[0].path;
+            s.lastCheckerRun = undefined;
+            s.error = undefined;
+          }
+        });
+        m.processSource();
       },
+      startFullRender() {
+        modelRef.current.render({ isPreview: false, now: true });
+      },
+      setParameters(vars) {
+        const m = modelRef.current;
+        m.mutate(s => s.params.vars = { ...s.params.vars ?? {}, ...vars });
+        m.render({ isPreview: true, now: false });
+      },
+      setShowAxes(show) {
+        modelRef.current.mutate(s => s.view.showAxes = show);
+      },
+      getCamera: async () => (await viewerRef.current?.getCamera()) ?? null,
+      setCamera: async camera => (await viewerRef.current?.setCamera(camera)) ?? null,
+      waitForModel: async timeoutMs => (await viewerRef.current?.waitForModel(timeoutMs)) ?? false,
+      captureImage: async opts => (await viewerRef.current?.captureImage(opts)) ?? null,
     };
 
-    setActiveProcessor(processor);
-    updateContextRef.current = () => publishModelContext(app, processor);
+    setActiveHost(host);
+    updateContextRef.current = () => publishModelContext(app, host);
     return () => {
-      setActiveProcessor(null);
+      setActiveHost(null);
       updateContextRef.current = null;
     };
-  }, [app, applySource, applyCameraPreset]);
+  }, [app]);
 
   // Auto-update model context when source, vars, or rendering status change
   const sourceContent = state.params.sources.find(s => s.path === state.params.activePath)?.content;
@@ -671,15 +620,58 @@ function CornerButton({
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-/**
- * Wait until the model is idle (not checking syntax, not rendering).
- */
-/** Resolves true once the model is idle, false when timeoutMs elapses first. */
-function waitForIdle(model: Model, timeoutMs: number): Promise<boolean> {
+const LOG_TAIL_MAX = 40;
+
+/** Snapshot of the model state in the shape the app tools report. */
+function buildSnapshot(model: Model, timedOut?: boolean): ViewerSnapshot {
+  const s = model.state;
+  const activePath = s.params.activePath;
+  const severity = (sev: number): Diagnostic['severity'] => sev >= 8 ? 'error' : sev >= 4 ? 'warning' : 'info';
+  const logLines = s.currentRunLogs?.length
+    ? s.currentRunLogs.map(([, line]) => line)
+    : (s.lastCheckerRun?.logText ?? '').split('\n');
+  return {
+    activePath,
+    files: s.params.sources.map(src => ({
+      path: src.path,
+      lines: lineCount(src.content ?? ''),
+      active: src.path === activePath,
+    })),
+    status: s.rendering ? 'rendering' : s.previewing ? 'previewing' : s.checkingSyntax ? 'checking' : 'idle',
+    ...(timedOut ? { timedOut } : {}),
+    error: s.error,
+    diagnostics: (s.lastCheckerRun?.markers ?? []).map(m => ({
+      path: activePath,
+      line: m.startLineNumber,
+      column: m.startColumn,
+      severity: severity(m.severity),
+      message: m.message,
+    })),
+    logTail: logLines.slice(-LOG_TAIL_MAX),
+    hasOutput: !!s.output,
+    renderKind: s.output ? (s.output.isPreview ? 'preview' : 'full') : undefined,
+    elapsedMs: s.output?.elapsedMillis,
+    is2D: s.is2D,
+    parameters: (s.parameterSet?.parameters ?? []).map(p => ({
+      name: p.name,
+      type: p.type,
+      group: p.group,
+      caption: p.caption,
+      initial: p.initial,
+      value: s.params.vars?.[p.name] ?? p.initial,
+      ...('min' in p ? { min: p.min, max: p.max, step: p.step } : {}),
+      ...('options' in p && p.options ? { options: p.options } : {}),
+    })),
+    showAxes: !!s.view.showAxes,
+  };
+}
+
+/** Resolves true once the model is idle (not checking syntax, not rendering), false when timeoutMs elapses first. */
+function waitForIdle(getModel: () => Model, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const start = Date.now();
     const check = () => {
-      const s = model.state;
+      const s = getModel().state;
       if (!s.checkingSyntax && !s.previewing && !s.rendering) {
         resolve(true);
         return;
