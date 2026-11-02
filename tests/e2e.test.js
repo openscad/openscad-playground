@@ -188,11 +188,21 @@ describe('e2e', () => {
     expect3DPolySet();
   }, longTimeout);
 
-  test('only mounts the libraries a script refers to', async () => {
-    await loadSrc('cube([10, 10, 10]);');
-    await waitForViewer();
+  test('a script without library references fetches no library archive', async () => {
+    const zips = [];
+    const onRequest = (req) => { if (/\/libraries\/[^/]+\.zip$/.test(req.url())) zips.push(req.url()); };
+    page.on('request', onRequest);
+    try {
+      await loadSrc('cube([10, 10, 10]);');
+      await waitForViewer();
+      // (The archives are fetched in the background, but only a moment after the first render.)
+    } finally {
+      page.off('request', onRequest);
+    }
     expect3DPolySet();
+    // The worker mounts nothing; the main thread only fetches the archives after the first render.
     expectMountedArchives([]);
+    expect(zips).toEqual([]);
   }, longTimeout);
 
   test('mounts the fonts for text()', async () => {
@@ -218,6 +228,67 @@ describe('e2e', () => {
     `);
     await waitForViewer();
     expectMountedArchives(['fonts', 'BOSL2', 'openscad_attachable_text3d']);
+  }, longTimeout);
+
+  test('missing libraries are mounted by a retry, leaving clean logs and markers', async () => {
+    // ?archives= (none) makes the first attempt miss BOSL2, as if the scan had.
+    await page.goto(`${baseUrl}?archives=#src=${encodeURIComponent(`
+      include <BOSL2/std.scad>
+      prismoid([40,40], [0,0], h=20);
+    `)}`);
+    await waitForViewer();
+    const mounted = new Set(messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: ')).map(msg => msg.text));
+    expect([...mounted].sort()).toEqual(['Mounting archives: (none)', 'Mounting archives: BOSL2'].sort());
+    // Let the (also retried) syntax check finish: no stale 'Can't open library' marker may remain.
+    await new Promise(r => setTimeout(r, 3000));
+    expect(await page.$$('.squiggly-error, .squiggly-warning')).toHaveLength(0);
+  }, longTimeout);
+
+  test('the file picker lists the libraries once they are mounted in the background', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    await page.click('.p-treeselect');
+    await page.waitForFunction(() => {
+      // Expand the top-level 'libraries' folder.
+      const folder = [...document.querySelectorAll('li.p-treenode')].find(li => li.querySelector('.p-treenode-label')?.textContent === 'libraries');
+      if (folder && folder.getAttribute('aria-expanded') !== 'true') {
+        folder.querySelector('.p-tree-toggler')?.click();
+      }
+      const text = document.body.innerText;
+      return ['BOSL2', 'NopSCADlib', 'MCAD', 'openscad'].every(n => text.includes(n));
+    }, {timeout: 30000});
+    // The removed library is gone.
+    expect(await page.evaluate(() => document.body.innerText)).not.toContain('FunctionalOpenSCAD');
+  }, longTimeout);
+
+  test('completes include/use paths once the libraries are mounted', async () => {
+    await loadSrc('use <');
+    await page.waitForSelector('.monaco-editor .view-lines');
+    await page.click('.monaco-editor .view-lines');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('End');
+    await page.keyboard.press('Space');
+    await page.keyboard.up('Control');
+    await page.waitForFunction(() => {
+      const w = document.querySelector('.suggest-widget.visible');
+      return w && ['BOSL2', 'NopSCADlib', 'MCAD'].every(n => w.textContent.includes(n));
+    }, {timeout: 30000});
+    messages.length = 0; // `use <` alone is not a valid script
+  }, longTimeout);
+
+  test('a removed library gives OpenSCAD\'s missing file warning and a hint', async () => {
+    await loadSrc(`
+      include <FunctionalOpenSCAD/functional.scad>
+      cube(1);
+    `);
+    await waitForViewer();
+    await page.waitForSelector('button .pi-align-left');
+    await page.evaluate(() => document.querySelector('button .pi-align-left').closest('button').click());
+    await page.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes("Can't open include file 'FunctionalOpenSCAD/functional.scad'")
+        && text.includes('"FunctionalOpenSCAD" is no longer bundled');
+    }, {timeout: 30000});
   }, longTimeout);
 
   test('use NopSCADlib', async () => {

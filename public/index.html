@@ -14,7 +14,12 @@
 
     <link rel="preload" href="openscad.wasm" as="fetch" crossorigin>
     <link rel="prefetch" href="openscad-worker.js">
-    <link rel="prefetch" href="libraries/fonts.zip">
+    <script>
+      // The default sample uses text(): have its fonts on the way. Not for other scripts.
+      if (!location.hash) {
+        document.head.insertAdjacentHTML('beforeend', '<link rel="prefetch" href="libraries/fonts.zip">');
+      }
+    </script>
 
     <!-- <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js" defer></script> -->
     <script type="module" src="./model-viewer.min.js" defer></script>

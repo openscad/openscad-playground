@@ -44,6 +44,8 @@ let started: Promise<void> | undefined;
 /** Idempotent. Call once the first render is out of the way. */
 export function startBackgroundLoading(): Promise<void> {
   return started ??= (async () => {
+    // Let the first render's model load and paint before anything else uses the network.
+    await new Promise(resolve => setTimeout(resolve, 1000));
     await registerServiceWorker();
     await whenLibrariesMounted();
     if (navigator.serviceWorker?.controller) {

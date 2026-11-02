@@ -84,6 +84,19 @@ function createWorker(url: string): Worker {
   return new Worker(URL.createObjectURL(blob));
 }
 
+/**
+ * `?archives=a,b` (empty for none): testing override of the archives mounted by the first
+ * attempt of an invocation, to exercise the retry with the missing ones.
+ */
+function getForcedArchives(): string[] | undefined {
+  try {
+    const v = new URLSearchParams(globalThis.location?.search ?? '').get('archives');
+    return v == null ? undefined : v.split(',').filter(n => n !== '');
+  } catch {
+    return undefined;
+  }
+}
+
 export function spawnOpenSCAD(
   invocation: OpenSCADInvocation, 
   streamsCallback: (ps: ProcessStreams) => void
@@ -108,6 +121,8 @@ export function spawnOpenSCAD(
       worker.onmessage = (e: MessageEvent<OpenSCADInvocationCallback>) => {
         if ('result' in e.data) {
           const {result} = e.data;
+          // (Logged here rather than in the worker, whose early console output can be missed by observers.)
+          console.debug(`Mounting archives: ${result.archives?.join(', ') || '(none)'}`);
           terminate();
           if (result.missingArchives?.length && retriesLeft > 0) {
             // The sources only seemed to need some of the archives: add what was missing and retry.
@@ -122,7 +137,7 @@ export function spawnOpenSCAD(
       }
       worker.postMessage({...invocation, forceEngine})
     };
-    run(invocation, 2);
+    run({...invocation, archives: invocation.archives ?? getForcedArchives()}, 2);
 
     return () => {
       terminate();

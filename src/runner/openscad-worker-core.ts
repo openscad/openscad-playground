@@ -6,7 +6,7 @@
  */
 
 import { createEditorFS, symlinkLibraries } from "../fs/filesystem.ts";
-import { getMissingArchives, getRequiredArchives } from "../fs/archive-deps.ts";
+import { getMissingArchives, getRemovedLibraryMessages, getRequiredArchives } from "../fs/archive-deps.ts";
 import { Source } from "../state/app-state.ts";
 import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner.ts";
 import { deployedArchiveNames } from "../fs/zip-archives.ts";
@@ -108,6 +108,9 @@ async function selectArchives({inputs, args}: OpenSCADInvocation): Promise<strin
       texts.push(decoder.decode(await resolveInput(source)));
     }
   }
+  for (const message of getRemovedLibraryMessages(texts, paths)) {
+    callback({stderr: message});
+  }
   return getRequiredArchives(texts, paths);
 }
 
@@ -136,7 +139,6 @@ async function runInvocation(
     engine = loaded.engine;
     instance = loaded.instance;
 
-    console.debug(`Mounting archives: ${archives.join(', ') || '(none)'}`);
     if (archives.length > 0) {
       instance.FS.mkdir('/libraries');
 

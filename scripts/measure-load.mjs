@@ -186,7 +186,7 @@ const PAGE_INIT = () => {
     if (!m.editor && document.querySelector('.monaco-editor .view-lines')) m.editor = performance.now();
     const v = document.querySelector('model-viewer.main-viewer');
     if (!m.viewerEl && v) m.viewerEl = performance.now();
-    if (!m.render && v && v.getAttribute('src')) m.render = performance.now();
+    if (!m.render && v && (v.src || v.getAttribute('src'))) m.render = performance.now();
     if (!m.render) requestAnimationFrame(poll);
   };
   requestAnimationFrame(poll);

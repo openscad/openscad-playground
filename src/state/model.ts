@@ -9,6 +9,7 @@ import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL 
 import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner.ts";
 import { whenLibrariesMounted } from "../fs/filesystem.ts";
+import { getRequiredArchives } from "../fs/archive-deps.ts";
 import { is2DFormatExtension } from "./formats.ts";
 import { parseOff } from "../io/import_off.ts";
 import { exportGlb } from "../io/export_glb.ts";
@@ -204,7 +205,7 @@ export class Model {
       }
       if (!url) {
         // Reading from the file system: the library archives must be mounted.
-        await whenLibrariesMounted();
+        await whenLibrariesMounted(getRequiredArchives([], [path]));
       }
       const content = new TextDecoder().decode(await fetchSource(this.fs, {path, url}));
       this.mutate(s => {
