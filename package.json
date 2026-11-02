@@ -34,6 +34,7 @@
     "build:libs:clean": "LIBS_BUILD_MODE=clean webpack --config webpack.libs.config.js",
     "build:libs:wasm": "LIBS_BUILD_MODE=wasm webpack --config webpack.libs.config.js",
     "build:libs:fonts": "LIBS_BUILD_MODE=fonts webpack --config webpack.libs.config.js",
+    "build:wasm-fallback": "./scripts/build-wasm-fallback.sh",
     "build:all": "npm run build:libs && npm run build"
   },
   "browserslist": {

@@ -117,6 +117,21 @@ The build system fetches a prebuilt OpenSCAD web WASM binary, but you can build 
   npm run start
   ```
 
+## WebAssembly fallback
+
+On devices where WebAssembly is disabled (Lockdown Mode, strict CSP, locked-down
+browsers), the playground can fall back to an optional pure-JavaScript (wasm2js)
+build of OpenSCAD, loaded only when needed. Build it with Docker:
+
+```bash
+npm run build:wasm-fallback   # writes public/openscad.fallback.js
+npm run build
+```
+
+Without that file the app works as usual and shows a banner on such devices.
+See [docs/WASM_FALLBACK.md](./docs/WASM_FALLBACK.md) for details, including the
+patched Binaryen the build relies on.
+
 ## Adding OpenSCAD libraries
 
 The build system uses a webpack plugin that reads from `libs-config.json` to manage all library dependencies. You'll need to update 3 files (search for BOSL2 for an example):

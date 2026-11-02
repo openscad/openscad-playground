@@ -1,0 +1,3319 @@
+From af638cabe481bdfd27a800cae9fd471540fe8ce9 Mon Sep 17 00:00:00 2001
+From: ochafik <olivier.chafik@gmail.com>
+Date: Wed, 3 Jun 2026 00:42:18 +0100
+Subject: [PATCH] wasm2js: flatten deeply-nested block/if chains to bound JS
+ nesting depth
+
+Toolchains like LLVM routinely emit functions whose structured control
+flow is a very deep tower of nested wasm `block` and `if` constructs
+(thousands of levels deep for large functions, switches lowered via
+`br_table`, and emscripten's JS-based exception / longjmp lowering).
+wasm2js naively turns each named block into a JS labeled block
+`label : { ... }` and each `if` into a JS `if (c) { ... }`, so such a
+tower becomes deeply-nested JS that JS-engine parsers recurse over and
+overflow at parse time (`RangeError: Maximum call stack size
+exceeded`) before the code ever runs. Reproduced on a real OpenSCAD
+wasm2js build: max JS nesting depth ~1500, which neither Node nor a
+browser Worker could compile.
+
+This makes wasm2js track the JS nesting depth it is emitting into and,
+once that crosses a small constant threshold (40), lower the remaining
+chain of nested named blocks / then-only ifs into a single shallow
+`while (1) { switch (state) { ... } }` dispatch loop instead. Each
+`Block` link contributes a prefix segment (code before the chain
+child) and a tail segment (code after it); each `If` link contributes
+a guard segment that jumps past the body when the condition is false.
+Switch fall-through models normal control flow (entering the next
+link; falling out of an innermost body into each enclosing link's
+tail). A `br` to a flattened block becomes `state = <segment>;
+continue $L`, which works from any JS nesting depth. The generated JS
+depth is thus bounded by a small constant regardless of input size;
+ordinary shallow code stays below the threshold and is emitted
+unchanged, so existing test expectations are untouched.
+
+The regression test (test/wasm2js/deep-control-flow.wast) covers pure
+block towers with fall-through, branches to enclosing blocks via
+br_if, a large br_table, deep if-chains, mixed block/if interleaving,
+sibling chains (unique dispatch-label generation), a side-effecting
+condition evaluated exactly once through the dispatch, nested dispatch
+loops (a chain interrupted by a loop holding another deep chain), and
+a counting loop coexisting with a flattened chain. 54 assert_return
+cases verify execution equivalence; expected values were checked
+against the Binaryen interpreter (wasm-shell) as ground truth.
+
+Verified end-to-end on the real openscad.wasm: max output nesting
+depth 428 -> 70, `node --check` passes at the default stack.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ CHANGELOG.md                        |    7 +
+ src/wasm2js.h                       |  403 ++++
+ test/wasm2js/deep-control-flow.wast | 2775 +++++++++++++++++++++++++++
+ 3 files changed, 3185 insertions(+)
+ create mode 100644 test/wasm2js/deep-control-flow.wast
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 49b598836..df89bf117 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -15,6 +15,13 @@ full changeset diff at the end of each section.
+ Current Trunk
+ -------------
+ 
++ - wasm2js: Flatten deeply-nested chains of blocks and ifs into a shallow
++   `while (1) { switch (...) { ... } }` dispatch loop, so that very deep
++   structured control flow (e.g. from large functions, `br_table`s, or
++   emscripten's JS-based exception/longjmp lowering) no longer produces
++   JS that overflows JS-engine parsers (`Maximum call stack size
++   exceeded`) at parse time.
++
+  - Rename relaxed SIMD instructions to prepend the `relaxed_` prefix.
+    - Rename C and JS API operations to prepend the `Relaxed` prefix:
+      - `LaneselectI8x16` to `RelaxedLaneselectI8x16`
+diff --git a/src/wasm2js.h b/src/wasm2js.h
+index 5eb937b0f..084748e1b 100644
+--- a/src/wasm2js.h
++++ b/src/wasm2js.h
+@@ -1055,6 +1055,22 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+ 
+     SwitchProcessor switchProcessor;
+ 
++    // Information needed to translate a `br` to a block whose nesting was
++    // flattened away into a `while (1) { switch (...) { ... } }` dispatch loop
++    // (see flattenChain). A `break` to such a block becomes an assignment
++    // to the dispatch state variable followed by a `continue` to the loop.
++    struct FlattenedTarget {
++      IString stateVar;  // the dispatch state variable
++      IString loopLabel; // the label of the dispatch `while` loop
++      int32_t segment;   // the switch case to jump to
++    };
++    // Maps the names of flattened blocks to their dispatch info. Block names
++    // are unique within a function, so a single map suffices even when
++    // flattened dispatch loops are themselves nested.
++    std::unordered_map<Name, FlattenedTarget> flattenedTargets;
++    // Counter used to generate unique dispatch loop labels per function.
++    Index flattenCounter = 0;
++
+     ExpressionProcessor(Wasm2JSBuilder* parent,
+                         Module* m,
+                         Function* func,
+@@ -1149,6 +1165,39 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+ 
+     // Visitors
+ 
++    // Toolchains like LLVM routinely emit functions whose structured control
++    // flow is a very deep tower of nested blocks and ifs (thousands of levels
++    // deep for large functions, switches, and emscripten's JS-based exception
++    // / longjmp lowering). Naively, each named wasm block becomes a JS labeled
++    // block (`label : { ... }`) and each `if` a JS `if`, so such a tower turns
++    // into deeply nested JS. JS engines parse/compile nested statements
++    // recursively, so a deep enough tower overflows the engine's stack at
++    // parse time ("Maximum call stack size exceeded") - before the code ever
++    // runs.
++    //
++    // To prevent that we keep track of the JS nesting we are currently
++    // emitting (`blockNesting`), and once it would get too deep we flatten the
++    // chain of nested blocks/ifs from that point on into a single, shallow
++    // `while (1) { switch (state) { ... } }` dispatch loop (flattenChain).
++    // This bounds the JS nesting depth by a small constant regardless of the
++    // size of the input. Ordinary, shallow code is unaffected and keeps its
++    // readable nested form.
++    //
++    // (Enums are used rather than `static const` members because
++    // ExpressionProcessor is a function-local struct.)
++    //
++    // The JS nesting depth at which we start flattening chains of nested
++    // blocks/ifs. Chosen comfortably above the nesting that ordinary code
++    // reaches (so normal output is unchanged and stays readable), yet far
++    // below the depth at which JS engine parsers overflow their stack (~1500
++    // levels). The generated JS nesting depth is thus bounded by roughly this
++    // constant regardless of how large the input is.
++    enum { FLATTEN_NESTING_THRESHOLD = 40 };
++
++    // The current depth of JS blocks/ifs/loops we are emitting into. Used to
++    // decide when to flatten a chain of nested blocks/ifs (see above).
++    Index blockNesting = 0;
++
+     Ref visitBlock(Block* curr) {
+       if (switchProcessor.unneededExpressions.contains(curr)) {
+         // We have had our tail hoisted into a switch that is nested in our
+@@ -1156,12 +1205,26 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+         // ourselves in fact.
+         return visit(curr->list[0], NO_RESULT);
+       }
++      // If emitting this block normally would nest the JS too deeply, and this
++      // block begins a chain of nested blocks/ifs, flatten that chain into a
++      // shallow dispatch loop instead (see flattenChain).
++      if (curr->name.is() && blockNesting >= FLATTEN_NESTING_THRESHOLD) {
++        Index depth = measureChain(curr);
++        if (depth >= 2) {
++          return flattenChain(curr, depth);
++        }
++      }
+       Ref ret = ValueBuilder::makeBlock();
+       size_t size = curr->list.size();
++      // Visiting the contents of a named block adds one level of JS nesting
++      // (the `label : { ... }` we emit below).
++      bool nests = curr->name.is();
++      blockNesting += nests;
+       for (size_t i = 0; i < size; i++) {
+         flattenAppend(
+           ret, ValueBuilder::makeStatement(visit(curr->list[i], NO_RESULT)));
+       }
++      blockNesting -= nests;
+       if (curr->name.is()) {
+         ret =
+           ValueBuilder::makeLabel(fromName(curr->name, NameScope::Label), ret);
+@@ -1169,13 +1232,336 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+       return ret;
+     }
+ 
++    // --- Flattening of deep chains of nested blocks / ifs --------------------
++    //
++    // A "chain" is a tower of nested control-flow constructs, each containing
++    // the next:
++    //
++    //  (block $b0 p0
++    //   (if c1 (then
++    //    (block $b2 p2
++    //     (if c3 (then ... ) )))) t0)
++    //
++    // The chain steps from a `Block` into a named child `Block` or a child
++    // `If`, and from an `If` into its `then` arm. Only `if`s without an `else`
++    // arm are followed: those are exactly `if (c) { ... }`, which flattens
++    // cleanly into a guarded jump. Such towers are what make the generated JS
++    // deep, and flattenChain rewrites them into a shallow dispatch loop.
++
++    // A block that the SwitchProcessor marked as "unneeded" emits no JS of
++    // its own: visitBlock just emits its first child (its tail was hoisted
++    // into a switch). For the purpose of chain-finding such a block is
++    // transparent - we look straight through it to its first child.
++    Expression* skipUnneededBlocks(Expression* curr) const {
++      while (auto* block = curr->dynCast<Block>()) {
++        if (!switchProcessor.unneededExpressions.contains(block) ||
++            block->list.empty()) {
++          break;
++        }
++        curr = block->list[0];
++      }
++      return curr;
++    }
++
++    // Each chain link is a `Block` or a then-only `If`; both emit one level of
++    // JS nesting and have a "body block" whose statements are that level's
++    // contents. For a `Block` link the body is the block itself; for an `If`
++    // link the body is its `then` arm, which is a `Block` in flat IR.
++    // chainBodyBlock returns that body block, or nullptr if `curr` is not a
++    // valid chain link.
++    Block* chainBodyBlock(Expression* curr) const {
++      if (auto* block = curr->dynCast<Block>()) {
++        return block;
++      }
++      if (auto* iff = curr->dynCast<If>()) {
++        // An `if` without an `else` is `if (c) { ... }`, which flattens into a
++        // guarded jump; one with an `else` does not, so it is not a chain
++        // link. The `then` arm must be a Block for us to flatten it.
++        if (!iff->ifFalse) {
++          return iff->ifTrue->dynCast<Block>();
++        }
++      }
++      return nullptr;
++    }
++
++    // Returns the chain link to descend into to continue a chain past `curr`,
++    // or nullptr if `curr` does not continue a chain. When a link's body has
++    // several chainable children we descend into the one with the deepest
++    // sub-chain, so that flattening removes as much nesting as possible; the
++    // others are emitted normally and flattened on their own if still deep.
++    Expression* chainChild(Expression* curr) {
++      Block* body = chainBodyBlock(curr);
++      if (!body) {
++        return nullptr;
++      }
++      Expression* best = nullptr;
++      Index bestDepth = 0;
++      for (auto* item : body->list) {
++        // Look through unneeded pass-through blocks (no JS nesting).
++        auto* child = skipUnneededBlocks(item);
++        bool chainable = false;
++        if (auto* b = child->dynCast<Block>()) {
++          chainable = b->name.is() &&
++                      !switchProcessor.unneededExpressions.contains(b);
++        } else if (auto* iff = child->dynCast<If>()) {
++          chainable = !iff->ifFalse && iff->ifTrue->is<Block>();
++        }
++        if (chainable) {
++          Index depth = measureChain(child);
++          if (depth > bestDepth) {
++            bestDepth = depth;
++            best = child;
++          }
++        }
++      }
++      return best;
++    }
++
++    // Returns the length of the deepest chain of nested blocks/ifs starting at
++    // `curr` (1 if `curr` is a chain link with no chainable child, 0 if it is
++    // not a chain link at all). Memoized, since it is queried repeatedly while
++    // walking a function.
++    std::unordered_map<Expression*, Index> chainDepths;
++    Index measureChain(Expression* curr) {
++      if (!chainBodyBlock(curr)) {
++        return 0;
++      }
++      auto [it, inserted] = chainDepths.insert({curr, 0});
++      if (!inserted) {
++        return it->second;
++      }
++      Index length = 1;
++      if (Expression* child = chainChild(curr)) {
++        length += measureChain(child);
++      }
++      // Re-find: the recursive calls above may have rehashed the map.
++      chainDepths[curr] = length;
++      return length;
++    }
++
++    // Lowers a deep chain of nested blocks/ifs into a single, shallow
++    // `while (1) { switch (state) { ... } }` dispatch loop.
++    //
++    // Each chain link becomes a group of fall-through switch "segments". A
++    // `Block` link  (block $b p... CHILD t...)  contributes a prefix segment
++    // (`p...`, run on entry) and a tail segment (`t...`, run after CHILD and
++    // any branch to $b). An `If` link  (if c (then CHILD))  contributes a
++    // single guard segment  `if (eqz c) { go to <after the if> }`. Switch
++    // fall-through models normal control flow: entering the next link,
++    // falling out of a link into its parent's tail, etc.
++    //
++    // For example  (block $b0 p0 (if c1 (then (block $b2 p2 body))) t0)
++    // becomes:
++    //
++    //  state = 0;
++    //  $L : while (1) {
++    //    switch (state) {
++    //     case 0: p0                              // enter $b0
++    //     case 1: if (eqz c1) { state = 4; continue $L } // guard of the if
++    //     case 2: p2                              // enter $b2
++    //     case 3: body                            // innermost content
++    //     case 4: t0                              // tail of $b0
++    //    }
++    //    break $L;
++    //  }
++    //
++    // A `br` to a flattened block, and an if whose guard fails, are lowered to
++    // `state = <segment>; continue $L;` (see makeBreakOrContinue / the guard
++    // above), which works from any JS nesting depth. The depth of the
++    // generated JS is thus a small constant regardless of the chain length.
++    // Each piece is still visited recursively, so any further chains within
++    // the pieces are flattened too.
++    Ref flattenChain(Expression* curr, Index depth) {
++      // A link of the chain. `body` is the link's body block (the block
++      // itself for a `Block` link, or the `then` arm for an `If` link). For an
++      // `If` link `iff` is also set, and a guard is emitted before its body.
++      // `childIndex` is the index of the chain child within `body->list`.
++      struct Link {
++        Block* body = nullptr;
++        If* iff = nullptr; // set for `If` links
++        Index childIndex = 0;
++        int32_t enterSegment = 0;
++        int32_t tailSegment = -1;
++      };
++      std::vector<Link> chain;
++      chain.reserve(depth);
++
++      // Walk the chain, collecting links outermost-first.
++      Expression* iter = curr;
++      while (iter) {
++        Expression* next = chainChild(iter);
++        Link link;
++        link.iff = iter->dynCast<If>();
++        link.body = chainBodyBlock(iter);
++        assert(link.body && "chain link must have a body block");
++        if (next) {
++          // `next` may sit behind unneeded pass-through blocks.
++          for (Index i = 0; i < link.body->list.size(); i++) {
++            if (skipUnneededBlocks(link.body->list[i]) == next) {
++              link.childIndex = i;
++              break;
++            }
++          }
++        }
++        chain.push_back(link);
++        iter = next;
++      }
++      assert(chain.size() == depth);
++
++      // Assign segment numbers. Enter segments come first, in chain order
++      // (0..depth-1); the innermost link emits its whole body into its enter
++      // segment. Then come the tail segments (the code after the chain child)
++      // of the enclosing links, innermost first, so that falling out of the
++      // innermost body proceeds into the tail of each enclosing link in turn.
++      Index numSegments = depth; // enter segments
++      for (Index i = 0; i < depth; i++) {
++        chain[i].enterSegment = int32_t(i);
++      }
++      for (Index i = depth - 1; i-- > 0;) {
++        chain[i].tailSegment = int32_t(numSegments++);
++      }
++      // The segment to jump to when exiting link `linkIndex` (a branch to it,
++      // or an `If` guard that fails): the tail of the nearest enclosing link,
++      // or one past the last segment (which falls through to `break $L`).
++      auto afterSegment = [&](Index linkIndex) -> int32_t {
++        return linkIndex > 0 ? chain[linkIndex - 1].tailSegment
++                             : int32_t(numSegments);
++      };
++
++      // Allocate the dispatch state variable and a unique loop label.
++      IString stateVar = parent->getTemp(Type::i32, func);
++      IString loopLabel =
++        fromName(Name(std::string("wasm2js_dispatch_") +
++                      std::to_string(flattenCounter++)),
++                 NameScope::Label);
++
++      // A `br` to a flattened link's body block lands right after that block,
++      // i.e. at the tail of its nearest enclosing link (afterSegment): for a
++      // `Block` link that is after the block, for an `If` link that is after
++      // the `then` arm and hence after the if. Register these before visiting
++      // children so that visitBreak can see them. The body block of either
++      // kind of link may be named and thus a branch target.
++      for (Index i = 0; i < depth; i++) {
++        if (chain[i].body->name.is()) {
++          flattenedTargets[chain[i].body->name] =
++            FlattenedTarget{stateVar, loopLabel, afterSegment(i)};
++        }
++      }
++
++      // The segment code is emitted inside the dispatch `while { switch }`,
++      // which is two levels of JS nesting deeper than where the chain
++      // started. Crucially this means the long chain is replaced by just two
++      // nesting levels: any chains *within* a segment that are still deep will
++      // themselves be flattened recursively.
++      Index outerNesting = blockNesting;
++      enum { DISPATCH_NESTING = 2 }; // `while { ... }` + `switch { ... }`
++
++      // Build segments into a vector indexed by segment number, then append
++      // them to the switch in order.
++      std::vector<Ref> segments(numSegments);
++      for (auto& seg : segments) {
++        seg = ValueBuilder::makeBlock();
++      }
++      auto emitItemInto = [&](Ref code, Expression* e) {
++        blockNesting = outerNesting + DISPATCH_NESTING;
++        flattenAppend(code,
++                      ValueBuilder::makeStatement(visit(e, NO_RESULT)));
++        blockNesting = outerNesting;
++      };
++
++      for (Index i = 0; i < depth; i++) {
++        auto& link = chain[i];
++        Ref enter = segments[link.enterSegment];
++        // For an `If` link, emit the guard first: skip the body (jump past
++        // the if) when the condition is false. The condition is visited
++        // exactly as visitIf would; `!` of it is its faithful inversion.
++        if (link.iff) {
++          Ref cond = visit(link.iff->condition, EXPRESSION_RESULT);
++          Ref skip = ValueBuilder::makeBlock();
++          flattenAppend(skip,
++                        ValueBuilder::makeStatement(ValueBuilder::makeBinary(
++                          ValueBuilder::makeName(stateVar),
++                          SET,
++                          ValueBuilder::makeInt(afterSegment(i)))));
++          flattenAppend(skip, ValueBuilder::makeContinue(loopLabel));
++          Ref noElse;
++          flattenAppend(
++            enter,
++            ValueBuilder::makeStatement(ValueBuilder::makeIf(
++              ValueBuilder::makeUnary(L_NOT, cond), skip, noElse)));
++        }
++        // Prefix: code before the chain child (the whole body for the
++        // innermost link, which has no chain child).
++        Index to = (i + 1 < depth) ? link.childIndex : link.body->list.size();
++        for (Index j = 0; j < to; j++) {
++          emitItemInto(enter, link.body->list[j]);
++        }
++        // Tail: code after the chain child.
++        if (link.tailSegment >= 0) {
++          Ref tail = segments[link.tailSegment];
++          for (Index j = link.childIndex + 1; j < link.body->list.size();
++               j++) {
++            emitItemInto(tail, link.body->list[j]);
++          }
++        }
++      }
++
++      // Clean up: the chain's block names are out of scope from here on.
++      for (auto& link : chain) {
++        if (link.body->name.is()) {
++          flattenedTargets.erase(link.body->name);
++        }
++      }
++
++      // Assemble the switch and the dispatch loop.
++      Ref theSwitch =
++        ValueBuilder::makeSwitch(ValueBuilder::makeName(stateVar));
++      for (Index s = 0; s < numSegments; s++) {
++        ValueBuilder::appendCaseToSwitch(theSwitch,
++                                         ValueBuilder::makeNum(s));
++        ValueBuilder::appendCodeToSwitch(theSwitch, segments[s], false);
++      }
++      // state = 0; $L : while (1) { switch (...) {...} break $L; }
++      Ref loopBody = ValueBuilder::makeBlock();
++      flattenAppend(loopBody, ValueBuilder::makeStatement(theSwitch));
++      flattenAppend(loopBody, ValueBuilder::makeBreak(loopLabel));
++      Ref loop = ValueBuilder::makeLabel(
++        loopLabel,
++        ValueBuilder::makeWhile(ValueBuilder::makeInt(1), loopBody));
++
++      parent->freeTemp(Type::i32, stateVar);
++
++      Ref ret = ValueBuilder::makeBlock();
++      flattenAppend(ret,
++                    ValueBuilder::makeStatement(ValueBuilder::makeBinary(
++                      ValueBuilder::makeName(stateVar),
++                      SET,
++                      ValueBuilder::makeInt(0))));
++      flattenAppend(ret, ValueBuilder::makeStatement(loop));
++      return ret;
++    }
++
+     Ref visitIf(If* curr) {
++      // If emitting this if normally would nest the JS too deeply, and this
++      // if begins a chain of nested blocks/ifs, flatten that chain into a
++      // shallow dispatch loop instead (see flattenChain). This handles deep
++      // towers of `if`s, as emitted e.g. by emscripten's JS-based exception
++      // and longjmp lowering, the same way as towers of blocks.
++      if (!curr->ifFalse && blockNesting >= FLATTEN_NESTING_THRESHOLD) {
++        Index depth = measureChain(curr);
++        if (depth >= 2) {
++          return flattenChain(curr, depth);
++        }
++      }
+       Ref condition = visit(curr->condition, EXPRESSION_RESULT);
++      // The if's arms add a level of JS nesting (see blockNesting).
++      blockNesting++;
+       Ref ifTrue = visit(curr->ifTrue, NO_RESULT);
+       Ref ifFalse;
+       if (curr->ifFalse) {
+         ifFalse = visit(curr->ifFalse, NO_RESULT);
+       }
++      blockNesting--;
+       return ValueBuilder::makeIf(condition, ifTrue, ifFalse); // simple if
+     }
+ 
+@@ -1187,7 +1573,10 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+         return visit(curr->body, result);
+       }
+       continueLabels.insert(asmLabel);
++      // The loop's body adds a level of JS nesting (see blockNesting).
++      blockNesting++;
+       Ref body = visit(curr->body, result);
++      blockNesting--;
+       // if we can reach the end of the block, we must leave the while (1) loop
+       if (curr->body->type != Type::unreachable) {
+         assert(curr->body->type == Type::none); // flat IR
+@@ -1200,6 +1589,20 @@ Ref Wasm2JSBuilder::processExpression(Expression* curr,
+     }
+ 
+     Ref makeBreakOrContinue(Name name) {
++      // A branch to a block whose nesting was flattened into a dispatch loop
++      // becomes `state = <case>; continue <loop>;` (see flattenChain).
++      auto iter = flattenedTargets.find(name);
++      if (iter != flattenedTargets.end()) {
++        auto& target = iter->second;
++        Ref ret = ValueBuilder::makeBlock();
++        flattenAppend(ret,
++                      ValueBuilder::makeStatement(ValueBuilder::makeBinary(
++                        ValueBuilder::makeName(target.stateVar),
++                        SET,
++                        ValueBuilder::makeInt(target.segment))));
++        flattenAppend(ret, ValueBuilder::makeContinue(target.loopLabel));
++        return ret;
++      }
+       if (continueLabels.contains(name)) {
+         return ValueBuilder::makeContinue(fromName(name, NameScope::Label));
+       } else {
+diff --git a/test/wasm2js/deep-control-flow.wast b/test/wasm2js/deep-control-flow.wast
+new file mode 100644
+index 000000000..f716d9332
+--- /dev/null
++++ b/test/wasm2js/deep-control-flow.wast
+@@ -0,0 +1,2775 @@
++;; Regression test for wasm2js flattening of deeply-nested control flow.
++;;
++;; wasm2js translates each named wasm block into a JS labeled block and each
++;; `if` into a JS `if`, so a deep tower of nested blocks or ifs - which
++;; toolchains emit for large functions, switches, and emscripten.s JS-based
++;; exception / longjmp lowering - would naively become deeply-nested JS that
++;; overflows JS engine parsers ("Maximum call stack size exceeded") before the
++;; code even runs. wasm2js flattens such towers into a shallow
++;; `while (1) { switch (...) { ... } }` dispatch loop. The functions below
++;; build towers far deeper than the flattening threshold, exercising
++;; fall-through, branches to enclosing blocks, a large br_table, deep `if`
++;; nesting, and blocks and ifs interleaved; the assert_return cases verify the
++;; flattened JS still computes the right results.
++
++(module
++ (func $deep_fallthrough (export "deep_fallthrough") (result i32)
++  (local $acc i32)
++  (block $ft0
++  (block $ft1
++  (block $ft2
++  (block $ft3
++  (block $ft4
++  (block $ft5
++  (block $ft6
++  (block $ft7
++  (block $ft8
++  (block $ft9
++  (block $ft10
++  (block $ft11
++  (block $ft12
++  (block $ft13
++  (block $ft14
++  (block $ft15
++  (block $ft16
++  (block $ft17
++  (block $ft18
++  (block $ft19
++  (block $ft20
++  (block $ft21
++  (block $ft22
++  (block $ft23
++  (block $ft24
++  (block $ft25
++  (block $ft26
++  (block $ft27
++  (block $ft28
++  (block $ft29
++  (block $ft30
++  (block $ft31
++  (block $ft32
++  (block $ft33
++  (block $ft34
++  (block $ft35
++  (block $ft36
++  (block $ft37
++  (block $ft38
++  (block $ft39
++  (block $ft40
++  (block $ft41
++  (block $ft42
++  (block $ft43
++  (block $ft44
++  (block $ft45
++  (block $ft46
++  (block $ft47
++  (block $ft48
++  (block $ft49
++  (block $ft50
++  (block $ft51
++  (block $ft52
++  (block $ft53
++  (block $ft54
++  (block $ft55
++  (block $ft56
++  (block $ft57
++  (block $ft58
++  (block $ft59
++  (block $ft60
++  (block $ft61
++  (block $ft62
++  (block $ft63
++  (block $ft64
++  (block $ft65
++  (block $ft66
++  (block $ft67
++  (block $ft68
++  (block $ft69
++  (block $ft70
++  (block $ft71
++  (block $ft72
++  (block $ft73
++  (block $ft74
++  (block $ft75
++  (block $ft76
++  (block $ft77
++  (block $ft78
++  (block $ft79
++  (block $ft80
++  (block $ft81
++  (block $ft82
++  (block $ft83
++  (block $ft84
++  (block $ft85
++  (block $ft86
++  (block $ft87
++  (block $ft88
++  (block $ft89
++  (block $ft90
++  (block $ft91
++  (block $ft92
++  (block $ft93
++  (block $ft94
++  (block $ft95
++  (block $ft96
++  (block $ft97
++  (block $ft98
++  (block $ft99
++  (block $ft100
++  (block $ft101
++  (block $ft102
++  (block $ft103
++  (block $ft104
++  (block $ft105
++  (block $ft106
++  (block $ft107
++  (block $ft108
++  (block $ft109
++  (block $ft110
++  (block $ft111
++  (block $ft112
++  (block $ft113
++  (block $ft114
++  (block $ft115
++  (block $ft116
++  (block $ft117
++  (block $ft118
++  (block $ft119
++   (nop)
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 120)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 119)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 118)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 117)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 116)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 115)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 114)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 113)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 112)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 111)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 110)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 109)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 108)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 107)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 106)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 105)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 104)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 103)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 102)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 101)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 99)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 98)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 97)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 96)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 95)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 94)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 93)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 92)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 91)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 90)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 89)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 88)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 87)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 86)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 85)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 84)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 83)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 82)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 81)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 80)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 79)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 78)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 77)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 76)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 75)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 74)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 73)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 72)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 71)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 70)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 69)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 68)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 67)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 66)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 65)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 64)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 63)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 62)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 61)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 60)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 59)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 58)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 57)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 56)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 55)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 54)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 53)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 52)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 51)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 50)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 49)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 48)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 47)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 46)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 45)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 44)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 43)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 42)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 41)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 40)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 39)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 38)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 37)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 36)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 35)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 34)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 33)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 32)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 31)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 30)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 29)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 28)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 27)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 26)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 25)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 24)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 23)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 22)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 21)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 20)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 19)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 18)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 17)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 16)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 15)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 14)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 13)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 12)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 11)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 9)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 8)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 7)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 6)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 5)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 4)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 3)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++  (local.get $acc)
++ )
++
++ (func $deep_branch (export "deep_branch") (param $x i32) (result i32)
++  (local $acc i32)
++  (block $br0
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 0)))
++  (block $br1
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 1)))
++  (block $br2
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 2)))
++  (block $br3
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 3)))
++  (block $br4
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 4)))
++  (block $br5
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 5)))
++  (block $br6
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 6)))
++  (block $br7
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 7)))
++  (block $br8
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 8)))
++  (block $br9
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 9)))
++  (block $br10
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 10)))
++  (block $br11
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 11)))
++  (block $br12
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 12)))
++  (block $br13
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 13)))
++  (block $br14
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 14)))
++  (block $br15
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 15)))
++  (block $br16
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 16)))
++  (block $br17
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 17)))
++  (block $br18
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 18)))
++  (block $br19
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 19)))
++  (block $br20
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 20)))
++  (block $br21
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 21)))
++  (block $br22
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 22)))
++  (block $br23
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 23)))
++  (block $br24
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 24)))
++  (block $br25
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 25)))
++  (block $br26
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 26)))
++  (block $br27
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 27)))
++  (block $br28
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 28)))
++  (block $br29
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 29)))
++  (block $br30
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 30)))
++  (block $br31
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 31)))
++  (block $br32
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 32)))
++  (block $br33
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 33)))
++  (block $br34
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 34)))
++  (block $br35
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 35)))
++  (block $br36
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 36)))
++  (block $br37
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 37)))
++  (block $br38
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 38)))
++  (block $br39
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 39)))
++  (block $br40
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 40)))
++  (block $br41
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 41)))
++  (block $br42
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 42)))
++  (block $br43
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 43)))
++  (block $br44
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 44)))
++  (block $br45
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 45)))
++  (block $br46
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 46)))
++  (block $br47
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 47)))
++  (block $br48
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 48)))
++  (block $br49
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 49)))
++  (block $br50
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 50)))
++  (block $br51
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 51)))
++  (block $br52
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 52)))
++  (block $br53
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 53)))
++  (block $br54
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 54)))
++  (block $br55
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 55)))
++  (block $br56
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 56)))
++  (block $br57
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 57)))
++  (block $br58
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 58)))
++  (block $br59
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 59)))
++  (block $br60
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 60)))
++  (block $br61
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 61)))
++  (block $br62
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 62)))
++  (block $br63
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 63)))
++  (block $br64
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 64)))
++  (block $br65
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 65)))
++  (block $br66
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 66)))
++  (block $br67
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 67)))
++  (block $br68
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 68)))
++  (block $br69
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 69)))
++  (block $br70
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 70)))
++  (block $br71
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 71)))
++  (block $br72
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 72)))
++  (block $br73
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 73)))
++  (block $br74
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 74)))
++  (block $br75
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 75)))
++  (block $br76
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 76)))
++  (block $br77
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 77)))
++  (block $br78
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 78)))
++  (block $br79
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 79)))
++  (block $br80
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 80)))
++  (block $br81
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 81)))
++  (block $br82
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 82)))
++  (block $br83
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 83)))
++  (block $br84
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 84)))
++  (block $br85
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 85)))
++  (block $br86
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 86)))
++  (block $br87
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 87)))
++  (block $br88
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 88)))
++  (block $br89
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $br0 (i32.eq (local.get $x) (i32.const 89)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  (local.get $acc)
++ )
++
++ (func $deep_switch (export "deep_switch") (param $x i32) (result i32)
++  (local $r i32)
++  (block $end
++   (block $sw0
++   (block $sw1
++   (block $sw2
++   (block $sw3
++   (block $sw4
++   (block $sw5
++   (block $sw6
++   (block $sw7
++   (block $sw8
++   (block $sw9
++   (block $sw10
++   (block $sw11
++   (block $sw12
++   (block $sw13
++   (block $sw14
++   (block $sw15
++   (block $sw16
++   (block $sw17
++   (block $sw18
++   (block $sw19
++   (block $sw20
++   (block $sw21
++   (block $sw22
++   (block $sw23
++   (block $sw24
++   (block $sw25
++   (block $sw26
++   (block $sw27
++   (block $sw28
++   (block $sw29
++   (block $sw30
++   (block $sw31
++   (block $sw32
++   (block $sw33
++   (block $sw34
++   (block $sw35
++   (block $sw36
++   (block $sw37
++   (block $sw38
++   (block $sw39
++   (block $sw40
++   (block $sw41
++   (block $sw42
++   (block $sw43
++   (block $sw44
++   (block $sw45
++   (block $sw46
++   (block $sw47
++   (block $sw48
++   (block $sw49
++   (block $sw50
++   (block $sw51
++   (block $sw52
++   (block $sw53
++   (block $sw54
++   (block $sw55
++   (block $sw56
++   (block $sw57
++   (block $sw58
++   (block $sw59
++   (block $sw60
++   (block $sw61
++   (block $sw62
++   (block $sw63
++   (block $sw64
++   (block $sw65
++   (block $sw66
++   (block $sw67
++   (block $sw68
++   (block $sw69
++    (br_table $sw0 $sw1 $sw2 $sw3 $sw4 $sw5 $sw6 $sw7 $sw8 $sw9 $sw10 $sw11 $sw12 $sw13 $sw14 $sw15 $sw16 $sw17 $sw18 $sw19 $sw20 $sw21 $sw22 $sw23 $sw24 $sw25 $sw26 $sw27 $sw28 $sw29 $sw30 $sw31 $sw32 $sw33 $sw34 $sw35 $sw36 $sw37 $sw38 $sw39 $sw40 $sw41 $sw42 $sw43 $sw44 $sw45 $sw46 $sw47 $sw48 $sw49 $sw50 $sw51 $sw52 $sw53 $sw54 $sw55 $sw56 $sw57 $sw58 $sw59 $sw60 $sw61 $sw62 $sw63 $sw64 $sw65 $sw66 $sw67 $sw68 $sw69 $end (local.get $x))
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 139)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 137)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 135)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 133)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 131)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 129)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 127)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 125)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 123)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 121)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 119)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 117)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 115)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 113)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 111)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 109)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 107)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 105)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 103)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 101)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 99)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 97)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 95)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 93)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 91)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 89)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 87)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 85)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 83)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 81)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 79)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 77)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 75)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 73)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 71)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 69)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 67)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 65)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 63)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 61)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 59)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 57)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 55)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 53)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 51)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 49)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 47)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 45)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 43)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 41)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 39)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 37)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 35)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 33)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 31)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 29)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 27)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 25)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 23)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 21)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 19)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 17)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 15)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 13)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 11)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 9)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 7)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 5)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 3)))
++   (br $end)
++   )
++   (local.set $r (i32.add (local.get $r) (i32.const 1)))
++   (br $end)
++  )
++  (local.get $r)
++ )
++
++ (func $deep_if (export "deep_if") (param $x i32) (result i32)
++  (local $acc i32)
++  (if (i32.gt_s (local.get $x) (i32.const 0)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++  (if (i32.gt_s (local.get $x) (i32.const 1)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (if (i32.gt_s (local.get $x) (i32.const 2)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 3)))
++  (if (i32.gt_s (local.get $x) (i32.const 3)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 4)))
++  (if (i32.gt_s (local.get $x) (i32.const 4)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 5)))
++  (if (i32.gt_s (local.get $x) (i32.const 5)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 6)))
++  (if (i32.gt_s (local.get $x) (i32.const 6)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 7)))
++  (if (i32.gt_s (local.get $x) (i32.const 7)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 8)))
++  (if (i32.gt_s (local.get $x) (i32.const 8)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 9)))
++  (if (i32.gt_s (local.get $x) (i32.const 9)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  (if (i32.gt_s (local.get $x) (i32.const 10)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 11)))
++  (if (i32.gt_s (local.get $x) (i32.const 11)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 12)))
++  (if (i32.gt_s (local.get $x) (i32.const 12)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 13)))
++  (if (i32.gt_s (local.get $x) (i32.const 13)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 14)))
++  (if (i32.gt_s (local.get $x) (i32.const 14)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 15)))
++  (if (i32.gt_s (local.get $x) (i32.const 15)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 16)))
++  (if (i32.gt_s (local.get $x) (i32.const 16)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 17)))
++  (if (i32.gt_s (local.get $x) (i32.const 17)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 18)))
++  (if (i32.gt_s (local.get $x) (i32.const 18)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 19)))
++  (if (i32.gt_s (local.get $x) (i32.const 19)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 20)))
++  (if (i32.gt_s (local.get $x) (i32.const 20)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 21)))
++  (if (i32.gt_s (local.get $x) (i32.const 21)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 22)))
++  (if (i32.gt_s (local.get $x) (i32.const 22)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 23)))
++  (if (i32.gt_s (local.get $x) (i32.const 23)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 24)))
++  (if (i32.gt_s (local.get $x) (i32.const 24)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 25)))
++  (if (i32.gt_s (local.get $x) (i32.const 25)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 26)))
++  (if (i32.gt_s (local.get $x) (i32.const 26)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 27)))
++  (if (i32.gt_s (local.get $x) (i32.const 27)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 28)))
++  (if (i32.gt_s (local.get $x) (i32.const 28)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 29)))
++  (if (i32.gt_s (local.get $x) (i32.const 29)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 30)))
++  (if (i32.gt_s (local.get $x) (i32.const 30)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 31)))
++  (if (i32.gt_s (local.get $x) (i32.const 31)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 32)))
++  (if (i32.gt_s (local.get $x) (i32.const 32)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 33)))
++  (if (i32.gt_s (local.get $x) (i32.const 33)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 34)))
++  (if (i32.gt_s (local.get $x) (i32.const 34)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 35)))
++  (if (i32.gt_s (local.get $x) (i32.const 35)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 36)))
++  (if (i32.gt_s (local.get $x) (i32.const 36)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 37)))
++  (if (i32.gt_s (local.get $x) (i32.const 37)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 38)))
++  (if (i32.gt_s (local.get $x) (i32.const 38)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 39)))
++  (if (i32.gt_s (local.get $x) (i32.const 39)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 40)))
++  (if (i32.gt_s (local.get $x) (i32.const 40)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 41)))
++  (if (i32.gt_s (local.get $x) (i32.const 41)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 42)))
++  (if (i32.gt_s (local.get $x) (i32.const 42)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 43)))
++  (if (i32.gt_s (local.get $x) (i32.const 43)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 44)))
++  (if (i32.gt_s (local.get $x) (i32.const 44)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 45)))
++  (if (i32.gt_s (local.get $x) (i32.const 45)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 46)))
++  (if (i32.gt_s (local.get $x) (i32.const 46)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 47)))
++  (if (i32.gt_s (local.get $x) (i32.const 47)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 48)))
++  (if (i32.gt_s (local.get $x) (i32.const 48)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 49)))
++  (if (i32.gt_s (local.get $x) (i32.const 49)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 50)))
++  (if (i32.gt_s (local.get $x) (i32.const 50)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 51)))
++  (if (i32.gt_s (local.get $x) (i32.const 51)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 52)))
++  (if (i32.gt_s (local.get $x) (i32.const 52)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 53)))
++  (if (i32.gt_s (local.get $x) (i32.const 53)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 54)))
++  (if (i32.gt_s (local.get $x) (i32.const 54)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 55)))
++  (if (i32.gt_s (local.get $x) (i32.const 55)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 56)))
++  (if (i32.gt_s (local.get $x) (i32.const 56)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 57)))
++  (if (i32.gt_s (local.get $x) (i32.const 57)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 58)))
++  (if (i32.gt_s (local.get $x) (i32.const 58)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 59)))
++  (if (i32.gt_s (local.get $x) (i32.const 59)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 60)))
++  (if (i32.gt_s (local.get $x) (i32.const 60)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 61)))
++  (if (i32.gt_s (local.get $x) (i32.const 61)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 62)))
++  (if (i32.gt_s (local.get $x) (i32.const 62)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 63)))
++  (if (i32.gt_s (local.get $x) (i32.const 63)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 64)))
++  (if (i32.gt_s (local.get $x) (i32.const 64)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 65)))
++  (if (i32.gt_s (local.get $x) (i32.const 65)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 66)))
++  (if (i32.gt_s (local.get $x) (i32.const 66)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 67)))
++  (if (i32.gt_s (local.get $x) (i32.const 67)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 68)))
++  (if (i32.gt_s (local.get $x) (i32.const 68)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 69)))
++  (if (i32.gt_s (local.get $x) (i32.const 69)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 70)))
++  (if (i32.gt_s (local.get $x) (i32.const 70)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 71)))
++  (if (i32.gt_s (local.get $x) (i32.const 71)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 72)))
++  (if (i32.gt_s (local.get $x) (i32.const 72)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 73)))
++  (if (i32.gt_s (local.get $x) (i32.const 73)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 74)))
++  (if (i32.gt_s (local.get $x) (i32.const 74)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 75)))
++  (if (i32.gt_s (local.get $x) (i32.const 75)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 76)))
++  (if (i32.gt_s (local.get $x) (i32.const 76)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 77)))
++  (if (i32.gt_s (local.get $x) (i32.const 77)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 78)))
++  (if (i32.gt_s (local.get $x) (i32.const 78)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 79)))
++  (if (i32.gt_s (local.get $x) (i32.const 79)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 80)))
++  (if (i32.gt_s (local.get $x) (i32.const 80)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 81)))
++  (if (i32.gt_s (local.get $x) (i32.const 81)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 82)))
++  (if (i32.gt_s (local.get $x) (i32.const 82)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 83)))
++  (if (i32.gt_s (local.get $x) (i32.const 83)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 84)))
++  (if (i32.gt_s (local.get $x) (i32.const 84)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 85)))
++  (if (i32.gt_s (local.get $x) (i32.const 85)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 86)))
++  (if (i32.gt_s (local.get $x) (i32.const 86)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 87)))
++  (if (i32.gt_s (local.get $x) (i32.const 87)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 88)))
++  (if (i32.gt_s (local.get $x) (i32.const 88)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 89)))
++  (if (i32.gt_s (local.get $x) (i32.const 89)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 90)))
++  (if (i32.gt_s (local.get $x) (i32.const 90)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 91)))
++  (if (i32.gt_s (local.get $x) (i32.const 91)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 92)))
++  (if (i32.gt_s (local.get $x) (i32.const 92)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 93)))
++  (if (i32.gt_s (local.get $x) (i32.const 93)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 94)))
++  (if (i32.gt_s (local.get $x) (i32.const 94)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 95)))
++  (if (i32.gt_s (local.get $x) (i32.const 95)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 96)))
++  (if (i32.gt_s (local.get $x) (i32.const 96)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 97)))
++  (if (i32.gt_s (local.get $x) (i32.const 97)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 98)))
++  (if (i32.gt_s (local.get $x) (i32.const 98)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 99)))
++  (if (i32.gt_s (local.get $x) (i32.const 99)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  (if (i32.gt_s (local.get $x) (i32.const 100)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 101)))
++  (if (i32.gt_s (local.get $x) (i32.const 101)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 102)))
++  (if (i32.gt_s (local.get $x) (i32.const 102)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 103)))
++  (if (i32.gt_s (local.get $x) (i32.const 103)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 104)))
++  (if (i32.gt_s (local.get $x) (i32.const 104)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 105)))
++  (if (i32.gt_s (local.get $x) (i32.const 105)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 106)))
++  (if (i32.gt_s (local.get $x) (i32.const 106)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 107)))
++  (if (i32.gt_s (local.get $x) (i32.const 107)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 108)))
++  (if (i32.gt_s (local.get $x) (i32.const 108)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 109)))
++  (if (i32.gt_s (local.get $x) (i32.const 109)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 110)))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  ))
++  (local.get $acc)
++ )
++
++ (func $deep_mixed (export "deep_mixed") (param $x i32) (result i32)
++  (local $acc i32)
++  (block $mx0
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 0)))
++  (if (i32.ne (local.get $x) (i32.const 1)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx2
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 2)))
++  (if (i32.ne (local.get $x) (i32.const 3)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx4
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 4)))
++  (if (i32.ne (local.get $x) (i32.const 5)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx6
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 6)))
++  (if (i32.ne (local.get $x) (i32.const 7)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx8
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 8)))
++  (if (i32.ne (local.get $x) (i32.const 9)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx10
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 10)))
++  (if (i32.ne (local.get $x) (i32.const 11)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx12
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 12)))
++  (if (i32.ne (local.get $x) (i32.const 13)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx14
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 14)))
++  (if (i32.ne (local.get $x) (i32.const 15)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx16
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 16)))
++  (if (i32.ne (local.get $x) (i32.const 17)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx18
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 18)))
++  (if (i32.ne (local.get $x) (i32.const 19)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx20
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 20)))
++  (if (i32.ne (local.get $x) (i32.const 21)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx22
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 22)))
++  (if (i32.ne (local.get $x) (i32.const 23)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx24
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 24)))
++  (if (i32.ne (local.get $x) (i32.const 25)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx26
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 26)))
++  (if (i32.ne (local.get $x) (i32.const 27)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx28
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 28)))
++  (if (i32.ne (local.get $x) (i32.const 29)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx30
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 30)))
++  (if (i32.ne (local.get $x) (i32.const 31)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx32
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 32)))
++  (if (i32.ne (local.get $x) (i32.const 33)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx34
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 34)))
++  (if (i32.ne (local.get $x) (i32.const 35)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx36
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 36)))
++  (if (i32.ne (local.get $x) (i32.const 37)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx38
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 38)))
++  (if (i32.ne (local.get $x) (i32.const 39)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx40
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 40)))
++  (if (i32.ne (local.get $x) (i32.const 41)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx42
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 42)))
++  (if (i32.ne (local.get $x) (i32.const 43)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx44
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 44)))
++  (if (i32.ne (local.get $x) (i32.const 45)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx46
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 46)))
++  (if (i32.ne (local.get $x) (i32.const 47)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx48
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 48)))
++  (if (i32.ne (local.get $x) (i32.const 49)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx50
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 50)))
++  (if (i32.ne (local.get $x) (i32.const 51)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx52
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 52)))
++  (if (i32.ne (local.get $x) (i32.const 53)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx54
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 54)))
++  (if (i32.ne (local.get $x) (i32.const 55)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx56
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 56)))
++  (if (i32.ne (local.get $x) (i32.const 57)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx58
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 58)))
++  (if (i32.ne (local.get $x) (i32.const 59)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx60
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 60)))
++  (if (i32.ne (local.get $x) (i32.const 61)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx62
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 62)))
++  (if (i32.ne (local.get $x) (i32.const 63)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx64
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 64)))
++  (if (i32.ne (local.get $x) (i32.const 65)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx66
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 66)))
++  (if (i32.ne (local.get $x) (i32.const 67)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx68
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 68)))
++  (if (i32.ne (local.get $x) (i32.const 69)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx70
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 70)))
++  (if (i32.ne (local.get $x) (i32.const 71)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx72
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 72)))
++  (if (i32.ne (local.get $x) (i32.const 73)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx74
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 74)))
++  (if (i32.ne (local.get $x) (i32.const 75)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx76
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 76)))
++  (if (i32.ne (local.get $x) (i32.const 77)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  (block $mx78
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++   (br_if $mx0 (i32.eq (local.get $x) (i32.const 78)))
++  (if (i32.ne (local.get $x) (i32.const 79)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 2)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  ))
++  )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 10)))
++  (local.get $acc)
++ )
++ (func $deep_siblings (export "deep_siblings") (param $x i32) (result i32)
++  (local $acc i32)
++  ;; Two sibling chain towers in one function. Exercises the flattenCounter
++  ;; producing unique dispatch-loop labels, and chain-state isolation
++  ;; between separate flatten invocations. Each block has a tail
++  ;; (local.set), making the chain "needed" through SwitchProcessor.
++  (block $a0
++    (block $a1
++      (block $a2
++        (block $a3
++          (block $a4
++            (block $a5
++              (block $a6
++                (block $a7
++                  (block $a8
++                    (block $a9
++                      (block $a10
++                        (block $a11
++                          (block $a12
++                            (block $a13
++                              (block $a14
++                                (block $a15
++                                  (block $a16
++                                    (block $a17
++                                      (block $a18
++                                        (block $a19
++                                          (block $a20
++                                            (block $a21
++                                              (block $a22
++                                                (block $a23
++                                                  (block $a24
++                                                    (block $a25
++                                                      (block $a26
++                                                        (block $a27
++                                                          (block $a28
++                                                            (block $a29
++                                                              (block $a30
++                                                                (block $a31
++                                                                  (block $a32
++                                                                    (block $a33
++                                                                      (block $a34
++                                                                        (block $a35
++                                                                          (block $a36
++                                                                            (block $a37
++                                                                              (block $a38
++                                                                                (block $a39
++                                                                                  (block $a40
++                                                                                    (block $a41
++                                                                                      (block $a42
++                                                                                        (block $a43
++                                                                                          (block $a44
++                                                                                            (block $a45
++                                                                                              (block $a46
++                                                                                                (block $a47
++                                                                                                  (block $a48
++                                                                                                    (block $a49
++                                                                                                     (br_if $a0 (i32.eqz (local.get $x)))
++                                                                                                    )
++                                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                  )
++                                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                )
++                                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                              )
++                                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                            )
++                                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                          )
++                                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                        )
++                                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                      )
++                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                    )
++                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                  )
++                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                )
++                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                              )
++                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                            )
++                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                          )
++                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                        )
++                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                      )
++                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                    )
++                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                  )
++                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                )
++                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                              )
++                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                            )
++                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                          )
++                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                        )
++                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                      )
++                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                    )
++                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                  )
++                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                )
++                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                              )
++                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                            )
++                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                          )
++                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                        )
++                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                      )
++                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                    )
++                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                  )
++                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                )
++                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                              )
++                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                            )
++                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                          )
++                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                        )
++                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                      )
++                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                    )
++                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                  )
++                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                )
++               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++              )
++             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++            )
++           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++          )
++         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++        )
++       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++      )
++     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++    )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++  )
++  (block $b0
++    (block $b1
++      (block $b2
++        (block $b3
++          (block $b4
++            (block $b5
++              (block $b6
++                (block $b7
++                  (block $b8
++                    (block $b9
++                      (block $b10
++                        (block $b11
++                          (block $b12
++                            (block $b13
++                              (block $b14
++                                (block $b15
++                                  (block $b16
++                                    (block $b17
++                                      (block $b18
++                                        (block $b19
++                                          (block $b20
++                                            (block $b21
++                                              (block $b22
++                                                (block $b23
++                                                  (block $b24
++                                                    (block $b25
++                                                      (block $b26
++                                                        (block $b27
++                                                          (block $b28
++                                                            (block $b29
++                                                              (block $b30
++                                                                (block $b31
++                                                                  (block $b32
++                                                                    (block $b33
++                                                                      (block $b34
++                                                                        (block $b35
++                                                                          (block $b36
++                                                                            (block $b37
++                                                                              (block $b38
++                                                                                (block $b39
++                                                                                  (block $b40
++                                                                                    (block $b41
++                                                                                      (block $b42
++                                                                                        (block $b43
++                                                                                          (block $b44
++                                                                                            (block $b45
++                                                                                              (block $b46
++                                                                                                (block $b47
++                                                                                                  (block $b48
++                                                                                                    (block $b49
++                                                                                                     (br_if $b0 (i32.eqz (local.get $x)))
++                                                                                                    )
++                                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                                  )
++                                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                                )
++                                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                              )
++                                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                            )
++                                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                          )
++                                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                        )
++                                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                      )
++                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                    )
++                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                  )
++                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                                )
++                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                              )
++                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                            )
++                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                          )
++                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                        )
++                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                      )
++                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                    )
++                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                  )
++                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                                )
++                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                              )
++                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                            )
++                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                          )
++                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                        )
++                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                      )
++                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                    )
++                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                  )
++                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                                )
++                                               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                              )
++                                             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                            )
++                                           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                          )
++                                         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                        )
++                                       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                      )
++                                     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                    )
++                                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                  )
++                                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                                )
++                               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                              )
++                             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                            )
++                           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                          )
++                         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                        )
++                       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                      )
++                     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                    )
++                   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                  )
++                 (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++                )
++               (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++              )
++             (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++            )
++           (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++          )
++         (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++        )
++       (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++      )
++     (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++    )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 100)))
++  )
++  (local.get $acc)
++ )
++ ;; A side-effecting condition (call $bump) in a then-only if-chain: proves the
++ ;; condition is evaluated exactly once and in order, even through the flattened
++ ;; dispatch loop. Each then-arm has a statement so it is a Block (chain link).
++ (global $g (mut i32) (i32.const 0))
++ (func $bump (result i32)
++  (global.set $g (i32.add (global.get $g) (i32.const 1)))
++  (global.get $g))
++ (func $effectful_cond (export "effectful_cond") (param $x i32) (result i32)
++  (local $acc i32)
++  (global.set $g (i32.const 0))
++  (if (i32.le_s (call $bump) (local.get $x)) (then
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++    (if (i32.le_s (call $bump) (local.get $x)) (then
++     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++      (if (i32.le_s (call $bump) (local.get $x)) (then
++       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++        (if (i32.le_s (call $bump) (local.get $x)) (then
++         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++          (if (i32.le_s (call $bump) (local.get $x)) (then
++           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++            (if (i32.le_s (call $bump) (local.get $x)) (then
++             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++              (if (i32.le_s (call $bump) (local.get $x)) (then
++               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                (if (i32.le_s (call $bump) (local.get $x)) (then
++                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                      (if (i32.le_s (call $bump) (local.get $x)) (then
++                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                        (if (i32.le_s (call $bump) (local.get $x)) (then
++                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                          (if (i32.le_s (call $bump) (local.get $x)) (then
++                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                            (if (i32.le_s (call $bump) (local.get $x)) (then
++                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                              (if (i32.le_s (call $bump) (local.get $x)) (then
++                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                (if (i32.le_s (call $bump) (local.get $x)) (then
++                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                      (if (i32.le_s (call $bump) (local.get $x)) (then
++                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                        (if (i32.le_s (call $bump) (local.get $x)) (then
++                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                          (if (i32.le_s (call $bump) (local.get $x)) (then
++                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                            (if (i32.le_s (call $bump) (local.get $x)) (then
++                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                              (if (i32.le_s (call $bump) (local.get $x)) (then
++                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                      (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                        (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                          (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                            (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                              (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                      (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                        (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                          (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                            (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                              (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                      (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                        (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                          (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                            (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                              (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                  (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                    (if (i32.le_s (call $bump) (local.get $x)) (then
++                                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                    ))
++                                                                                                  ))
++                                                                                                ))
++                                                                                              ))
++                                                                                            ))
++                                                                                          ))
++                                                                                        ))
++                                                                                      ))
++                                                                                    ))
++                                                                                  ))
++                                                                                ))
++                                                                              ))
++                                                                            ))
++                                                                          ))
++                                                                        ))
++                                                                      ))
++                                                                    ))
++                                                                  ))
++                                                                ))
++                                                              ))
++                                                            ))
++                                                          ))
++                                                        ))
++                                                      ))
++                                                    ))
++                                                  ))
++                                                ))
++                                              ))
++                                            ))
++                                          ))
++                                        ))
++                                      ))
++                                    ))
++                                  ))
++                                ))
++                              ))
++                            ))
++                          ))
++                        ))
++                      ))
++                    ))
++                  ))
++                ))
++              ))
++            ))
++          ))
++        ))
++      ))
++    ))
++  ))
++  (i32.add (local.get $acc) (i32.mul (global.get $g) (i32.const 1000))))
++ ;; Nested dispatch: chain A's innermost block holds a loop holding chain B.
++ ;; The loop breaks A's chain, so B flattens into a dispatch loop nested inside
++ ;; A's. The innermost br targets A's outermost block, crossing both dispatches.
++ (func $nested_dispatch (export "nested_dispatch") (param $x i32) (result i32)
++  (local $acc i32)
++  (block $na0
++    (block $na1
++      (block $na2
++        (block $na3
++          (block $na4
++            (block $na5
++              (block $na6
++                (block $na7
++                  (block $na8
++                    (block $na9
++                      (block $na10
++                        (block $na11
++                          (block $na12
++                            (block $na13
++                              (block $na14
++                                (block $na15
++                                  (block $na16
++                                    (block $na17
++                                      (block $na18
++                                        (block $na19
++                                          (block $na20
++                                            (block $na21
++                                              (block $na22
++                                                (block $na23
++                                                  (block $na24
++                                                    (block $na25
++                                                      (block $na26
++                                                        (block $na27
++                                                          (block $na28
++                                                            (block $na29
++                                                              (block $na30
++                                                                (block $na31
++                                                                  (block $na32
++                                                                    (block $na33
++                                                                      (block $na34
++                                                                        (block $na35
++                                                                          (block $na36
++                                                                            (block $na37
++                                                                              (block $na38
++                                                                                (block $na39
++                                                                                  (block $na40
++                                                                                    (block $na41
++                                                                                      (block $na42
++                                                                                        (block $na43
++                                                                                          (block $na44
++                                                                                            (block $na45
++                                                                                              (block $na46
++                                                                                                (block $na47
++                                                                                                  (block $na48
++                                                                                                    (block $na49
++                                                                                                     (loop $NL
++                                                                                                         (block $nb0
++                                                                                                           (block $nb1
++                                                                                                             (block $nb2
++                                                                                                               (block $nb3
++                                                                                                                 (block $nb4
++                                                                                                                   (block $nb5
++                                                                                                                     (block $nb6
++                                                                                                                       (block $nb7
++                                                                                                                         (block $nb8
++                                                                                                                           (block $nb9
++                                                                                                                             (block $nb10
++                                                                                                                               (block $nb11
++                                                                                                                                 (block $nb12
++                                                                                                                                   (block $nb13
++                                                                                                                                     (block $nb14
++                                                                                                                                       (block $nb15
++                                                                                                                                         (block $nb16
++                                                                                                                                           (block $nb17
++                                                                                                                                             (block $nb18
++                                                                                                                                               (block $nb19
++                                                                                                                                                 (block $nb20
++                                                                                                                                                   (block $nb21
++                                                                                                                                                     (block $nb22
++                                                                                                                                                       (block $nb23
++                                                                                                                                                         (block $nb24
++                                                                                                                                                           (block $nb25
++                                                                                                                                                             (block $nb26
++                                                                                                                                                               (block $nb27
++                                                                                                                                                                 (block $nb28
++                                                                                                                                                                   (block $nb29
++                                                                                                                                                                     (block $nb30
++                                                                                                                                                                       (block $nb31
++                                                                                                                                                                         (block $nb32
++                                                                                                                                                                           (block $nb33
++                                                                                                                                                                             (block $nb34
++                                                                                                                                                                               (block $nb35
++                                                                                                                                                                                 (block $nb36
++                                                                                                                                                                                   (block $nb37
++                                                                                                                                                                                     (block $nb38
++                                                                                                                                                                                       (block $nb39
++                                                                                                                                                                                         (block $nb40
++                                                                                                                                                                                           (block $nb41
++                                                                                                                                                                                             (block $nb42
++                                                                                                                                                                                               (block $nb43
++                                                                                                                                                                                                 (block $nb44
++                                                                                                                                                                                                   (block $nb45
++                                                                                                                                                                                                     (block $nb46
++                                                                                                                                                                                                       (block $nb47
++                                                                                                                                                                                                         (block $nb48
++                                                                                                                                                                                                           (block $nb49
++                                                                                                                                                                                                            (br_if $na0 (i32.eqz (local.get $x)))
++                                                                                                                                                                                                           )
++                                                                                                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                                         )
++                                                                                                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                                       )
++                                                                                                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                                     )
++                                                                                                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                                   )
++                                                                                                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                                 )
++                                                                                                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                               )
++                                                                                                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                             )
++                                                                                                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                           )
++                                                                                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                         )
++                                                                                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                       )
++                                                                                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                     )
++                                                                                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                   )
++                                                                                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                                 )
++                                                                                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                               )
++                                                                                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                             )
++                                                                                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                           )
++                                                                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                         )
++                                                                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                       )
++                                                                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                     )
++                                                                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                   )
++                                                                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                                 )
++                                                                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                               )
++                                                                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                             )
++                                                                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                           )
++                                                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                         )
++                                                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                       )
++                                                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                     )
++                                                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                   )
++                                                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                                 )
++                                                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                               )
++                                                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                             )
++                                                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                           )
++                                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                         )
++                                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                       )
++                                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                     )
++                                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                   )
++                                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                                 )
++                                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                               )
++                                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                             )
++                                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                           )
++                                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                         )
++                                                                                                                        (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                       )
++                                                                                                                      (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                     )
++                                                                                                                    (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                   )
++                                                                                                                  (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                                 )
++                                                                                                                (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                               )
++                                                                                                              (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                             )
++                                                                                                            (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                           )
++                                                                                                          (local.set $acc (i32.add (local.get $acc) (i32.const 1000)))
++                                                                                                         )
++                                                                                                       )
++                                                                                                    )
++                                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                  )
++                                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                )
++                                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                              )
++                                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                            )
++                                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                          )
++                                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                        )
++                                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                      )
++                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                    )
++                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                  )
++                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                )
++                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                              )
++                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                            )
++                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                          )
++                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                        )
++                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                      )
++                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                    )
++                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                  )
++                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                )
++                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                              )
++                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                            )
++                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                          )
++                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                        )
++                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                      )
++                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                    )
++                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                  )
++                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                )
++                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                              )
++                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                            )
++                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                          )
++                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                        )
++                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                      )
++                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                    )
++                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                  )
++                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                )
++                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                              )
++                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                            )
++                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                          )
++                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                        )
++                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                      )
++                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                    )
++                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                  )
++                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                )
++               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++              )
++             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++            )
++           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++          )
++         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++        )
++       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++      )
++     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++    )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++  )
++  (local.get $acc))
++ ;; A counting loop coexisting with a flattened chain: br to the loop becomes a
++ ;; `continue`, br to a flattened block a `state = ..; continue`, in one scope.
++ (func $loop_in_chain (export "loop_in_chain") (param $x i32) (result i32)
++  (local $acc i32) (local $i i32)
++  (block $lp0
++    (block $lp1
++      (block $lp2
++        (block $lp3
++          (block $lp4
++            (block $lp5
++              (block $lp6
++                (block $lp7
++                  (block $lp8
++                    (block $lp9
++                      (block $lp10
++                        (block $lp11
++                          (block $lp12
++                            (block $lp13
++                              (block $lp14
++                                (block $lp15
++                                  (block $lp16
++                                    (block $lp17
++                                      (block $lp18
++                                        (block $lp19
++                                          (block $lp20
++                                            (block $lp21
++                                              (block $lp22
++                                                (block $lp23
++                                                  (block $lp24
++                                                    (block $lp25
++                                                      (block $lp26
++                                                        (block $lp27
++                                                          (block $lp28
++                                                            (block $lp29
++                                                              (block $lp30
++                                                                (block $lp31
++                                                                  (block $lp32
++                                                                    (block $lp33
++                                                                      (block $lp34
++                                                                        (block $lp35
++                                                                          (block $lp36
++                                                                            (block $lp37
++                                                                              (block $lp38
++                                                                                (block $lp39
++                                                                                  (block $lp40
++                                                                                    (block $lp41
++                                                                                      (block $lp42
++                                                                                        (block $lp43
++                                                                                          (block $lp44
++                                                                                            (block $lp45
++                                                                                              (block $lp46
++                                                                                                (block $lp47
++                                                                                                  (block $lp48
++                                                                                                    (block $lp49
++                                                                                                     (local.set $i (i32.const 0))
++                                                                                                     (loop $L
++                                                                                                      (local.set $acc (i32.add (local.get $acc) (local.get $x)))
++                                                                                                      (local.set $i (i32.add (local.get $i) (i32.const 1)))
++                                                                                                      (br_if $L (i32.lt_s (local.get $i) (i32.const 5))))
++                                                                                                    )
++                                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                  )
++                                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                                )
++                                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                              )
++                                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                            )
++                                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                          )
++                                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                        )
++                                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                      )
++                                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                    )
++                                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                  )
++                                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                                )
++                                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                              )
++                                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                            )
++                                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                          )
++                                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                        )
++                                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                      )
++                                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                    )
++                                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                  )
++                                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                                )
++                                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                              )
++                                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                            )
++                                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                          )
++                                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                        )
++                                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                      )
++                                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                    )
++                                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                  )
++                                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                                )
++                                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                              )
++                                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                            )
++                                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                          )
++                                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                        )
++                                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                      )
++                                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                    )
++                                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                  )
++                                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                                )
++                               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                              )
++                             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                            )
++                           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                          )
++                         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                        )
++                       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                      )
++                     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                    )
++                   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                  )
++                 (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++                )
++               (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++              )
++             (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++            )
++           (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++          )
++         (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++        )
++       (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++      )
++     (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++    )
++   (local.set $acc (i32.add (local.get $acc) (i32.const 1)))
++  )
++  (local.get $acc))
++)
++
++(assert_return (invoke "deep_fallthrough") (i32.const 7260))
++(assert_return (invoke "deep_branch" (i32.const 0)) (i32.const 101))
++(assert_return (invoke "deep_branch" (i32.const 1)) (i32.const 102))
++(assert_return (invoke "deep_branch" (i32.const 5)) (i32.const 106))
++(assert_return (invoke "deep_branch" (i32.const 44)) (i32.const 145))
++(assert_return (invoke "deep_branch" (i32.const 89)) (i32.const 190))
++(assert_return (invoke "deep_branch" (i32.const 90)) (i32.const 9090))
++(assert_return (invoke "deep_branch" (i32.const 200)) (i32.const 9090))
++(assert_return (invoke "deep_branch" (i32.const -1)) (i32.const 9090))
++(assert_return (invoke "deep_switch" (i32.const 0)) (i32.const 1))
++(assert_return (invoke "deep_switch" (i32.const 1)) (i32.const 3))
++(assert_return (invoke "deep_switch" (i32.const 34)) (i32.const 69))
++(assert_return (invoke "deep_switch" (i32.const 69)) (i32.const 139))
++(assert_return (invoke "deep_switch" (i32.const 70)) (i32.const 0))
++(assert_return (invoke "deep_switch" (i32.const 71)) (i32.const 0))
++(assert_return (invoke "deep_switch" (i32.const 1000)) (i32.const 0))
++(assert_return (invoke "deep_switch" (i32.const -1)) (i32.const 0))
++(assert_return (invoke "deep_if" (i32.const 0)) (i32.const 0))
++(assert_return (invoke "deep_if" (i32.const 1)) (i32.const 1))
++(assert_return (invoke "deep_if" (i32.const 5)) (i32.const 15))
++(assert_return (invoke "deep_if" (i32.const 55)) (i32.const 1540))
++(assert_return (invoke "deep_if" (i32.const 110)) (i32.const 6105))
++(assert_return (invoke "deep_if" (i32.const 111)) (i32.const 6105))
++(assert_return (invoke "deep_if" (i32.const 500)) (i32.const 6105))
++(assert_return (invoke "deep_if" (i32.const -1)) (i32.const 0))
++(assert_return (invoke "deep_mixed" (i32.const 0)) (i32.const 11))
++(assert_return (invoke "deep_mixed" (i32.const 1)) (i32.const 11))
++(assert_return (invoke "deep_mixed" (i32.const 2)) (i32.const 14))
++(assert_return (invoke "deep_mixed" (i32.const 3)) (i32.const 24))
++(assert_return (invoke "deep_mixed" (i32.const 40)) (i32.const 71))
++(assert_return (invoke "deep_mixed" (i32.const 79)) (i32.const 518))
++(assert_return (invoke "deep_mixed" (i32.const 80)) (i32.const 520))
++(assert_return (invoke "deep_mixed" (i32.const 200)) (i32.const 520))
++(assert_return (invoke "deep_mixed" (i32.const -1)) (i32.const 520))
++
++(assert_return (invoke "deep_siblings" (i32.const 0)) (i32.const 0))
++(assert_return (invoke "deep_siblings" (i32.const 1)) (i32.const 4949))
++(assert_return (invoke "deep_siblings" (i32.const -1)) (i32.const 4949))
++(assert_return (invoke "deep_siblings" (i32.const 42)) (i32.const 4949))
++
++(assert_return (invoke "effectful_cond" (i32.const 0)) (i32.const 1000))
++(assert_return (invoke "effectful_cond" (i32.const 1)) (i32.const 2001))
++(assert_return (invoke "effectful_cond" (i32.const 5)) (i32.const 6005))
++(assert_return (invoke "effectful_cond" (i32.const 49)) (i32.const 50049))
++(assert_return (invoke "effectful_cond" (i32.const 50)) (i32.const 50050))
++(assert_return (invoke "effectful_cond" (i32.const 100)) (i32.const 50050))
++(assert_return (invoke "effectful_cond" (i32.const -1)) (i32.const 1000))
++(assert_return (invoke "nested_dispatch" (i32.const 0)) (i32.const 0))
++(assert_return (invoke "nested_dispatch" (i32.const 1)) (i32.const 49049))
++(assert_return (invoke "nested_dispatch" (i32.const -1)) (i32.const 49049))
++(assert_return (invoke "nested_dispatch" (i32.const 7)) (i32.const 49049))
++(assert_return (invoke "loop_in_chain" (i32.const 0)) (i32.const 49))
++(assert_return (invoke "loop_in_chain" (i32.const 2)) (i32.const 59))
++(assert_return (invoke "loop_in_chain" (i32.const 10)) (i32.const 99))
++(assert_return (invoke "loop_in_chain" (i32.const -3)) (i32.const 34))
+-- 
+2.47.1
+
