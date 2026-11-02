@@ -5,6 +5,8 @@ import { ModelContext } from './contexts.ts';
 import { Toast } from 'primereact/toast';
 import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes.ts';
 import { resolveUrl } from '../resource-loader.ts';
+import type { CameraState, CapturedImage, CaptureOptions } from '../state/mcp-tools.ts';
+import { fitSize, type ResolvedCamera } from '../state/mcp-tools-logic.ts';
 
 export interface CameraInfo {
   theta: number;
@@ -19,6 +21,41 @@ export interface ViewerPanelHandle {
   zoom(factor: number): void;
   autoFit(): void;
   getCameraInfo(): CameraInfo | null;
+  /** MCP tools: full camera state (async: probes the fit radius). */
+  getCamera(): Promise<CameraState | null>;
+  setCamera(camera: ResolvedCamera): Promise<CameraState | null>;
+  /** Resolves true once the latest rendered model is loaded in the viewer. */
+  waitForModel(timeoutMs: number): Promise<boolean>;
+  captureImage(opts: CaptureOptions): Promise<CapturedImage | null>;
+}
+
+const nextFrames = (n: number) => new Promise<void>(resolve => {
+  const step = (left: number) => left <= 0 ? resolve() : requestAnimationFrame(() => step(left - 1));
+  step(n);
+});
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Radius at which model-viewer frames the whole model, probed without a visible camera jump. */
+async function probeFitRadius(mv: any): Promise<number | undefined> {
+  const o = mv.getCameraOrbit();
+  mv.cameraOrbit = `${o.theta}rad ${o.phi}rad auto`;
+  await mv.updateComplete;
+  mv.jumpCameraToGoal();
+  const fit = mv.getCameraOrbit().radius;
+  // Restore: keep 'auto' semantics (re-fit on model change) when already at fit.
+  const atFit = Math.abs(fit - o.radius) / fit < 0.005;
+  mv.cameraOrbit = `${o.theta}rad ${o.phi}rad ${atFit ? 'auto' : `${o.radius}m`}`;
+  await mv.updateComplete;
+  mv.jumpCameraToGoal();
+  return Number.isFinite(fit) && fit > 0 ? fit : undefined;
 }
 
 declare module 'react' {
@@ -82,6 +119,8 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
 
   const modelUri = state.output?.displayFileURL ?? state.output?.outFileURL ?? '';
   const loaded = loadedUri === modelUri;
+  const loadStatusRef = useRef({ loaded: false, hasModel: false });
+  loadStatusRef.current = { loaded, hasModel: modelUri !== '' };
 
   const skyboxUrl = useMemo(() => resolveUrl('./skybox-lights.jpg'), []);
   const axesUrl = useMemo(() => resolveUrl('./axes.glb'), []);
@@ -211,6 +250,24 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
   });
 
   // Expose methods for MCP integration
+  const readCamera = async (): Promise<CameraState | null> => {
+    const mv = modelViewerRef.current;
+    if (!mv) return null;
+    const orbit = mv.getCameraOrbit();
+    const target = mv.getCameraTarget();
+    const dims = loadStatusRef.current.loaded ? mv.getDimensions() : undefined;
+    const fitRadius = loadStatusRef.current.loaded ? await probeFitRadius(mv) : undefined;
+    return {
+      theta: orbit.theta,
+      phi: orbit.phi,
+      radius: orbit.radius,
+      fitRadius,
+      target: { x: target.x, y: target.y, z: target.z },
+      fov: mv.getFieldOfView(),
+      dimensions: dims ? { x: dims.x, y: dims.y, z: dims.z } : undefined,
+    };
+  };
+
   useImperativeHandle(viewerRef, () => ({
     async captureScreenshot(): Promise<string | null> {
       if (!modelViewerRef.current) return null;
@@ -250,6 +307,79 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
       if (axesViewerRef.current) {
         const axOrbit = axesViewerRef.current.getCameraOrbit();
         axesViewerRef.current.cameraOrbit = `${axOrbit.theta}rad ${axOrbit.phi}rad auto`;
+      }
+    },
+    getCamera: readCamera,
+    async setCamera(r: ResolvedCamera): Promise<CameraState | null> {
+      const mv = modelViewerRef.current;
+      if (!mv) return null;
+      let radius: string;
+      if (r.zoom === 1) {
+        radius = 'auto';
+      } else if (r.zoom != null) {
+        const fit = await probeFitRadius(mv);
+        radius = fit ? `${fit / r.zoom}m` : 'auto';
+      } else if (r.distance != null) {
+        radius = `${r.distance}m`;
+      } else {
+        radius = `${mv.getCameraOrbit().radius}m`;
+      }
+      mv.cameraOrbit = `${r.theta}rad ${r.phi}rad ${radius}`;
+      if (r.target != null) {
+        mv.cameraTarget = r.target === 'auto' ? 'auto auto auto' : `${r.target.x}m ${r.target.y}m ${r.target.z}m`;
+      }
+      if (r.fov != null) {
+        mv.fieldOfView = r.fov === 'auto' ? 'auto' : `${r.fov}deg`;
+      }
+      await mv.updateComplete;
+      mv.jumpCameraToGoal();
+      if (axesViewerRef.current) {
+        axesViewerRef.current.cameraOrbit = `${r.theta}rad ${r.phi}rad auto`;
+      }
+      await nextFrames(2);
+      onCameraChange?.();
+      return await readCamera();
+    },
+    async waitForModel(timeoutMs: number): Promise<boolean> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const st = loadStatusRef.current;
+        if (st.hasModel && st.loaded) {
+          await nextFrames(2);
+          return true;
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return false;
+    },
+    async captureImage({ maxSize, mimeType, quality }: CaptureOptions): Promise<CapturedImage | null> {
+      const mv = modelViewerRef.current;
+      if (!mv) return null;
+      try {
+        await mv.updateComplete;
+        await nextFrames(2);
+        let blob: Blob;
+        try {
+          blob = await mv.toBlob({ mimeType: 'image/png', idealAspect: false });
+        } catch {
+          blob = await (await fetch(mv.toDataURL('image/png'))).blob();
+        }
+        const bitmap = await createImageBitmap(blob);
+        const { width, height } = fitSize(bitmap.width, bitmap.height, maxSize);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ececec'; // the 3D canvas is transparent: give the model a neutral backdrop
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+        const out: Blob | null = await new Promise(res => canvas.toBlob(res, mimeType, quality));
+        if (!out) return null;
+        return { data: await blobToBase64(out), mimeType, width, height };
+      } catch (e) {
+        console.warn('captureImage failed:', e);
+        return null;
       }
     },
     getCameraInfo(): CameraInfo | null {

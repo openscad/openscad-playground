@@ -7,11 +7,12 @@
  * Tools:
  * - create: opens the viewer with initial source / customizer vars / camera.
  *
- * All follow-up interaction goes through the `interact` tool that the view
- * itself registers with the host once it loads (see src/state/mcp-app.ts):
- * the host routes those calls straight into the iframe, so the server needs
- * no command queue, polling, or shared state — it works stateless, including
- * on serverless deployments.
+ * All follow-up interaction goes through app tools that the view itself
+ * registers with the host once it loads (src/state/mcp-tools.ts: view_source,
+ * str_replace_source, screenshot, set_camera, ...): the host routes those
+ * calls straight into the iframe, so the server needs no command queue,
+ * polling, or shared state — it works stateless, including on serverless
+ * deployments.
  */
 
 import {
@@ -30,10 +31,11 @@ import { envBaseUrl } from "./base-url.js";
 
 export const RESOURCE_URI = "ui://openscad/viewer.html";
 
-// Must stay in sync with CAMERA_VIEWS in src/state/mcp-app.ts (the view's
-// set_camera enum) and the preset names in ViewerPanel.tsx's PREDEFINED_ORBITS.
+// Must stay in sync with CAMERA_VIEWS in src/state/mcp-app.ts and the preset
+// names in src/state/mcp-tools-logic.ts (`diagonal` is the legacy name of `iso`).
 export const CAMERA_VIEWS = [
   "diagonal",
+  "iso",
   "front",
   "right",
   "back",
@@ -71,16 +73,26 @@ difference() {
 
 // ─── Server ─────────────────────────────────────────────────────────────
 
+export const INSTRUCTIONS = `OpenSCAD Playground: create and iterate on parametric 3D models (OpenSCAD) in a live viewer the user sees.
+
+Workflow:
+1. Call \`create\` ONCE (with initial \`source\` if you have one). It opens the viewer. Calling it again opens a separate viewer.
+2. Once the viewer has loaded it registers its own tools with the host: view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, set_parameters, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
+3. Every edit re-renders and the tool result contains the render status, errors/warnings (file:line:col) and the OpenSCAD log tail. A result starting "EDIT APPLIED, BUT THE RENDER FAILED" means the source was changed but is broken: fix it (or undo_source_edit) before continuing.
+4. Verify visually with \`screenshot\` (use views such as ["iso","front","top"] to check several angles in one call), then adjust with set_camera / orbit_camera or edit the source again.
+5. Customizer variables (\`name = value; // [min:max]\`) can be changed without editing source via set_parameters.
+Units are millimetres, Z is up.`;
+
 /**
  * @param baseUrl Where the app's assets are served from (see base-url.ts).
  *   The server is stateless and created per request, so callers pass the
  *   base derived from that request. Defaults to the environment-derived one.
  */
 export function createServer(baseUrl: string = envBaseUrl()): McpServer {
-  const server = new McpServer({
-    name: "OpenSCAD Playground",
-    version: "0.2.0",
-  });
+  const server = new McpServer(
+    { name: "OpenSCAD Playground", version: "0.2.0" },
+    { instructions: INSTRUCTIONS },
+  );
 
   // ─── Create tool (app tool — opens the viewer) ─────────────────────
 
@@ -91,7 +103,7 @@ export function createServer(baseUrl: string = envBaseUrl()): McpServer {
       title: "Create OpenSCAD Viewer",
       description: `Open an interactive OpenSCAD 3D viewer and editor. Call this ONCE per model.
 
-**All follow-up actions go through the viewer's own \`interact\` tool**, which the app registers with the host once it loads — editing source, setting customizer variables, changing camera, rendering, zooming, capturing screenshots, reading state. Calling create again opens a SEPARATE viewer.
+**All follow-up actions use the viewer's own tools**, which the app registers with the host once it loads: view_source / str_replace_source / insert_source / write_source (edit code and get render diagnostics), get_viewer_state, render_model, set_parameters, set_camera / orbit_camera / get_camera, set_view_options, and screenshot (images, multi-angle). Calling create again opens a SEPARATE viewer.
 
 Optionally pass initial OpenSCAD source code, customizer variable values, and a camera preset. With no source, a default parametric model is shown.`,
       inputSchema: z.object({
@@ -121,9 +133,9 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
           {
             type: "text",
             text:
-              "OpenSCAD viewer opened. Use the viewer's `interact` tool to modify the model " +
-              "(write_source, edit_source, set_var, set_vars, set_camera, render, zoom, auto_fit, " +
-              "get_screenshot, get_state).",
+              "OpenSCAD viewer opened. Use the viewer's tools to work on the model: view_source, " +
+              "str_replace_source, insert_source, write_source, get_viewer_state, set_parameters, " +
+              "set_camera, screenshot, ... (edits return render errors/warnings).",
           },
         ],
         // The view reads its initial state from this structured content
