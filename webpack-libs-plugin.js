@@ -315,6 +315,33 @@ class OpenSCADLibrariesPlugin {
         for (const library of this.config.libraries) {
             await this.buildLibrary(library);
         }
+        await this.writeIndex();
+    }
+
+    /**
+     * Writes `libraries/index.json`: for each library its zip size and the .scad files in
+     * its zip with their (uncompressed) sizes, so that the UI can list libraries that
+     * aren't mounted (file picker, completions) without fetching their archive.
+     */
+    async writeIndex() {
+        const libraries = {};
+        for (const { name } of this.config.libraries) {
+            const zipPath = path.join(this.publicLibsDir, `${name}.zip`);
+            const { stdout } = await execAsync(`unzip -Z -l ${JSON.stringify(zipPath)}`, { maxBuffer: 64 * 1024 * 1024 });
+            const files = [];
+            for (const line of stdout.split('\n')) {
+                // -rw-r--r--  3.0 unx     1234 tx      567 defN 25-Mar-25 23:53 path/to/file.scad
+                const m = line.match(/^-\S+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\d+\s+\S+\s+\S+\s+\S+\s+(.+)$/);
+                if (m && m[2].endsWith('.scad')) {
+                    files.push([m[2], Number(m[1])]);
+                }
+            }
+            files.sort((a, b) => a[0].localeCompare(b[0]));
+            libraries[name] = { zipBytes: (await fs.stat(zipPath)).size, files };
+        }
+        const indexPath = path.join(this.publicLibsDir, 'index.json');
+        await fs.writeFile(indexPath, JSON.stringify({ version: 1, libraries }));
+        console.log(`Wrote ${indexPath}`);
     }
 
     async clean() {
@@ -326,6 +353,7 @@ class OpenSCADLibrariesPlugin {
             'public/openscad.js',
             'public/openscad.wasm',
             `${this.publicLibsDir}/*.zip`,
+            `${this.publicLibsDir}/index.json`,
             this.srcWasmDir
         ];
 

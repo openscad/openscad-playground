@@ -3,7 +3,8 @@ const libraryCases = require('./library-cases');
 const longTimeout = 60000;
 
 const isProd = process.env.NODE_ENV === 'production';
-const baseUrl = isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/';
+// E2E_BASE_URL: test against an already running server (e.g. when the default ports are taken).
+const baseUrl = process.env.E2E_BASE_URL ?? (isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/');
 
 const messages = [];
 
@@ -53,6 +54,15 @@ async function waitForViewer() {
 function expectMessage(messages, line) {
   const successMessage = messages.filter(msg => msg.type === 'debug' && msg.text === line);
   expect(successMessage).toHaveLength(1);
+}
+// Both the syntax check and the render mount archives (in separate workers).
+function expectMountedArchives(archives) {
+  const expected = `Mounting archives: ${archives.length ? archives.join(', ') : '(none)'}`;
+  const mounted = messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: '));
+  expect(mounted.length).toBeGreaterThan(0);
+  for (const msg of mounted) {
+    expect(msg.text).toBe(expected);
+  }
 }
 function expectObjectList() {
   expectMessage(messages, 'stderr: Top level object is a list of objects:');
@@ -178,6 +188,185 @@ describe('e2e', () => {
     expect3DPolySet();
   }, longTimeout);
 
+  test('a script without library references fetches no library archive', async () => {
+    const zips = [];
+    const onRequest = (req) => { if (/\/libraries\/[^/]+\.zip$/.test(req.url())) zips.push(req.url()); };
+    page.on('request', onRequest);
+    try {
+      await loadSrc('cube([10, 10, 10]);');
+      await waitForViewer();
+      // (The archives are fetched in the background, but only a moment after the first render.)
+    } finally {
+      page.off('request', onRequest);
+    }
+    expect3DPolySet();
+    // The worker mounts nothing; the main thread only fetches the archives after the first render.
+    expectMountedArchives([]);
+    expect(zips).toEqual([]);
+  }, longTimeout);
+
+  test('mounts the fonts for text()', async () => {
+    await loadSrc('linear_extrude(1) text("Hi");');
+    await waitForViewer();
+    expectMountedArchives(['fonts']);
+  }, longTimeout);
+
+  test('mounts BOSL2 but not other libraries', async () => {
+    await loadSrc(`
+      include <BOSL2/std.scad>
+      prismoid([40,40], [0,0], h=20);
+    `);
+    await waitForViewer();
+    expect3DPolySet();
+    expectMountedArchives(['BOSL2']);
+  }, longTimeout);
+
+  test('mounts the libraries that libraries depend on', async () => {
+    await loadSrc(`
+      include <openscad_attachable_text3d/attachable_text3d.scad>
+      cube(1);
+    `);
+    await waitForViewer();
+    expectMountedArchives(['fonts', 'BOSL2', 'openscad_attachable_text3d']);
+  }, longTimeout);
+
+  test('missing libraries are mounted by a retry, leaving clean logs and markers', async () => {
+    // ?archives= (none) makes the first attempt miss BOSL2, as if the scan had.
+    await page.goto(`${baseUrl}?archives=#src=${encodeURIComponent(`
+      include <BOSL2/std.scad>
+      prismoid([40,40], [0,0], h=20);
+    `)}`);
+    await waitForViewer();
+    const mounted = new Set(messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: ')).map(msg => msg.text));
+    expect([...mounted].sort()).toEqual(['Mounting archives: (none)', 'Mounting archives: BOSL2'].sort());
+    // Let the (also retried) syntax check finish: no stale 'Can't open library' marker may remain.
+    await new Promise(r => setTimeout(r, 3000));
+    expect(await page.$$('.squiggly-error, .squiggly-warning')).toHaveLength(0);
+  }, longTimeout);
+
+  // Library zips requested by the page (the worker's own requests aren't visible here).
+  function collectZipRequests() {
+    const zips = [];
+    const onRequest = (req) => { const m = req.url().match(/\/libraries\/([^/]+)\.zip$/); if (m) zips.push(m[1]); };
+    page.on('request', onRequest);
+    return { zips, stop: () => page.off('request', onRequest) };
+  }
+  // Expands a node of the open file picker tree.
+  function expandTreeNode(label) {
+    return page.waitForFunction((label) => {
+      const li = [...document.querySelectorAll('li.p-treenode')]
+        .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+      if (!li) return false;
+      if (li.getAttribute('aria-expanded') !== 'true') li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+      return li.getAttribute('aria-expanded') === 'true';
+    }, {timeout: 30000}, label);
+  }
+  // Expands the given nodes of the open file picker tree, then clicks the last one.
+  // (The tree may re-render and collapse while libraries get mounted/indexed: retry from the top.)
+  function clickTreePath(path) {
+    return page.waitForFunction((path) => {
+      const find = (label) => [...document.querySelectorAll('li.p-treenode')]
+        .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+      for (const label of path.slice(0, -1)) {
+        const li = find(label);
+        if (!li) return false;
+        if (li.getAttribute('aria-expanded') !== 'true') {
+          li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+          return false;
+        }
+      }
+      const file = find(path[path.length - 1]);
+      if (!file) return false;
+      file.querySelector(':scope > .p-treenode-content').click();
+      return true;
+    }, {timeout: 30000, polling: 200}, path);
+  }
+  const lazyLibraries = ['BOSL', 'openscad-tray', 'Stemfie_OpenSCAD', 'lasercut', 'boltsparts', 'openscad_attachable_text3d'];
+
+  test('the file picker lists libraries, lazy ones from the index without fetching them', async () => {
+    const requests = collectZipRequests();
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    await page.click('.p-treeselect');
+    await page.waitForFunction((names) => {
+      // (Re-expand: the tree may re-render and collapse while libraries get mounted/indexed.)
+      const folder = [...document.querySelectorAll('li.p-treenode')].find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === 'libraries');
+      if (folder && folder.getAttribute('aria-expanded') !== 'true') folder.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+      const labels = new Set([...document.querySelectorAll('.p-treenode-label')].map(l => l.textContent));
+      return names.every(n => labels.has(n));
+    }, {timeout: 30000, polling: 200}, ['BOSL2', 'NopSCADlib', 'MCAD', 'openscad', ...lazyLibraries]);
+    // Lazy libraries can be browsed...
+    await expandTreeNode('boltsparts');
+    await expandTreeNode('vacuum');
+    await page.waitForFunction(() => [...document.querySelectorAll('.p-treenode-label')].some(l => l.textContent === 'CF-Flange.scad'), {timeout: 30000});
+    // ...without having been fetched; the removed library is gone.
+    await new Promise(r => setTimeout(r, 1500));
+    requests.stop();
+    for (const name of lazyLibraries) {
+      expect(requests.zips).not.toContain(name);
+    }
+    expect(await page.evaluate(() => document.body.innerText)).not.toContain('FunctionalOpenSCAD');
+  }, longTimeout);
+
+  test('opening a file of a lazy library fetches the library and opens the file', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    await page.click('.p-treeselect');
+    const requests = collectZipRequests();
+    messages.length = 0;
+    await clickTreePath(['libraries', 'boltsparts', 'vacuum', 'CF-Flange.scad']);
+    await page.waitForFunction(() => document.querySelector('.p-treeselect-label')?.textContent.includes('CF-Flange.scad'), {timeout: 30000});
+    for (let i = 0; i < 300 && !messages.some(m => m.text === 'Mounting archives: boltsparts'); i++) {
+      await new Promise(r => setTimeout(r, 100)); // the file renders (mounting its library in the worker)
+    }
+    requests.stop();
+    expect(requests.zips).toContain('boltsparts');
+    expectMountedArchives(['boltsparts']);
+    // (Switching away from the unsaved default file logs 'Error while reading file', which is not about libraries.)
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].text.startsWith('Error while reading file')) messages.splice(i, 1);
+  }, longTimeout);
+
+  test('completes include/use library names and paths, lazy libraries included, without fetching them', async () => {
+    const requests = collectZipRequests();
+    await loadSrc('use <');
+    await page.waitForSelector('.monaco-editor .view-lines');
+    await page.click('.monaco-editor .view-lines');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('End');
+    await page.keyboard.press('Space');
+    await page.keyboard.up('Control');
+    await page.waitForFunction(() => {
+      const w = document.querySelector('.suggest-widget.visible');
+      return w && w.textContent.includes('BOSL2');
+    }, {timeout: 30000});
+    // The widget only renders the first rows: narrow the list down to a lazy library, then to its files.
+    const suggests = (text) => page.waitForFunction((text) => document.querySelector('.suggest-widget.visible')?.textContent.includes(text), {timeout: 30000}, text);
+    await page.keyboard.type('bolt');
+    await suggests('boltsparts');
+    await page.keyboard.type('sparts/');
+    await suggests('vacuum');
+    await page.keyboard.type('vacuum/');
+    await suggests('CF-Flange.scad');
+    requests.stop();
+    expect(requests.zips).not.toContain('boltsparts');
+    messages.length = 0; // `use <` alone is not a valid script
+  }, longTimeout);
+
+  test('a removed library gives OpenSCAD\'s missing file warning and a hint', async () => {
+    await loadSrc(`
+      include <FunctionalOpenSCAD/functional.scad>
+      cube(1);
+    `);
+    await waitForViewer();
+    await page.waitForSelector('button .pi-align-left');
+    await page.evaluate(() => document.querySelector('button .pi-align-left').closest('button').click());
+    await page.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes("Can't open include file 'FunctionalOpenSCAD/functional.scad'")
+        && text.includes('"FunctionalOpenSCAD" is no longer bundled');
+    }, {timeout: 30000});
+  }, longTimeout);
+
   test('use NopSCADlib', async () => {
     await loadSrc(`
       include <NopSCADlib/vitamins/led_meters.scad>
@@ -185,6 +374,19 @@ describe('e2e', () => {
     `);
     await waitForViewer();
     expect3DManifold();
+    expectMountedArchives(['fonts', 'NopSCADlib']);
+  }, longTimeout);
+
+  test('mounts the fonts when a library turns out to need them', async () => {
+    await loadSrc(`
+      include <BOSL2/std.scad>
+      text3d("Hi");
+    `);
+    await waitForViewer();
+    // The first run only had BOSL2 (no text() in the source), and got a font warning.
+    await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer')?.src);
+    const mounted = new Set(messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: ')).map(msg => msg.text));
+    expect([...mounted].sort()).toEqual(['Mounting archives: BOSL2', 'Mounting archives: fonts, BOSL2'].sort());
   }, longTimeout);
 
   // Libraries whose entry points live at the root of the zip (or in a sub-folder matched by a wildcard).
@@ -221,6 +423,53 @@ describe('e2e', () => {
     await waitForViewer();
     expect3DManifold();
   }, longTimeout);
+
+  // Only the production build has a Service Worker.
+  (isProd ? test : test.skip)('works offline after a first visit', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+
+    // Wait for the Service Worker to be in control and for the (deferred)
+    // fetches of the engine and the libraries to have gone through it.
+    await page.waitForFunction(async () => {
+      if (!navigator.serviceWorker.controller) return false;
+      for (const url of ['openscad.wasm', 'libraries/BOSL2.zip', 'libraries/index.json', 'libraries/fonts.zip', 'index.js']) {
+        if (!await caches.match(new URL(url, location.href).href, {ignoreSearch: true})) return false;
+      }
+      return true;
+    }, {timeout: 45000, polling: 500});
+
+    // Offline for the page *and* for the Service Worker, which has its own network.
+    const swSession = await (await browser.waitForTarget(t => t.type() === 'service_worker')).createCDPSession();
+    await swSession.send('Network.enable');
+    const setOffline = (offline) => Promise.all([
+      page.setOfflineMode(offline),
+      swSession.send('Network.emulateNetworkConditions', {offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1}),
+    ]);
+    await setOffline(true);
+    try {
+      await page.goto('about:blank');
+      messages.length = 0;
+      await loadSrc(`
+        include <BOSL2/std.scad>
+        linear_extrude(1) text("Offline");
+        prismoid([40,40], [0,0], h=20);
+      `);
+      await waitForViewer();
+      expect(messages.some(msg => msg.type === 'debug' && msg.text.startsWith('stderr: Top level object is a'))).toBe(true);
+      expectMountedArchives(['fonts', 'BOSL2']);
+
+      // A library that was never fetched can be browsed (index) but not opened: a clear message.
+      await page.click('.p-treeselect');
+      // (lasercut: no other test fetches it, which would put it in the Service Worker's cache.)
+      await clickTreePath(['libraries', 'lasercut', 'examples_flattened_tweak.scad']);
+      await page.waitForFunction(() => document.querySelector('.p-treeselect-label')?.textContent.includes('Could not load lasercut'), {timeout: 30000});
+      // (The failed fetch is logged by the browser, which is the point of this part of the test.)
+      for (let i = messages.length - 1; i >= 0; i--) if (messages[i].type === 'error' && /Failed to load resource|Error while reading file/.test(messages[i].text)) messages.splice(i, 1);
+    } finally {
+      await setOffline(false);
+    }
+  }, 2 * longTimeout);
 
   test('customizer & windows line endings work', async () => {
     await loadSrc([

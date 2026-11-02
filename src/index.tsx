@@ -34,31 +34,6 @@ declare var BrowserFS: BrowserFSInterface
 window.addEventListener('load', async () => {
   const mcpMode = isMcpMode();
 
-  // Skip service worker in MCP mode (we're in an iframe loading from the host)
-  if (!mcpMode && process.env.NODE_ENV === 'production') {
-    if ('serviceWorker' in navigator) {
-        try {
-            const registration = await navigator.serviceWorker.register('./sw.js');
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
-
-            registration.onupdatefound = () => {
-                const installingWorker = registration.installing;
-                if (installingWorker) {
-                  installingWorker.onstatechange = () => {
-                      if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                          // Reload to activate the service worker and apply caching
-                          window.location.reload();
-                          return;
-                      }
-                  };
-                }
-            };
-        } catch (err) {
-            console.log('ServiceWorker registration failed: ', err);
-        }
-    }
-  }
-
   registerCustomAppHeightCSSProperty();
 
   // ─── MCP: connect early so resource loader is set before FS init ─
@@ -85,8 +60,9 @@ window.addEventListener('load', async () => {
   }
 
   console.log('[init] Creating editor FS...');
-  // In MCP mode, skip loading 21 library ZIPs on the main thread — workers load them independently.
-  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: !mcpMode && isInStandaloneMode(), skipLibraries: mcpMode});
+  // In MCP mode, skip loading the library ZIPs on the main thread — workers load them independently.
+  // Otherwise they are mounted after the first render (see App).
+  const fs = await createEditorFS({prefix: '/libraries/', allowPersistence: !mcpMode && isInStandaloneMode(), skipLibraries: mcpMode, deferArchives: !mcpMode});
   console.log('[init] Editor FS created');
 
   const root = ReactDOM.createRoot(

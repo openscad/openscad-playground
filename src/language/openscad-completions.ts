@@ -1,7 +1,9 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/editor/editor.api';
-import { join, Symlinks } from '../fs/filesystem';
+import { join, Symlinks, whenLibrariesMounted } from '../fs/filesystem';
+import { getRequiredArchives } from '../fs/archive-deps';
+import { listIndexDir, loadLibraryIndex } from '../fs/library-index';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -76,11 +78,8 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
   const toAbsolutePath = (path: string) => path.startsWith('/') ? path : `${workingDir}/${path}`;
   
   const allSymlinks: Symlinks = {};
-  for (const [n, {deployed, symlinks}] of Object.entries(zipArchives)) {
+  for (const [n, {symlinks}] of Object.entries(zipArchives)) {
     if (n == 'fonts') {
-      continue;
-    }
-    if (deployed === false) {
       continue;
     }
     for (const s in symlinks) {
@@ -93,6 +92,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
     }
     path = toAbsolutePath(path);
     try {
+      await whenLibrariesMounted(getRequiredArchives([], [path]));
       const bytes = await fs.readFileSync(path);
       const src = new TextDecoder("utf-8").decode(bytes as any);
       return src;
@@ -189,6 +189,8 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
           }
           const folderName = (folderPrefix == '' ? '' : '/' + folderPrefix);
           let files: string[] | null = null
+          // Libraries are listed from the build-time index, mounted or not.
+          const indexFiles = listIndexDir(await loadLibraryIndex(), folderPrefix);
           for (const folder of [join('/libraries', folderName), join(workingDir, folderName)]) {
             files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
             try {
@@ -200,8 +202,9 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
               //console.error(e);
             }
           }
+          files = [...new Set([...(files ?? []), ...indexFiles])];
           const suggestions = [];
-          if (!files) {
+          if (files.length == 0) {
             console.warn('Failed to find folder named ' + folderName);
           } else {
             for (const file of files) {

@@ -89,6 +89,11 @@ const config = [
             /^manifest.*\.js$/,
             // Large wasm2js fallback: only fetched when WebAssembly is unavailable.
             /openscad\.fallback\.js$/,
+            // Big and not needed on every visit, and fetching them again at
+            // install time competes with the page's own requests: they are
+            // cached on first use by the runtime caching rule below.
+            /^libraries\//,
+            /^openscad\.wasm$/,
           ],
           // these options encourage the ServiceWorkers to get in there fast
           // and not allow any straggling 'old' SWs to hang around
@@ -180,7 +185,9 @@ const config = [
         },
         {
           test: /\.wasm$/,
-          type: 'asset/resource'
+          type: 'asset/resource',
+          // Same URL as the copy in dist/ so that index.html can prefetch it.
+          generator: { filename: '[name][ext]' },
         }
       ]
     },

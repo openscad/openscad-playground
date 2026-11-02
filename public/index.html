@@ -12,23 +12,14 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#000000">
 
-    <link rel="prefetch" href="openscad.wasm">
+    <link rel="preload" href="openscad.wasm" as="fetch" crossorigin>
     <link rel="prefetch" href="openscad-worker.js">
-    <link rel="prefetch" href="libraries/fonts.zip">
-
-    <link rel="prefetch" href="libraries/MCAD.zip">
-    <link rel="prefetch" href="libraries/BOSL2.zip">
-    <link rel="prefetch" href="libraries/BOSL.zip">
-    <link rel="prefetch" href="libraries/NopSCADlib.zip">
-    <link rel="prefetch" href="libraries/FunctionalOpenSCAD.zip">
-    <link rel="prefetch" href="libraries/funcutils.zip">
-    <link rel="prefetch" href="libraries/smooth-prim.zip">
-    <link rel="prefetch" href="libraries/closepoints.zip">
-    <link rel="prefetch" href="libraries/plot-function.zip">
-    <link rel="prefetch" href="libraries/YAPP_Box.zip">
-    <link rel="prefetch" href="libraries/Stemfie_OpenSCAD.zip">
-    <link rel="prefetch" href="libraries/UB.scad.zip">
-    <link rel="prefetch" href="libraries/openscad-tray.zip">
+    <script>
+      // The default sample uses text(): have its fonts on the way. Not for other scripts.
+      if (!location.hash) {
+        document.head.insertAdjacentHTML('beforeend', '<link rel="prefetch" href="libraries/fonts.zip">');
+      }
+    </script>
 
     <!-- <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js" defer></script> -->
     <script type="module" src="./model-viewer.min.js" defer></script>

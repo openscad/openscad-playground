@@ -8,6 +8,8 @@ import { resolveUrl } from "../resource-loader.ts";
 
 export type OpenSCADInvocation = {
   mountArchives: boolean,
+  // Archives to mount (instead of the ones the sources seem to refer to).
+  archives?: string[],
   inputs?: Source[],
   args: string[],
   outputPaths?: string[],
@@ -23,6 +25,11 @@ export type OpenSCADInvocationResults = {
   elapsedMillis: number,
   // Engine that ran the invocation; undefined if it failed before one was loaded.
   engine?: RenderEngine,
+  // Archives OpenSCAD's output shows it needed beyond the ones mounted: the
+  // invocation should be run again with these added.
+  missingArchives?: string[],
+  // Archives that were mounted.
+  archives?: string[],
 };
 
 export type ProcessStreams = {stderr: string} | {stdout: string}
@@ -77,6 +84,19 @@ function createWorker(url: string): Worker {
   return new Worker(URL.createObjectURL(blob));
 }
 
+/**
+ * `?archives=a,b` (empty for none): testing override of the archives mounted by the first
+ * attempt of an invocation, to exercise the retry with the missing ones.
+ */
+function getForcedArchives(): string[] | undefined {
+  try {
+    const v = new URLSearchParams(globalThis.location?.search ?? '').get('archives');
+    return v == null ? undefined : v.split(',').filter(n => n !== '');
+  } catch {
+    return undefined;
+  }
+}
+
 export function spawnOpenSCAD(
   invocation: OpenSCADInvocation, 
   streamsCallback: (ps: ProcessStreams) => void
@@ -93,18 +113,32 @@ export function spawnOpenSCAD(
   }
     
   return AbortablePromise<OpenSCADInvocationResults>((resolve: (result: OpenSCADInvocationResults) => void, reject: (error: any) => void) => {
-    worker = createWorker(resolveUrl('./openscad-worker.js'));
     rejection = reject;
-    worker.onmessage = (e: MessageEvent<OpenSCADInvocationCallback>) => {
-      if ('result' in e.data) {
-        resolve(e.data.result);
-        terminate();
-      } else {
-        streamsCallback(e.data);
+    const forceEngine = invocation.forceEngine ?? getForcedEngine();
+    // Each attempt runs in a fresh worker: an Emscripten module can't be run twice.
+    const run = (invocation: OpenSCADInvocation, retriesLeft: number) => {
+      worker = createWorker(resolveUrl('./openscad-worker.js'));
+      worker.onmessage = (e: MessageEvent<OpenSCADInvocationCallback>) => {
+        if ('result' in e.data) {
+          const {result} = e.data;
+          // (Logged here rather than in the worker, whose early console output can be missed by observers.)
+          console.debug(`Mounting archives: ${result.archives?.join(', ') || '(none)'}`);
+          terminate();
+          if (result.missingArchives?.length && retriesLeft > 0) {
+            // The sources only seemed to need some of the archives: add what was missing and retry.
+            streamsCallback({stderr: `[playground] Mounting more libraries (${result.missingArchives.join(', ')}) and running again.`});
+            run({...invocation, archives: [...(result.archives ?? []), ...result.missingArchives]}, retriesLeft - 1);
+          } else {
+            resolve(result);
+          }
+        } else {
+          streamsCallback(e.data);
+        }
       }
-    }
-    worker.postMessage({...invocation, forceEngine: invocation.forceEngine ?? getForcedEngine()})
-    
+      worker.postMessage({...invocation, forceEngine})
+    };
+    run({...invocation, archives: invocation.archives ?? getForcedArchives()}, 2);
+
     return () => {
       terminate();
     };
