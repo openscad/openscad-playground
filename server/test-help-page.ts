@@ -32,7 +32,7 @@ test("page contains server URL and commands", () => {
   assert.ok(h.includes("https://openscad.ochafik.com/mcp"));
   assert.ok(h.includes("claude mcp add --transport http openscad https://openscad.ochafik.com/mcp"));
   assert.ok(h.includes('href="https://openscad.ochafik.com/"'));
-  assert.ok(h.length < 12 * 1024, `page is ${h.length} bytes`);
+  assert.ok(h.length < 16 * 1024, `page is ${h.length} bytes`);
 });
 test("origin is HTML-escaped", () => {
   const h = renderHelpPage('http://a"><script>alert(1)</script>/');
@@ -67,6 +67,13 @@ test("page has escaped one-click links", () => {
   assert.ok(h.includes('href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=OpenSCAD&amp;connectorUrl=https%3A%2F%2Fopenscad.ochafik.com%2Fmcp"'));
   assert.ok(h.includes('href="cursor://anysphere.cursor-deeplink/mcp/install?name=openscad&amp;config='));
   assert.ok(h.includes('href="vscode:mcp/install?%7B'));
-  assert.ok(h.length < 12 * 1024, `page is ${h.length} bytes`);
+  assert.ok(h.length < 16 * 1024, `page is ${h.length} bytes`);
+});
+test("icons are inline, decorative and theme-following", () => {
+  const h = renderHelpPage("http://localhost:9100/");
+  const icons = h.match(/<svg class="ic"[^>]*>/g) ?? [];
+  assert.ok(icons.length >= 4);
+  for (const i of icons) assert.ok(i.includes('aria-hidden="true"') && i.includes('width="18"'));
+  assert.ok(!/<svg[^>]*(fill|stroke)="#/.test(h));
 });
 console.log(`${passed} passed`);
