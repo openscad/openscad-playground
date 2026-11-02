@@ -157,7 +157,10 @@ class OpenSCADLibrariesPlugin {
         let findCmd = '';
         if (includes.length > 0) {
             const findPatterns = includes.map(pattern => {
-                if (pattern.includes('**/*.')) {
+                if (pattern.startsWith('**/') && !pattern.slice(3).includes('/')) {
+                    // Any depth, including the repository root (find's -path "./**/*" would skip root files).
+                    return `-name "${pattern.slice(3)}"`;
+                } else if (pattern.includes('**/*.')) {
                     const parts = pattern.split('/');
                     const dir = parts[0];
                     const filePattern = parts[parts.length - 1];
@@ -165,6 +168,8 @@ class OpenSCADLibrariesPlugin {
                 } else if (pattern.includes('**')) {
                     const filePattern = pattern.replace('**/', '');
                     return `-name "${filePattern}"`;
+                } else if (pattern.includes('*') && pattern.includes('/')) {
+                    return `-path "./${pattern}"`;
                 } else if (pattern.includes('*')) {
                     return `-name "${pattern}"`;
                 } else if (pattern.includes('/')) {
@@ -186,6 +191,9 @@ class OpenSCADLibrariesPlugin {
             }).join(' ');
             findCmd += ` ${excludePatterns}`;
         }
+
+        // `zip` updates an existing archive in place, which would keep stale entries.
+        await fs.rm(outputPath, { force: true });
 
         const zipCmd = `cd ${fullSourceDir} && ${findCmd} | zip -r ${path.resolve(outputPath)} -@`;
 
