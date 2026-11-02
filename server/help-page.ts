@@ -3,7 +3,7 @@
  * in a tab gets an explanatory page instead of a protocol error.
  *
  * Client setup instructions below were checked against the vendors' docs on
- * 2026-11-02 (support.claude.com custom connectors, code.claude.com/docs/en/mcp,
+ * 2026-11-02 (support.claude.com custom connectors,
  * code.visualstudio.com mcp-configuration reference, cursor.com/docs/mcp,
  * npm mcp-remote, modelcontextprotocol.io inspector). ChatGPT's UI for custom
  * MCP servers is in flux, so it is only mentioned generically.
@@ -144,9 +144,6 @@ footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 <li>Enter a name (for example <i>OpenSCAD</i>), paste the URL above, and click <b>Add</b>. No sign-in is needed.</li></ol>
 <p class="muted">On Team and Enterprise plans an organization owner adds the connector under Organization settings.</p></div>
 
-<div class="card"><h3>Claude Code</h3>
-${code("cc", "claude mcp add --transport http openscad " + u)}</div>
-
 <div class="card"><h3>VS Code</h3>
 <p>Run <b>MCP: Add Server → HTTP</b>, or put this in <code>.vscode/mcp.json</code>:</p>
 ${code("vsc", vscodeJson)}</div>
@@ -166,7 +163,7 @@ ${code("insp", "npx @modelcontextprotocol/inspector")}
 
 <h2>Try it</h2>
 ${code("prompt", "Make a parametric box with a customizer for width and height, then show me a screenshot from the top")}
-<p class="muted">The 3D viewer appears inline only in clients that support MCP Apps UI; other clients still get the tools but no interactive view.</p>
+<p class="muted">The interactive 3D viewer needs a client with MCP Apps support; other clients can connect but will not show the viewer.</p>
 
 <footer class="muted">
 <p>Prefer a browser? Open the <a href="${esc(origin)}/">OpenSCAD web playground</a>. Source and docs: <a href="https://github.com/openscad/openscad-playground">github.com/openscad/openscad-playground</a> (see <a href="https://github.com/openscad/openscad-playground#readme">README</a>).</p>
