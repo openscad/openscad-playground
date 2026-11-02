@@ -5,7 +5,7 @@ import { ModelContext } from './contexts.ts';
 import { Toast } from 'primereact/toast';
 import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes.ts';
 
-declare global {
+declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
       "model-viewer": any;
@@ -56,8 +56,8 @@ export default function ViewerPanel({className, style}: {className?: string, sty
 
   const state = model.state;
   const [interactionPrompt, setInteractionPrompt] = useState('auto');
-  const modelViewerRef = useRef<any>();
-  const axesViewerRef = useRef<any>();
+  const modelViewerRef = useRef<any>(null);
+  const axesViewerRef = useRef<any>(null);
   const toastRef = useRef<Toast>(null);
 
   const [loadedUri, setLoadedUri] = useState<string | undefined>();
