@@ -126,6 +126,13 @@ export function installWorkerHandler(
                 console.error(`File ${source.path} does not exist!`);
               }
             } else {
+              // Sources may live in subdirectories (e.g. /lib/gear.scad): create the parents.
+              let dir = '';
+              for (const part of source.path.split('/').slice(0, -1)) {
+                if (part === '') continue;
+                dir += '/' + part;
+                try { instance.FS.mkdir(dir); } catch (e) { /* already exists */ }
+              }
               instance.FS.writeFile(source.path, await fetchSource(instance.FS, source));
             }
           } catch (e) {
