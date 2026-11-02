@@ -155,9 +155,14 @@ In `libs-config.json`, add an entry like this:
   "branch": "main",
   "zipIncludes": ["*.scad", "LICENSE", "examples"],
   "zipExcludes": ["**/tests/**"],
-  "workingDir": "."
+  "workingDir": ".",
+  "tag": "v1.2.3",
+  "commit": "<full SHA, set by `npm run libs:update`>",
+  "lazy": true
 }
 ```
+
+`tag` (optional) pins the library to a release; `commit` is the exact commit that gets built. `lazy` (optional, default `false`) marks large or niche libraries: by default a library is fetched in the background after the first render, while a `lazy` one is fetched only when a script, opened path or completion references it (this takes effect once the on-demand loading change lands).
 
 Available build commands:
 - `npm run build:libs` - Build all libraries

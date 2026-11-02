@@ -1,3 +1,5 @@
+const libraryCases = require('./library-cases');
+
 const longTimeout = 60000;
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -195,6 +197,17 @@ describe('e2e', () => {
     await loadSrc(src);
     await waitForViewer();
     expect(messages.filter(m => m.text.includes("Can't open include file") || m.text.includes("Can't open library"))).toHaveLength(0);
+  }, longTimeout);
+
+  test.each(libraryCases)('renders with library: %s', async (_, src) => {
+    await loadSrc(src);
+    await waitForViewer();
+    expect(messages.filter(m => /Can't open (include|library)|ERROR|Ignoring unknown/.test(m.text))).toHaveLength(0);
+    // The render log can trail the viewer update.
+    for (let i = 0; i < 100 && !messages.some(m => m.text.includes('Top level object is')); i++) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+    expect(messages.filter(m => m.text.includes('Top level object is'))).not.toHaveLength(0);
   }, longTimeout);
 
   test('load a demo by path', async () => {
