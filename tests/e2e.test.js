@@ -268,10 +268,42 @@ describe('embed layout', () => {
         { timeout: 45000 });
       expect(!!probe).toBe(true);
       expect(await frame.evaluate(() => !!document.querySelector('button[aria-label="Customize"]'))).toBe(wantEmbed);
+      if (wantEmbed) {
+        // Framed: the escape hatch is a link to the full app in a new tab (not opened here).
+        const link = await frame.$eval('a[aria-label="Open full app in a new tab"]', a => ({ href: a.href, target: a.target, rel: a.rel }));
+        expect(link.target).toBe('_blank');
+        expect(link.rel).toContain('noopener');
+        expect(new URL(link.href).searchParams.get('embed')).toBe('0');
+        expect(new URL(link.href).hash.length).toBeGreaterThan(10); // the current state travels along
+      }
     }
     // The JSON "embedder" page has no favicon: not an app error.
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].location?.url?.endsWith('/favicon.ico')) messages.splice(i, 1);
     }
   }, longTimeout * 2);
+
+  test('embed has an exit control even without customizer parameters, switching to the full UI in place', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent('cube(5);')}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Exit embed mode (full app)"]', { timeout: 45000 });
+    expect(await page.evaluate(embedProbe)).toMatchObject({ customize: false, editor: false });
+    await page.click('button[aria-label="Exit embed mode (full app)"]');
+    await page.waitForSelector('.monaco-editor', { timeout: 45000 });
+    expect(await page.evaluate(embedProbe)).toMatchObject({ editor: true });
+  }, longTimeout);
+
+  test('the settings menu toggles embed mode and the exit control returns', async () => {
+    await page.goto(`${baseUrl}?embed=0#src=${encodeURIComponent(src)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 45000 });
+    await page.click('button[title="Settings menu"]');
+    await page.evaluate(() => {
+      Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Embed mode')).click();
+    });
+    await page.waitForSelector('button[aria-label="Exit embed mode (full app)"]', { timeout: 20000 });
+    expect(await page.evaluate(embedProbe)).toMatchObject({ customize: true, editor: false });
+    await page.click('button[aria-label="Exit embed mode (full app)"]');
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 20000 });
+  }, longTimeout);
 });

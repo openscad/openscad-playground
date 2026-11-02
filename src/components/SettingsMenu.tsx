@@ -5,8 +5,19 @@ import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
 import { Menu } from 'primereact/menu';
 import { ModelContext } from './contexts.ts';
+import { State } from '../state/app-state.ts';
 import { isInStandaloneMode } from '../utils.ts';
 import { confirmDialog } from 'primereact/confirmdialog';
+import { Toast } from 'primereact/toast';
+import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
+
+/** iframe snippet for the current model: `?embed=1` plus the usual URL state fragment. */
+export async function buildEmbedCode(state: State): Promise<string> {
+  const url = new URL(window.location.href);
+  url.search = '?embed=1';
+  url.hash = '#' + await encodeStateParamsAsFragment(state);
+  return `<iframe src="${url.toString()}" style="width: 100%; height: 480px; border: 0" allow="fullscreen; clipboard-write" loading="lazy"></iframe>`;
+}
 
 export default function SettingsMenu({className, style}: {className?: string, style?: CSSProperties}) {
   const model = useContext(ModelContext);
@@ -14,8 +25,10 @@ export default function SettingsMenu({className, style}: {className?: string, st
   const state = model.state;
 
   const settingsMenu = useRef<Menu>(null);
+  const toast = useRef<Toast>(null);
   return (
     <>
+      <Toast ref={toast} position="bottom-center" />
       <Menu model={[
         {
           label: state.view.layout.mode === 'multi'
@@ -24,6 +37,28 @@ export default function SettingsMenu({className, style}: {className?: string, st
           icon: 'pi pi-table',
           // disabled: true,
           command: () => model.changeLayout(state.view.layout.mode === 'multi' ? 'single' : 'multi'),
+        },
+        {
+          separator: true
+        },
+        {
+          // Session-level (not persisted, not in share links): same state `set_layout` and get_viewer_state use.
+          label: 'Embed mode',
+          icon: state.view.embed ? 'pi pi-check' : 'pi pi-window-minimize',
+          command: () => model.mutate(s => { s.view.embed = !s.view.embed; s.view.customizerOverlay = false; }),
+        },
+        {
+          label: 'Copy embed code',
+          icon: 'pi pi-code',
+          command: async () => {
+            const html = await buildEmbedCode(state);
+            try {
+              await navigator.clipboard.writeText(html);
+              toast.current?.show({severity: 'success', detail: 'Embed code copied', life: 2000});
+            } catch {
+              window.prompt('Copy the embed code:', html);
+            }
+          },
         },
         {
           separator: true
