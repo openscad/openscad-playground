@@ -32,6 +32,11 @@ origin is added to the CSP (`resourceDomains`, `connectDomains`; `blob:` and
 - Serves `dist/` including `openscad-worker.js`, `openscad.wasm`, `libraries/*.zip`.
 - Sends CORS headers (`Access-Control-Allow-Origin: *`): the MCP host renders the
   app in a sandboxed iframe on a different origin, so everything is cross-origin.
+- Must stay **frameable**: the web app is designed to be embedded in iframes (see
+  the Embedding section of the main README), so do not send `X-Frame-Options` or a
+  `Content-Security-Policy` with a restrictive `frame-ancestors` (nor
+  `Cross-Origin-Embedder-Policy`/`Cross-Origin-Opener-Policy` headers that would
+  block cross-origin framing). Add this to any `vercel.json`/`_headers` config.
 - Optional: `openscad.fallback.js` next to the other files, for browsers without
   WebAssembly ([WASM_FALLBACK.md](WASM_FALLBACK.md)). It is not built by
   `npm run build:all`; build it separately and copy it into the deployed directory.

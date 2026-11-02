@@ -230,3 +230,48 @@ describe('e2e', () => {
   }, longTimeout);
 });
 
+
+describe('embed layout', () => {
+  const src = 'width = 30; // [10:100]\ncube(width);';
+  const embedProbe = () => ({
+    customize: !!document.querySelector('button[aria-label="Customize"]'),
+    overlay: !!document.querySelector('[role=dialog][aria-label=Customizer]'),
+    tabs: !!document.querySelector('.p-togglebutton, .p-tabmenu'),
+    editor: !!document.querySelector('.monaco-editor'),
+  });
+
+  test('?embed=1 shows only the viewer, with a customizer overlay toggle', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(src)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Customize"]', { timeout: 45000 });
+    expect(await page.evaluate(embedProbe)).toEqual({ customize: true, overlay: false, tabs: false, editor: false });
+    await page.click('button[aria-label="Customize"]');
+    await page.waitForSelector('[role=dialog][aria-label=Customizer]');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('[role=dialog][aria-label=Customizer]'));
+  }, longTimeout);
+
+  test('a framed page defaults to embed, ?embed=0 keeps the full UI', async () => {
+    for (const [query, wantEmbed] of [['', true], ['?embed=0', false]]) {
+      // Any non-app document works as the embedder (a JSON file here), framing the app.
+      const url = `${baseUrl}${query}#src=${encodeURIComponent(src)}`;
+      await page.goto(`${baseUrl}manifest.json`);
+      await page.evaluate((u) => {
+        document.body.innerHTML = `<iframe style="width:900px;height:500px" src="${u}"></iframe>`;
+      }, url);
+      const handle = await page.waitForSelector('iframe');
+      const frame = await handle.contentFrame();
+      await frame.waitForSelector('model-viewer');
+      const probe = await frame.waitForFunction(
+        wantEmbed ? () => !!document.querySelector('button[aria-label="Customize"]')
+                  : () => !!document.querySelector('.monaco-editor, .p-togglebutton'),
+        { timeout: 45000 });
+      expect(!!probe).toBe(true);
+      expect(await frame.evaluate(() => !!document.querySelector('button[aria-label="Customize"]'))).toBe(wantEmbed);
+    }
+    // The JSON "embedder" page has no favicon: not an app error.
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].location?.url?.endsWith('/favicon.ico')) messages.splice(i, 1);
+    }
+  }, longTimeout * 2);
+});

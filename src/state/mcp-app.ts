@@ -19,14 +19,17 @@ import {
   applyHostStyleVariables,
   type McpUiHostContext,
 } from '@modelcontextprotocol/ext-apps';
+import { isFramed } from './embed.ts';
 import { createTools, formatDiagnostics, type ViewerHost } from './mcp-tools.ts';
 
+/**
+ * Running as an MCP app: framed AND loaded from the MCP resource HTML (which
+ * carries the `openscad-base-url` meta tag). A plain iframe of the web app is
+ * not an MCP app (there is no host to handshake with) and runs standalone.
+ */
 export function isMcpMode(): boolean {
-  try {
-    return window.parent !== window;
-  } catch {
-    return false; // cross-origin check failed = we're in an iframe
-  }
+  if (!isFramed()) return false;
+  return document.querySelector('meta[name="openscad-base-url"]') != null;
 }
 
 // Must stay in sync with CAMERA_VIEWS in server/openscad-server.ts (the

@@ -62,7 +62,7 @@ window.addEventListener('load', async () => {
   registerCustomAppHeightCSSProperty();
 
   // ─── MCP: connect early so resource loader is set before FS init ─
-  // The App's tool surface (the `interact` tool) is declared during the
+  // The App's tool surface (see state/mcp-tools.ts) is declared during the
   // ui/initialize handshake, so createMcpApp() registers it before connect().
   // Tool input/result notifications that arrive before React mounts are
   // buffered and replayed by the McpApp component.
@@ -97,6 +97,7 @@ window.addEventListener('load', async () => {
     // ─── MCP App mode ──────────────────────────────────────────────
     const statePersister: StatePersister = { set: async () => {} };
     const initialState = createInitialState(null, { content: '' });
+    initialState.view.embed = true; // the MCP app is an embedded viewer; the model can switch to 'full' with set_layout
 
     root.render(
       <React.StrictMode>

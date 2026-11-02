@@ -2,6 +2,7 @@
 
 import defaultScad from './default-scad.ts';
 import { State } from './app-state.ts';
+import { isFramed, resolveEmbed } from './embed.ts';
 
 export const defaultSourcePath = '/playground.scad';
 export const defaultModelColor = '#f9d72c';
@@ -72,6 +73,8 @@ export function createInitialState(state: State | null, source?: {content?: stri
   }
 
   initialState.view.showAxes ??= true;
+  initialState.view.embed = resolveEmbed({search: window.location.search, hash: window.location.hash, framed: isFramed()});
+  initialState.view.customizerOverlay = false;
 
   // fs.writeFile(initialState.params.sourcePath, initialState.params.source);
   // if (initialState.params.sourcePath !== defaultSourcePath) {

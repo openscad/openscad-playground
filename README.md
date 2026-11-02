@@ -92,6 +92,27 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 
 Libraries and fonts are pinned to exact commits in `libs-config.json` (`commit` fields), so builds are reproducible. To bump them to the current branch heads, run `npm run libs:update`, review the diff, and commit (`npm run libs:check` reports out-of-date pins without writing). Libraries with a stable release process (BOSL2, NopSCADlib) set a `tag` field instead: `libs:update` then pins the commit of that tag, and you bump the tag by hand.
 
+## Embedding
+
+The playground can be embedded in any page with an iframe. When it runs inside a frame it defaults to **embed mode**: no tab bar or footer, just the 3D viewer filling the frame, a small customizer button (shown only when the model has customizer parameters) that opens the customizer as an overlay (Escape or an outside click closes it), and an "open in full app" button. A fullscreen button appears if the iframe allows it.
+
+```html
+<iframe
+  src="https://ochafik.com/openscad2/?embed=1#src=width%20%3D%2030%3B%20%2F%2F%20%5B10%3A100%5D%0Acube(width)%3B"
+  style="width: 100%; height: 480px; border: 0"
+  allow="fullscreen; clipboard-write"
+  loading="lazy"></iframe>
+```
+
+| URL state | Effect |
+|---|---|
+| `?embed=1` (or `?embed`), `#embed=1&...` | Force embed mode, even in a top-level window. |
+| `?embed=0`, `#embed=0&...` | Force the full UI, even inside an iframe. |
+| _(none)_ | Embed when framed (or running as an MCP app), full UI otherwise. |
+| `#src=<urlencoded code>`, `#url=<urlencoded url>`, `#path=<library path>` | Deep-link the model to show. |
+
+Prefer the query parameter (`?embed=`): the app rewrites the fragment as the model changes, which drops a `#embed=` prefix on reload. Any host serving the app must leave framing open: do not send `X-Frame-Options` or a restrictive `Content-Security-Policy: frame-ancestors`.
+
 ## Build your own WASM binary
 
 The build system fetches a prebuilt OpenSCAD web WASM binary, but you can build your own in a couple of minutes:

@@ -3,6 +3,7 @@
 import { State } from "./app-state.ts";
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils.ts";
+import { stripEmbedFromFragment } from "./embed.ts";
 import { createInitialState, defaultModelColor, defaultSourcePath } from "./initial-state.ts";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
@@ -40,16 +41,18 @@ async function decompressString(compressedInput: string): Promise<string> {
 export function encodeStateParamsAsFragment(state: State) {
   const json = JSON.stringify({
     params: state.params,
-    view: state.view,
+    // embed / customizerOverlay are runtime-only: the URL's ?embed= decides, not a stale link
+    view: {...state.view, embed: undefined, customizerOverlay: undefined, fullReady: undefined, layoutError: undefined},
     preview: state.preview,
   });
   // return encodeURIComponent(json);
   return compressString(json);
 }
 export async function readStateFromFragment(): Promise<State | null> {
-  if (window.location.hash.startsWith('#') && window.location.hash.length > 1) {
+  if (window.location.hash.startsWith('#') && stripEmbedFromFragment(window.location.hash.substring(1)) !== '') {
     try {
-      const serialized = window.location.hash.substring(1);
+      const serialized = stripEmbedFromFragment(window.location.hash.substring(1));
+      if (serialized === '') return null;
       if (serialized === 'blank') {
         return createInitialState(null, {content: ''});
       } else if (serialized.startsWith('src=')) {
