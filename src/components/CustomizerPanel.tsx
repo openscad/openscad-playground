@@ -20,6 +20,11 @@ export default function CustomizerPanel({className, style}: {className?: string,
   const state = model.state;
 
   const handleChange = (name: string, value: any) => {
+    // Some inputs (e.g. InputNumber) report their initial value on mount:
+    // don't trigger a redundant render when nothing actually changed.
+    const current = (state.params.vars ?? {})[name]
+      ?? state.parameterSet?.parameters.find(p => p.name === name)?.initial;
+    if (JSON.stringify(current) === JSON.stringify(value)) return;
     model.setVar(name, value);
   };
 
