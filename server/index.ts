@@ -9,6 +9,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import { createServer } from "./openscad-server.js";
 import { envBaseUrl, resolveBaseUrl } from "./base-url.js";
+import { HELP_HEADERS, renderHelpPage, wantsHtml } from "./help-page.js";
 
 const DIST_DIR = process.env.OPENSCAD_DIST_DIR ?? path.resolve(import.meta.dirname ?? __dirname, "../dist");
 
@@ -35,6 +36,11 @@ async function startStreamableHTTPServer(): Promise<void> {
   // The server is stateless (all interaction happens through the view's own
   // app tools), so each request gets a fresh McpServer instance.
   app.all("/mcp", async (req: Request, res: Response) => {
+    // A person who opened the endpoint in a browser gets setup instructions.
+    if (wantsHtml(req)) {
+      res.status(200).set(HELP_HEADERS).send(renderHelpPage(resolveBaseUrl(req)));
+      return;
+    }
     const server = createServer(selfServe ? resolveBaseUrl(req) : envBaseUrl());
     const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
