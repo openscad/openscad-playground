@@ -332,51 +332,12 @@ export function McpApp({
     return () => window.removeEventListener('keydown', handler);
   }, [viewerRef, toggleFullscreen]);
 
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
-  const copyToClipboard = useCallback(async () => {
-    try {
-      const screenshot = await viewerRef.current?.captureScreenshot();
-      const source = model.source;
-
-      // Build markdown
-      let md = '';
-      if (screenshot) md += `![OpenSCAD Render](${screenshot})\n\n`;
-      md += '```scad\n' + source + '\n```';
-
-      // Build HTML (complete fragment so paste targets recognize structure)
-      const escaped = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      let html = '<html><body>';
-      if (screenshot) html += `<p><img src="${screenshot}" alt="OpenSCAD Render" /></p>`;
-      html += `<pre style="background:#f5f5f5;padding:12px;border-radius:6px;overflow-x:auto"><code class="language-scad">${escaped}</code></pre>`;
-      html += '</body></html>';
-
-      // Write both MIME types to clipboard
-      const item = new ClipboardItem({
-        'text/plain': new Blob([md], { type: 'text/plain' }),
-        'text/html': new Blob([html], { type: 'text/html' }),
-      });
-      await navigator.clipboard.write([item]);
-
-      setCopyStatus('copied');
-      setTimeout(() => setCopyStatus('idle'), 2000);
-    } catch (e) {
-      console.warn('Copy failed:', e);
-    }
-  }, [model, viewerRef]);
-
   const toolbar = (
-    <>
-      <CornerButton
-        icon={copyStatus === 'copied' ? EmbedIcons.check : EmbedIcons.copy}
-        label={copyStatus === 'copied' ? 'Copied!' : 'Copy'}
-        onClick={copyToClipboard}
-      />
-      <CornerButton
-        icon={EmbedIcons.externalLink}
-        label="Open in Browser"
-        onClick={openInBrowser}
-      />
-    </>
+    <CornerButton
+      icon={EmbedIcons.externalLink}
+      label="Open in Browser"
+      onClick={openInBrowser}
+    />
   );
 
   // Fullscreen only where the host offers that display mode.

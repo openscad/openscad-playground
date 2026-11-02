@@ -173,7 +173,7 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `set_view_options` | `show_axes`. (There is no shadows or wireframe mode.) |
 | `screenshot` | PNG/JPEG image blocks of the 3D canvas (`max_size` up to 1024). `views: ["iso","front","top"]` returns several angles in one call; the camera is restored unless `keep_camera`. |
 
-The viewer opens in **embed mode** (see the main README): only the 3D view, with a floating customizer button whose overlay closes on Escape or an outside click; the button and `get_viewer_state` stay in sync with `set_layout`. A fullscreen button appears when the host offers the `fullscreen` display mode.
+The viewer opens in **embed mode** (see the main README): only the 3D view and a top-right toolbar (customizer toggle, copy source, fullscreen when the host offers it, exit to the full editor). The customizer is a translucent side sheet docked on the right that overlays, and never resizes, the viewer; it closes with the toggle, Escape, or a tap outside on small screens. `set_layout` and the toolbar share the same state, so `get_viewer_state` always reports what the user sees.
 
 Parameter presets are not exposed: the app has no preset concept (only the values the customizer holds), so there are no `list_presets`/`apply_preset` tools.
 
