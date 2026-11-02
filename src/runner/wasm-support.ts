@@ -3,6 +3,8 @@
 // WebAssembly capability detection for the optional wasm2js OpenSCAD fallback
 // (see docs/WASM_FALLBACK.md).
 
+import { resolveUrl } from '../resource-loader.ts';
+
 /** OpenSCAD execution engine actually used by a render. */
 export type RenderEngine = 'wasm' | 'wasm2js';
 
@@ -83,10 +85,11 @@ export async function probeRenderEngine(): Promise<RenderEngineAvailability> {
   // WASM is unavailable, or the wasm2js engine was explicitly forced: report
   // whether the JS fallback build is actually deployed.
   try {
-    // Resolves against the document URL. The fallback build is served next to
+    // Resolves against the document URL (or the `openscad-base-url` meta tag
+    // when assets are hosted on another origin, as in the MCP App). The fallback build is served next to
     // the app (and the worker), so this matches the URL the worker loads via
     // importScripts() in openscad-loader.ts.
-    const res = await fetch(`./${FALLBACK_ENGINE_SCRIPT}`, { method: 'HEAD' });
+    const res = await fetch(resolveUrl(`./${FALLBACK_ENGINE_SCRIPT}`), { method: 'HEAD' });
     return res.ok ? 'wasm2js' : 'none';
   } catch {
     return 'none';

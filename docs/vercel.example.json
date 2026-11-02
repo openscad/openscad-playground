@@ -1,0 +1,26 @@
+{
+  "$comment": "EXAMPLE ONLY (see docs/MCP_APP_DEPLOYMENT.md). Copy to the repo root as vercel.json in your own deployment; adjust domains and add api/mcp.ts + server/vercel-entry.ts.",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci && cd server && npm ci",
+  "buildCommand": "npm run build:all && cd server && npx esbuild vercel-entry.ts --bundle --platform=node --format=cjs --outfile=../api/_server.js",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/mcp.ts": { "maxDuration": 60, "includeFiles": "api/_server.js" }
+  },
+  "rewrites": [{ "source": "/mcp", "destination": "/api/mcp" }],
+  "headers": [
+    {
+      "source": "/mcp",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Accept, Mcp-Session-Id" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io/) server that exposes an interactive OpenSCAD 3D viewer as an [MCP App](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/apps). It lets LLMs create, edit, and render OpenSCAD models through tool calls, while users see a live 3D preview in the host UI.
 
-Built with the [MCP Apps SDK](https://github.com/modelcontextprotocol/ext-apps) v2: the server exposes a single `create` tool that opens the viewer, and the viewer itself registers an `interact` app tool with the host. The host routes `interact` calls straight into the iframe, so the server is fully stateless — no command queue, no polling, no Redis.
+Built with the [MCP Apps SDK](https://github.com/modelcontextprotocol/ext-apps) v2: the server exposes a single `create` tool that opens the viewer, and the viewer itself registers an `interact` app tool with the host. The host routes `interact` calls straight into the iframe, so the server is fully stateless — no command queue, no polling, no external storage.
 
 ## Quick Start
 
@@ -115,23 +115,11 @@ This adds `express.static` serving of the `dist/` directory and points the app's
 
 ## Deployment
 
-### Vercel
+### Static + serverless hosting (e.g. Vercel)
 
-The repo root has a `vercel.json` that deploys both the **web app** (static files from `dist/`) and the **MCP endpoint** (serverless function at `/mcp`) from the same project. The server is stateless, so serverless deployment needs no shared storage.
+The server is stateless, so it also runs as a serverless function next to the static `dist/` files. This repository ships no platform-specific files; see [docs/MCP_APP_DEPLOYMENT.md](../docs/MCP_APP_DEPLOYMENT.md) for a generic walkthrough and an example `vercel.json`.
 
-1. Set environment variables in your Vercel project:
-   - `OPENSCAD_BASE_URL` — set to your Vercel deployment URL (e.g. `https://openscad.vercel.app/`)
-
-2. Deploy from the repo root:
-   ```bash
-   vercel
-   ```
-
-This gives you:
-- `https://openscad.vercel.app/` — the standalone web playground
-- `https://openscad.vercel.app/mcp` — the MCP endpoint for AI hosts
-
-The CSP headers automatically include the `OPENSCAD_BASE_URL` origin in `resourceDomains` and `connectDomains`, so the MCP App iframe can load scripts and WASM from whatever domain you configure.
+The CSP metadata automatically includes the `OPENSCAD_BASE_URL` origin in `resourceDomains` and `connectDomains`, so the MCP App iframe can load scripts and WASM from whatever domain you configure.
 
 ### Other platforms (Fly.io, Railway, etc.)
 
@@ -215,14 +203,11 @@ Runs an in-process test suite over linked in-memory transports, covering the too
 
 The `interact` tool lives in the view, so it is exercised in a browser host (e.g. basic-host), not here.
 
-## asm.js Fallback (Optional)
+## WebAssembly-less fallback (optional)
 
-The app uses WebAssembly by default. For environments without WASM support, an optional asm.js variant can be built; if `src/asmjs/openscad.js` exists, webpack automatically builds `openscad-worker-asmjs.js` alongside the regular `openscad-worker.js`. At runtime, the app detects WebAssembly support and automatically falls back to the asm.js worker if available.
+The app uses WebAssembly by default. When WebAssembly is unavailable (e.g. iOS Lockdown Mode, or a strict CSP without `wasm-unsafe-eval`), the worker loads the optional wasm2js build `openscad.fallback.js` instead, if it is deployed next to the app (see [docs/WASM_FALLBACK.md](../docs/WASM_FALLBACK.md) for how to build it).
 
-**Trade-offs:**
-- asm.js binary is ~2-3x larger than WASM
-- Runtime performance is ~5-10x slower
-- 98%+ of browsers support WASM, so this is rarely needed
+In the MCP App the page lives on the host's sandbox origin while assets live on `OPENSCAD_BASE_URL`. The worker is started through a blob wrapper that resolves relative `importScripts()`/`fetch()` URLs against the asset origin, so the fallback script is fetched from `OPENSCAD_BASE_URL` too. Make sure it is served from there (in `--serve-dist` mode, copy it into `dist/`; it is ~22 MB and only downloaded when needed) and that the origin is allowed by the CSP, which the server derives from `OPENSCAD_BASE_URL`.
 
 ## Development
 
