@@ -683,15 +683,21 @@ describe('Configure MCP menu entry', () => {
     await openSettings();
     expect(await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).some(a => a.textContent.includes('Configure MCP')))).toBe(false);
   }, longTimeout);
-  (configured ? test : test.skip)('is a new-tab link to the configured URL when set', async () => {
+  (configured ? test : test.skip)('opens the configured URL in a new tab when set', async () => {
     await openSettings();
-    const link = await page.evaluate(() => {
-      const a = Array.from(document.querySelectorAll('a')).find(a => a.textContent.includes('Configure MCP'));
-      return a && { href: a.href, target: a.target, rel: a.rel };
+    const labels = await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).map(a => a.textContent));
+    expect(labels).toContain('Configure MCP');
+    const opened = new Promise(resolve => browser.once('targetcreated', t => resolve(t)));
+    await page.evaluate(() => {
+      Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Configure MCP')).click();
     });
-    expect(link.target).toBe('_blank');
-    expect(link.rel).toContain('noopener');
-    expect(link.href).toBe(new URL(configured, baseUrl).toString());
+    const target = await opened;
+    expect(target.url() === new URL(configured, baseUrl).toString() || target.url() === 'about:blank').toBe(true);
+    // A noopener popup starts at about:blank before navigating: wait for the final URL.
+    await new Promise(r => setTimeout(r, 1500));
+    const urls = (await browser.pages()).map(p => p.url());
+    expect(urls).toContain(new URL(configured, baseUrl).toString());
+    await (await target.page())?.close();
   }, longTimeout);
 });
 

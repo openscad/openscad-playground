@@ -82,14 +82,9 @@ export default function SettingsMenu({className, style}: {className?: string, st
         ...(mcpSetupUrl ? [
           {
             label: 'Configure MCP',
-            icon: 'pi pi-link',
-            // A real link: opens the setup help page in a new tab.
-            template: (item: MenuItem, options: any) => (
-              <a className={options.className} href={mcpSetupUrl} target="_blank" rel="noopener" role="menuitem">
-                <span className={options.iconClassName} />
-                <span className={options.labelClassName}>{item.label}</span>
-              </a>
-            ),
+            icon: 'pi pi-sparkles',
+            // Opens the MCP setup help page in a new tab.
+            command: () => { window.open(mcpSetupUrl, '_blank', 'noopener,noreferrer'); },
           },
         ] : []),
         ...(isInStandaloneMode() ? [
