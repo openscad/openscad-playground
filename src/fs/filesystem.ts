@@ -129,6 +129,12 @@ export function onLibrariesMounted(listener: () => void): () => void {
 
 let deferredMounts: {readable: any, prefix: string} | undefined;
 const mounting = new Map<string, Promise<void>>();
+const mounted = new Set<string>();
+
+/** Whether an archive has been mounted on the main thread (only meaningful with deferArchives). */
+export function isArchiveMounted(name: string): boolean {
+  return mounted.has(name);
+}
 let notifyScheduled = false;
 
 function mountArchive(name: string): Promise<void> {
@@ -142,6 +148,7 @@ function mountArchive(name: string): Promise<void> {
           BrowserFS.FileSystem.ZipFS.Create(options, (e: Error | null, zipFS: any) => {
             if (e) return reject(e);
             readable.mount(`${prefix}${name}`, zipFS);
+            mounted.add(name);
             resolve();
           }));
         if (!notifyScheduled) {
@@ -165,6 +172,7 @@ function mountArchive(name: string): Promise<void> {
  * Fetches and mounts the archives left out by createEditorFS({deferArchives}):
  * all the ones the main thread uses (see backgroundArchiveNames), plus the `extra`
  * ones that something needs now (e.g. the fonts). Idempotent: archives are only mounted once.
+ * Never rejects: check isArchiveMounted() to know whether an archive could be fetched.
  */
 export function whenLibrariesMounted(extra: string[] = []): Promise<void> {
   if (!deferredMounts) {

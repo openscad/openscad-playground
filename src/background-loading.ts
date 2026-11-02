@@ -4,9 +4,11 @@
 // land in its runtime cache (offline use).
 
 import { whenLibrariesMounted } from './fs/filesystem.ts';
+import { isMcpMode } from './state/mcp-app.ts';
 
 async function registerServiceWorker() {
-  if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) {
+  // (Not in the MCP app: it runs in a host's sandboxed iframe, on another origin than its assets.)
+  if (process.env.NODE_ENV !== 'production' || isMcpMode() || !('serviceWorker' in navigator)) {
     return;
   }
   try {
@@ -51,6 +53,7 @@ export function startBackgroundLoading(): Promise<void> {
     if (navigator.serviceWorker?.controller) {
       // Served by the HTTP cache, ends up in the Service Worker's runtime cache.
       fetch('./openscad.wasm').catch(() => {});
+      fetch('./libraries/index.json').catch(() => {});
     }
   })();
 }

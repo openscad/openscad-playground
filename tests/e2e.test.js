@@ -244,24 +244,90 @@ describe('e2e', () => {
     expect(await page.$$('.squiggly-error, .squiggly-warning')).toHaveLength(0);
   }, longTimeout);
 
-  test('the file picker lists the libraries once they are mounted in the background', async () => {
+  // Library zips requested by the page (the worker's own requests aren't visible here).
+  function collectZipRequests() {
+    const zips = [];
+    const onRequest = (req) => { const m = req.url().match(/\/libraries\/([^/]+)\.zip$/); if (m) zips.push(m[1]); };
+    page.on('request', onRequest);
+    return { zips, stop: () => page.off('request', onRequest) };
+  }
+  // Expands a node of the open file picker tree.
+  function expandTreeNode(label) {
+    return page.waitForFunction((label) => {
+      const li = [...document.querySelectorAll('li.p-treenode')]
+        .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+      if (!li) return false;
+      if (li.getAttribute('aria-expanded') !== 'true') li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+      return li.getAttribute('aria-expanded') === 'true';
+    }, {timeout: 30000}, label);
+  }
+  // Expands the given nodes of the open file picker tree, then clicks the last one.
+  // (The tree may re-render and collapse while libraries get mounted/indexed: retry from the top.)
+  function clickTreePath(path) {
+    return page.waitForFunction((path) => {
+      const find = (label) => [...document.querySelectorAll('li.p-treenode')]
+        .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+      for (const label of path.slice(0, -1)) {
+        const li = find(label);
+        if (!li) return false;
+        if (li.getAttribute('aria-expanded') !== 'true') {
+          li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+          return false;
+        }
+      }
+      const file = find(path[path.length - 1]);
+      if (!file) return false;
+      file.querySelector(':scope > .p-treenode-content').click();
+      return true;
+    }, {timeout: 30000, polling: 200}, path);
+  }
+  const lazyLibraries = ['BOSL', 'openscad-tray', 'Stemfie_OpenSCAD', 'lasercut', 'boltsparts', 'openscad_attachable_text3d'];
+
+  test('the file picker lists libraries, lazy ones from the index without fetching them', async () => {
+    const requests = collectZipRequests();
     await loadSrc('cube([10, 10, 10]);');
     await waitForViewer();
     await page.click('.p-treeselect');
-    await page.waitForFunction(() => {
-      // Expand the top-level 'libraries' folder.
-      const folder = [...document.querySelectorAll('li.p-treenode')].find(li => li.querySelector('.p-treenode-label')?.textContent === 'libraries');
-      if (folder && folder.getAttribute('aria-expanded') !== 'true') {
-        folder.querySelector('.p-tree-toggler')?.click();
-      }
-      const text = document.body.innerText;
-      return ['BOSL2', 'NopSCADlib', 'MCAD', 'openscad'].every(n => text.includes(n));
-    }, {timeout: 30000});
-    // The removed library is gone.
+    await page.waitForFunction((names) => {
+      // (Re-expand: the tree may re-render and collapse while libraries get mounted/indexed.)
+      const folder = [...document.querySelectorAll('li.p-treenode')].find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === 'libraries');
+      if (folder && folder.getAttribute('aria-expanded') !== 'true') folder.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+      const labels = new Set([...document.querySelectorAll('.p-treenode-label')].map(l => l.textContent));
+      return names.every(n => labels.has(n));
+    }, {timeout: 30000, polling: 200}, ['BOSL2', 'NopSCADlib', 'MCAD', 'openscad', ...lazyLibraries]);
+    // Lazy libraries can be browsed...
+    await expandTreeNode('boltsparts');
+    await expandTreeNode('vacuum');
+    await page.waitForFunction(() => [...document.querySelectorAll('.p-treenode-label')].some(l => l.textContent === 'CF-Flange.scad'), {timeout: 30000});
+    // ...without having been fetched; the removed library is gone.
+    await new Promise(r => setTimeout(r, 1500));
+    requests.stop();
+    for (const name of lazyLibraries) {
+      expect(requests.zips).not.toContain(name);
+    }
     expect(await page.evaluate(() => document.body.innerText)).not.toContain('FunctionalOpenSCAD');
   }, longTimeout);
 
-  test('completes include/use paths once the libraries are mounted', async () => {
+  test('opening a file of a lazy library fetches the library and opens the file', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    await page.click('.p-treeselect');
+    const requests = collectZipRequests();
+    messages.length = 0;
+    await clickTreePath(['libraries', 'boltsparts', 'vacuum', 'CF-Flange.scad']);
+    await page.waitForFunction(() => document.querySelector('.p-treeselect-label')?.textContent.includes('CF-Flange.scad'), {timeout: 30000});
+    for (let i = 0; i < 300 && !messages.some(m => m.text === 'Mounting archives: boltsparts'); i++) {
+      await new Promise(r => setTimeout(r, 100)); // the file renders (mounting its library in the worker)
+    }
+    requests.stop();
+    expect(requests.zips).toContain('boltsparts');
+    expectMountedArchives(['boltsparts']);
+    // (Switching away from the unsaved default file logs 'Error while reading file', which is not about libraries.)
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].text.startsWith('Error while reading file')) messages.splice(i, 1);
+  }, longTimeout);
+
+  test('completes include/use library names and paths, lazy libraries included, without fetching them', async () => {
+    const requests = collectZipRequests();
     await loadSrc('use <');
     await page.waitForSelector('.monaco-editor .view-lines');
     await page.click('.monaco-editor .view-lines');
@@ -271,8 +337,18 @@ describe('e2e', () => {
     await page.keyboard.up('Control');
     await page.waitForFunction(() => {
       const w = document.querySelector('.suggest-widget.visible');
-      return w && ['BOSL2', 'NopSCADlib', 'MCAD'].every(n => w.textContent.includes(n));
+      return w && w.textContent.includes('BOSL2');
     }, {timeout: 30000});
+    // The widget only renders the first rows: narrow the list down to a lazy library, then to its files.
+    const suggests = (text) => page.waitForFunction((text) => document.querySelector('.suggest-widget.visible')?.textContent.includes(text), {timeout: 30000}, text);
+    await page.keyboard.type('bolt');
+    await suggests('boltsparts');
+    await page.keyboard.type('sparts/');
+    await suggests('vacuum');
+    await page.keyboard.type('vacuum/');
+    await suggests('CF-Flange.scad');
+    requests.stop();
+    expect(requests.zips).not.toContain('boltsparts');
     messages.length = 0; // `use <` alone is not a valid script
   }, longTimeout);
 
@@ -357,13 +433,20 @@ describe('e2e', () => {
     // fetches of the engine and the libraries to have gone through it.
     await page.waitForFunction(async () => {
       if (!navigator.serviceWorker.controller) return false;
-      for (const url of ['openscad.wasm', 'libraries/BOSL2.zip', 'libraries/fonts.zip', 'index.js']) {
+      for (const url of ['openscad.wasm', 'libraries/BOSL2.zip', 'libraries/index.json', 'libraries/fonts.zip', 'index.js']) {
         if (!await caches.match(new URL(url, location.href).href, {ignoreSearch: true})) return false;
       }
       return true;
     }, {timeout: 45000, polling: 500});
 
-    await page.setOfflineMode(true);
+    // Offline for the page *and* for the Service Worker, which has its own network.
+    const swSession = await (await browser.waitForTarget(t => t.type() === 'service_worker')).createCDPSession();
+    await swSession.send('Network.enable');
+    const setOffline = (offline) => Promise.all([
+      page.setOfflineMode(offline),
+      swSession.send('Network.emulateNetworkConditions', {offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1}),
+    ]);
+    await setOffline(true);
     try {
       await page.goto('about:blank');
       messages.length = 0;
@@ -375,8 +458,16 @@ describe('e2e', () => {
       await waitForViewer();
       expect(messages.some(msg => msg.type === 'debug' && msg.text.startsWith('stderr: Top level object is a'))).toBe(true);
       expectMountedArchives(['fonts', 'BOSL2']);
+
+      // A library that was never fetched can be browsed (index) but not opened: a clear message.
+      await page.click('.p-treeselect');
+      // (lasercut: no other test fetches it, which would put it in the Service Worker's cache.)
+      await clickTreePath(['libraries', 'lasercut', 'examples_flattened_tweak.scad']);
+      await page.waitForFunction(() => document.querySelector('.p-treeselect-label')?.textContent.includes('Could not load lasercut'), {timeout: 30000});
+      // (The failed fetch is logged by the browser, which is the point of this part of the test.)
+      for (let i = messages.length - 1; i >= 0; i--) if (messages[i].type === 'error' && /Failed to load resource|Error while reading file/.test(messages[i].text)) messages.splice(i, 1);
     } finally {
-      await page.setOfflineMode(false);
+      await setOffline(false);
     }
   }, 2 * longTimeout);
 

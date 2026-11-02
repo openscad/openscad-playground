@@ -43,7 +43,7 @@ Licenses: see [LICENSES](./LICENSE).
 - Fuller PWA support w/ link Sharing, File opening / association to *.scad files... 
 - Look into accessibility
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples that include assets / import local files will run fine.
-- The bundled libraries are mounted on demand for renders, but the file explorer and completions still fetch all of the zips in the background after the first render: ship a prebuilt file hierarchy to make that lazy too.
+- The bundled libraries are mounted on demand for renders; the file explorer and completions list `lazy` libraries from the build-time `libraries/index.json` and only the others are fetched in the background after the first render.
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
 ## Building
@@ -185,7 +185,7 @@ In `libs-config.json`, add an entry like this:
 }
 ```
 
-`tag` (optional) pins the library to a release; `commit` is the exact commit that gets built. `lazy` (optional, default `false`) marks large or niche libraries: by default a library is fetched in the background after the first render, while a `lazy` one is fetched only when a script, opened path or completion references it (this takes effect once the on-demand loading change lands).
+`tag` (optional) pins the library to a release; `commit` is the exact commit that gets built. `lazy` (optional, default `false`) marks large or niche libraries: by default a library is fetched in the background after the first render, while a `lazy` one is fetched only when a script, an opened path or a file opened from the file picker needs it. Lazy libraries stay visible in the file picker and in `use <` / `include <` completions, listed from `libraries/index.json` (written by the build: each library's zip size and its `.scad` files).
 
 Available build commands:
 - `npm run build:libs` - Build all libraries

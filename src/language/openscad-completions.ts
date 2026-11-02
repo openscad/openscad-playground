@@ -3,6 +3,7 @@
 import * as monaco from 'monaco-editor/editor/editor.api';
 import { join, Symlinks, whenLibrariesMounted } from '../fs/filesystem';
 import { getRequiredArchives } from '../fs/archive-deps';
+import { listIndexDir, loadLibraryIndex } from '../fs/library-index';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -188,7 +189,8 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
           }
           const folderName = (folderPrefix == '' ? '' : '/' + folderPrefix);
           let files: string[] | null = null
-          await whenLibrariesMounted();
+          // Libraries are listed from the build-time index, mounted or not.
+          const indexFiles = listIndexDir(await loadLibraryIndex(), folderPrefix);
           for (const folder of [join('/libraries', folderName), join(workingDir, folderName)]) {
             files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
             try {
@@ -200,8 +202,9 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
               //console.error(e);
             }
           }
+          files = [...new Set([...(files ?? []), ...indexFiles])];
           const suggestions = [];
-          if (!files) {
+          if (files.length == 0) {
             console.warn('Failed to find folder named ' + folderName);
           } else {
             for (const file of files) {
