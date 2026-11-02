@@ -41,7 +41,6 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
   + [NopSCADlib](#nopscadlib)
   + [MCAD](#mcad)
   + [brailleSCAD](#braillescad)
-  + [FunctionalOpenSCAD](#functionalopenscad)
   + [funcutils](#funcutils)
   + [smooth-prim](#smooth-prim)
   + [closepoints](#closepoints)
@@ -220,41 +219,13 @@ Licensed under the [GPLv3](#gplv3).
 
 https://github.com/openscad/MCAD
 
-Licensed under the [GNU LGPLv2.1](#lgplv21) or later (stated in the library's README and file headers).
+Licensed under the [GNU LGPLv2.1](#lgplv21) or later.
 
 ### brailleSCAD
 
 https://github.com/BelfrySCAD/brailleSCAD
 
 Licensed under the [GNU LGPLv2.1](#lgplv21).
-
-### FunctionalOpenSCAD
-
-https://github.com/thehans/FunctionalOpenSCAD
-
-```
-MIT License
-
-Copyright (c) 2017 Hans L
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ### funcutils
 
