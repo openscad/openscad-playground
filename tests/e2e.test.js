@@ -3,7 +3,8 @@ const libraryCases = require('./library-cases');
 const longTimeout = 60000;
 
 const isProd = process.env.NODE_ENV === 'production';
-const baseUrl = isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/';
+// E2E_BASE_URL: test against an already running server (e.g. when the default ports are taken).
+const baseUrl = process.env.E2E_BASE_URL ?? (isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/');
 
 const messages = [];
 
@@ -53,6 +54,15 @@ async function waitForViewer() {
 function expectMessage(messages, line) {
   const successMessage = messages.filter(msg => msg.type === 'debug' && msg.text === line);
   expect(successMessage).toHaveLength(1);
+}
+// Both the syntax check and the render mount archives (in separate workers).
+function expectMountedArchives(archives) {
+  const expected = `Mounting archives: ${archives.length ? archives.join(', ') : '(none)'}`;
+  const mounted = messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: '));
+  expect(mounted.length).toBeGreaterThan(0);
+  for (const msg of mounted) {
+    expect(msg.text).toBe(expected);
+  }
 }
 function expectObjectList() {
   expectMessage(messages, 'stderr: Top level object is a list of objects:');
@@ -178,6 +188,38 @@ describe('e2e', () => {
     expect3DPolySet();
   }, longTimeout);
 
+  test('only mounts the libraries a script refers to', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    expect3DPolySet();
+    expectMountedArchives([]);
+  }, longTimeout);
+
+  test('mounts the fonts for text()', async () => {
+    await loadSrc('linear_extrude(1) text("Hi");');
+    await waitForViewer();
+    expectMountedArchives(['fonts']);
+  }, longTimeout);
+
+  test('mounts BOSL2 but not other libraries', async () => {
+    await loadSrc(`
+      include <BOSL2/std.scad>
+      prismoid([40,40], [0,0], h=20);
+    `);
+    await waitForViewer();
+    expect3DPolySet();
+    expectMountedArchives(['BOSL2']);
+  }, longTimeout);
+
+  test('mounts the libraries that libraries depend on', async () => {
+    await loadSrc(`
+      include <openscad_attachable_text3d/attachable_text3d.scad>
+      cube(1);
+    `);
+    await waitForViewer();
+    expectMountedArchives(['fonts', 'BOSL2', 'openscad_attachable_text3d']);
+  }, longTimeout);
+
   test('use NopSCADlib', async () => {
     await loadSrc(`
       include <NopSCADlib/vitamins/led_meters.scad>
@@ -185,6 +227,19 @@ describe('e2e', () => {
     `);
     await waitForViewer();
     expect3DManifold();
+    expectMountedArchives(['fonts', 'NopSCADlib']);
+  }, longTimeout);
+
+  test('mounts the fonts when a library turns out to need them', async () => {
+    await loadSrc(`
+      include <BOSL2/std.scad>
+      text3d("Hi");
+    `);
+    await waitForViewer();
+    // The first run only had BOSL2 (no text() in the source), and got a font warning.
+    await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer')?.src);
+    const mounted = new Set(messages.filter(msg => msg.type === 'debug' && msg.text.startsWith('Mounting archives: ')).map(msg => msg.text));
+    expect([...mounted].sort()).toEqual(['Mounting archives: BOSL2', 'Mounting archives: fonts, BOSL2'].sort());
   }, longTimeout);
 
   // Libraries whose entry points live at the root of the zip (or in a sub-folder matched by a wildcard).

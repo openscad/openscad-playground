@@ -80,10 +80,9 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS({prefix, allowPersistence, skipLibraries}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean}): Promise<FS> {
+export async function createEditorFS({prefix, allowPersistence, skipLibraries, archiveNames = deployedArchiveNames}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean, archiveNames?: string[]}): Promise<FS> {
   const allMounts: FSMounts = {};
   if (!skipLibraries) {
-    const archiveNames = deployedArchiveNames;
     const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
     for (const n in librariesMounts) {
       allMounts[`${prefix}${n}`] = librariesMounts[n];
