@@ -221,6 +221,65 @@ export const zipArchives: ZipArchives = {
       include: [{glob: ['**/*.scad', 'LICENSE']}],
     },
   },
+  'gridfinity-rebuilt-openscad': {
+    description: 'Gridfinity: modular storage bins and baseplates.',
+    gitOrigin: {
+      branch: 'main',
+      repoUrl: 'https://github.com/kennetek/gridfinity-rebuilt-openscad',
+      include: [{glob: ['**/*.scad', 'LICENSE']}],
+    },
+    docs: {
+      'Documentation': 'https://github.com/kennetek/gridfinity-rebuilt-openscad#readme',
+    },
+  },
+  'Round-Anything': {
+    description: 'OpenSCAD library for rounding polygons, paths and 3D shapes.',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/Irev-Dev/Round-Anything',
+      include: [{glob: ['*.scad', 'LICENSE']}],
+    },
+    symlinks: {'polyround.scad': 'polyround.scad', 'MinkowskiRound.scad': 'MinkowskiRound.scad'},
+    docs: {
+      'API': 'https://kurthutten.com/blog/round-anything-api/',
+    },
+  },
+  'threads-scad': {
+    description: 'Efficient OpenSCAD threading library.',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/rcolyer/threads-scad',
+      include: [{glob: ['*.scad', 'LICENSE.txt']}],
+    },
+    symlinks: {'threads.scad': 'threads.scad'},
+  },
+  'dotSCAD': {
+    description: 'Math, 2D / 3D shapes, paths, patterns and algorithms library.',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/JustinSDK/dotSCAD',
+      include: [{glob: ['src/**/*.scad', 'LICENSE']}],
+    },
+    docs: {
+      'Documentation': 'https://openhome.cc/eGossip/OpenSCAD/lib3x-index.html',
+    },
+  },
+  'scad-utils': {
+    description: 'Utility libraries for OpenSCAD: transformations, linear algebra, shapes and lists.',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/OskarLinde/scad-utils',
+      include: [{glob: ['*.scad', 'LICENSE']}],
+    },
+  },
+  'KeyV2': {
+    description: 'Parametric mechanical keyboard keycap library.',
+    gitOrigin: {
+      branch: 'master',
+      repoUrl: 'https://github.com/rsheldiii/KeyV2',
+      include: [{glob: ['src/**/*.scad', 'keys.scad', 'includes.scad', 'key_mold.scad', 'model_base.scad', 'LICENSE.md']}],
+    },
+  },
 };
 
 export const deployedArchiveNames =

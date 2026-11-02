@@ -2,7 +2,7 @@
 const config = {
   preset: "jest-puppeteer",
   testMatch: [
-    "**/tests/**/*.js",
+    "**/tests/**/*.test.js",
   ],
 };
 

@@ -215,6 +215,77 @@
                 "LICENSE"
             ],
             "commit": "a9815be6fcca9bc46411409aa503bbb60921264a"
+        },
+        {
+            "name": "gridfinity-rebuilt-openscad",
+            "repo": "https://github.com/kennetek/gridfinity-rebuilt-openscad.git",
+            "branch": "main",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ],
+            "tag": "2.0.0",
+            "commit": "910e22d8607fd7f5f51ad5e5cbc5287a76810bfd"
+        },
+        {
+            "name": "Round-Anything",
+            "repo": "https://github.com/Irev-Dev/Round-Anything.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ],
+            "tag": "1.0.4",
+            "commit": "8ead00a2bf3ace4004cbd29e8909ab83e67bb155"
+        },
+        {
+            "name": "threads-scad",
+            "repo": "https://github.com/rcolyer/threads-scad.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE.txt"
+            ],
+            "commit": "4ae9aeb3b136f9858200f77a304b909a000ce3b4"
+        },
+        {
+            "name": "dotSCAD",
+            "repo": "https://github.com/JustinSDK/dotSCAD.git",
+            "branch": "master",
+            "zipIncludes": [
+                "src/**/*.scad",
+                "LICENSE"
+            ],
+            "tag": "v3.3",
+            "lazy": true,
+            "commit": "bb33edfd75cba0edbb7971606a077b9c69d0b7d2"
+        },
+        {
+            "name": "scad-utils",
+            "repo": "https://github.com/OskarLinde/scad-utils.git",
+            "branch": "master",
+            "zipIncludes": [
+                "*.scad",
+                "LICENSE"
+            ],
+            "lazy": true,
+            "commit": "31a4ab5b98e0a2e0531b13ee5c3a4ceb04137195"
+        },
+        {
+            "name": "KeyV2",
+            "repo": "https://github.com/rsheldiii/KeyV2.git",
+            "branch": "master",
+            "zipIncludes": [
+                "src/**/*.scad",
+                "keys.scad",
+                "includes.scad",
+                "key_mold.scad",
+                "model_base.scad",
+                "LICENSE.md",
+                "src/libraries/scad-utils/LICENSE"
+            ],
+            "lazy": true,
+            "commit": "19f0d2faadd4949634c93f38d1a66869d29e8f43"
         }
     ],
     "fonts": {

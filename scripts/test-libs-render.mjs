@@ -45,6 +45,12 @@ const cases = {
   'UB.scad': 'include <UB.scad/libraries/ub.scad>\ncube(5);',
   'openscad-tray': 'include <openscad-tray/tray.scad>\ntray([100, 60, 30], n_columns=3, n_rows=2);',
   lasercut: 'include <lasercut/lasercut.scad>\nlasercutout(thickness=3, points=[[0,0],[40,0],[40,30],[0,30]]);',
+  'gridfinity-rebuilt-openscad': 'include <gridfinity-rebuilt-openscad/gridfinity-rebuilt-bins.scad>',
+  'Round-Anything': 'include <Round-Anything/polyround.scad>\nradiiPoints=[[-4,0,1],[5,3,1.5],[0,7,0.1],[8,7,10],[20,20,0.8],[10,0,10]];\nlinear_extrude(2) polygon(polyRound(radiiPoints,30));',
+  'threads-scad': 'use <threads-scad/threads.scad>\nScrewThread(10, 20, pitch=1.5);',
+  dotSCAD: 'use <dotSCAD/src/hexagons.scad>\nuse <dotSCAD/src/arc.scad>\nlinear_extrude(2) hexagons(5, 1, 3);\ntranslate([40,0,0]) linear_extrude(2) arc(radius=10, angle=[0,120], width=2);',
+  'scad-utils': 'use <scad-utils/morphology.scad>\nuse <scad-utils/transformations.scad>\n$fn=32;\nlinear_extrude(2) rounding(r=0.3) polygon([[0,0],[1,0],[1.5,1],[2.5,1],[2,-1],[0,-1]]);\nmultmatrix(translation([5,0,0]) * rotation([0,0,30])) cube(1);',
+  KeyV2: 'include <KeyV2/includes.scad>\ndcs_row(3) key();',
 };
 
 if (args.examples) { // render every bundled OpenSCAD example instead (needs libs/openscad from `npm run build:libs`)
