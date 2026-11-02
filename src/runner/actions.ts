@@ -22,8 +22,6 @@ export const checkSyntax =
       sources,
     } = sargs;
     
-    const content = '$preview=true;\n' + sources[0].content;
-
     const outFile = 'out.json';
     const job = spawnOpenSCAD({
       mountArchives: true,
@@ -55,9 +53,11 @@ export const checkSyntax =
           }
 
           res({
+            // The sources are checked as-is (no injected prefix lines), so
+            // OpenSCAD's line numbers already match the editor's.
             ...processMergedOutputs(result.mergedOutputs, {shiftSourceLines: {
-              sourcePath: sources[0].path,
-              skipLines: 1,
+              sourcePath: activePath,
+              skipLines: 0,
             }}),
             parameterSet,
           });
