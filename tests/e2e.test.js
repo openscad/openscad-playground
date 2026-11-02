@@ -153,6 +153,20 @@ describe('e2e', () => {
     expect(json.accessors[prim.indices].count).toBe(36);
   }, longTimeout);
 
+  test('syntax error markers point at the offending line', async () => {
+    // Regression: the syntax checker used to subtract a line for a prefix it never injected.
+    await loadSrc('a = 1;\nb = 2;\ncube(;\nsphere(3);\n');
+    await page.waitForSelector('.squiggly-error', { timeout: 60000 });
+    // The squiggle lives in an overlay layer: match it to the editor line at the same height.
+    const lineText = await page.evaluate(() => {
+      const top = document.querySelector('.squiggly-error').getBoundingClientRect().top;
+      const line = [...document.querySelectorAll('.view-line')].find(l => Math.abs(l.getBoundingClientRect().top - top) < 2);
+      return line?.textContent ?? '';
+    });
+    expect(lineText).toContain('cube(;');
+    messages.length = 0; // the failed render legitimately logs a console error
+  }, longTimeout);
+
   test('use BOSL2', async () => {
     await loadSrc(`
       include <BOSL2/std.scad>;
