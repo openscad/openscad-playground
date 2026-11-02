@@ -9,6 +9,7 @@ import { ModelContext, FSContext } from './contexts';
 import { fullAppUrl, isFramed } from '../state/embed';
 import { useFullscreenApi } from './use-fullscreen';
 import { EmbedIcons } from './EmbedView';
+import { startBackgroundLoading } from '../background-loading';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -16,6 +17,18 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
   
   const model = new Model(fs, state, setState, statePersister);
   useEffect(() => model.init());
+
+  // Only needed by the file picker, completions, offline use...: do it once
+  // the first render is out of the way (or after a while).
+  const firstRenderSettled = state.output != null || state.error != null;
+  useEffect(() => {
+    if (firstRenderSettled) {
+      startBackgroundLoading();
+      return;
+    }
+    const timer = setTimeout(startBackgroundLoading, 15000);
+    return () => clearTimeout(timer);
+  }, [firstRenderSettled]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

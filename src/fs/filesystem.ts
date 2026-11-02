@@ -80,9 +80,10 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
   });
 }
 
-export async function createEditorFS({prefix, allowPersistence, skipLibraries, archiveNames = deployedArchiveNames}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean, archiveNames?: string[]}): Promise<FS> {
+export async function createEditorFS({prefix, allowPersistence, skipLibraries, archiveNames = deployedArchiveNames, deferArchives = false}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean, archiveNames?: string[], deferArchives?: boolean}): Promise<FS> {
+  // With deferArchives, the archives are mounted later by whenLibrariesMounted().
   const allMounts: FSMounts = {};
-  if (!skipLibraries) {
+  if (!skipLibraries && !deferArchives) {
     const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
     for (const n in librariesMounts) {
       allMounts[`${prefix}${n}`] = librariesMounts[n];
@@ -108,5 +109,52 @@ export async function createEditorFS({prefix, allowPersistence, skipLibraries, a
 
   var fs = BrowserFS.BFSRequire('fs');
 
+  if (deferArchives) {
+    deferredMounts = {
+      readable: fs.getRootFS().getOverlayedFileSystems().readable,
+      prefix,
+      archiveNames,
+    };
+  }
+
   return fs;
+}
+
+const librariesMountedListeners = new Set<() => void>();
+
+/** Calls `listener` once the deferred archives have been mounted. Returns an unsubscribe function. */
+export function onLibrariesMounted(listener: () => void): () => void {
+  librariesMountedListeners.add(listener);
+  return () => librariesMountedListeners.delete(listener);
+}
+
+let deferredMounts: {readable: any, prefix: string, archiveNames: string[]} | undefined;
+let librariesMounted: Promise<void> | undefined;
+
+/**
+ * Fetches and mounts the archives left out by createEditorFS({deferArchives}).
+ * Idempotent: the first call starts the work, later calls share it.
+ */
+export function whenLibrariesMounted(): Promise<void> {
+  if (!deferredMounts) {
+    return Promise.resolve();
+  }
+  return librariesMounted ??= (async () => {
+    try {
+      const {readable, prefix, archiveNames} = deferredMounts!;
+      const mounts = await getBrowserFSLibrariesMounts(archiveNames);
+      for (const [n, {options}] of Object.entries(mounts)) {
+        await new Promise<void>((resolve, reject) =>
+          BrowserFS.FileSystem.ZipFS.Create(options, (e: Error | null, zipFS: any) => {
+            if (e) return reject(e);
+            readable.mount(`${prefix}${n}`, zipFS);
+            resolve();
+          }));
+      }
+      librariesMountedListeners.forEach(listener => listener());
+    } catch (e) {
+      console.warn('Failed to mount the library archives:', e);
+      librariesMounted = undefined; // Allow retrying
+    }
+  })();
 }

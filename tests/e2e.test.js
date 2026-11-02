@@ -277,6 +277,38 @@ describe('e2e', () => {
     expect3DManifold();
   }, longTimeout);
 
+  // Only the production build has a Service Worker.
+  (isProd ? test : test.skip)('works offline after a first visit', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+
+    // Wait for the Service Worker to be in control and for the (deferred)
+    // fetches of the engine and the libraries to have gone through it.
+    await page.waitForFunction(async () => {
+      if (!navigator.serviceWorker.controller) return false;
+      for (const url of ['openscad.wasm', 'libraries/BOSL2.zip', 'libraries/fonts.zip', 'index.js']) {
+        if (!await caches.match(new URL(url, location.href).href, {ignoreSearch: true})) return false;
+      }
+      return true;
+    }, {timeout: 45000, polling: 500});
+
+    await page.setOfflineMode(true);
+    try {
+      await page.goto('about:blank');
+      messages.length = 0;
+      await loadSrc(`
+        include <BOSL2/std.scad>
+        linear_extrude(1) text("Offline");
+        prismoid([40,40], [0,0], h=20);
+      `);
+      await waitForViewer();
+      expect(messages.some(msg => msg.type === 'debug' && msg.text.startsWith('stderr: Top level object is a'))).toBe(true);
+      expectMountedArchives(['fonts', 'BOSL2']);
+    } finally {
+      await page.setOfflineMode(false);
+    }
+  }, 2 * longTimeout);
+
   test('customizer & windows line endings work', async () => {
     await loadSrc([
       'myVar = 10;',

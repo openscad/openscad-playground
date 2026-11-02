@@ -1,10 +1,10 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import React, { CSSProperties, useContext } from 'react';
+import React, { CSSProperties, useContext, useEffect, useState } from 'react';
 import { TreeSelect } from 'primereact/treeselect';
 import { TreeNode } from 'primereact/treenode';
 import { ModelContext, FSContext } from './contexts.ts';
-import { getParentDir, join } from '../fs/filesystem.ts';
+import { getParentDir, join, onLibrariesMounted, whenLibrariesMounted } from '../fs/filesystem.ts';
 import { defaultSourcePath } from '../state/initial-state.ts';
 import { zipArchives } from '../fs/zip-archives.ts';
 
@@ -87,6 +87,10 @@ export default function FilePicker({className, style}: {className?: string, styl
 
   const fs = useContext(FSContext);
 
+  // Re-list the files once the (deferred) library archives are mounted.
+  const [, setMountedCount] = useState(0);
+  useEffect(() => onLibrariesMounted(() => setMountedCount(n => n + 1)), []);
+
   const fsItems: TreeNode[] = [];
   for (const {path} of state.params.sources) {
     const parent = getParentDir(path);
@@ -122,6 +126,7 @@ export default function FilePicker({className, style}: {className?: string, styl
             }
           }}
           filter
+          onShow={() => { whenLibrariesMounted(); }}
           style={style}
           options={fsItems} />
   )

@@ -1,7 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
 import * as monaco from 'monaco-editor/editor/editor.api';
-import { join, Symlinks } from '../fs/filesystem';
+import { join, Symlinks, whenLibrariesMounted } from '../fs/filesystem';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -93,6 +93,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
     }
     path = toAbsolutePath(path);
     try {
+      await whenLibrariesMounted();
       const bytes = await fs.readFileSync(path);
       const src = new TextDecoder("utf-8").decode(bytes as any);
       return src;
@@ -189,6 +190,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
           }
           const folderName = (folderPrefix == '' ? '' : '/' + folderPrefix);
           let files: string[] | null = null
+          await whenLibrariesMounted();
           for (const folder of [join('/libraries', folderName), join(workingDir, folderName)]) {
             files = folderPrefix == '' ? [...Object.keys(allSymlinks)] : [];
             try {
