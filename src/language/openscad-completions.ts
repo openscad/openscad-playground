@@ -2,6 +2,7 @@
 
 import * as monaco from 'monaco-editor/editor/editor.api';
 import { join, Symlinks, whenLibrariesMounted } from '../fs/filesystem';
+import { getRequiredArchives } from '../fs/archive-deps';
 import { ParsedFile, ParsedFunctionoidDef, parseOpenSCAD, stripComments } from './openscad-pseudoparser';
 import builtinSignatures from './openscad-builtins'
 import { mapObject } from '../utils';
@@ -76,11 +77,8 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
   const toAbsolutePath = (path: string) => path.startsWith('/') ? path : `${workingDir}/${path}`;
   
   const allSymlinks: Symlinks = {};
-  for (const [n, {deployed, symlinks}] of Object.entries(zipArchives)) {
+  for (const [n, {symlinks}] of Object.entries(zipArchives)) {
     if (n == 'fonts') {
-      continue;
-    }
-    if (deployed === false) {
       continue;
     }
     for (const s in symlinks) {
@@ -93,7 +91,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
     }
     path = toAbsolutePath(path);
     try {
-      await whenLibrariesMounted();
+      await whenLibrariesMounted(getRequiredArchives([], [path]));
       const bytes = await fs.readFileSync(path);
       const src = new TextDecoder("utf-8").decode(bytes as any);
       return src;

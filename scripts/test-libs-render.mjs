@@ -30,7 +30,6 @@ const cases = {
   BOSL: 'use <BOSL/constants.scad>\nuse <BOSL/transforms.scad>\nuse <BOSL/shapes.scad>\ncuboid([30,20,10], fillet=2);\nup(10) xcyl(l=20, r=3);',
   NopSCADlib: 'include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/ball_bearings.scad>\nball_bearing(BB608);',
   funcutils: 'include <funcutils/func.scad>\nr = filter([1,2,3,4,5], function(x) x > 2);\necho(r);\ncube(len(r));',
-  FunctionalOpenSCAD: 'include <FunctionalOpenSCAD/functional.scad>\nlinear_extrude(2) poly2d(square([10,20]));',
   YAPP_Box: 'include <YAPP_Box/examples/YAPP_Demo_RealBox_v31.scad>',
   MCAD: 'use <MCAD/boxes.scad>\nroundedCube([20,20,10], 3, true, true);',
   boltsparts: 'use <boltsparts/washer/washer.scad>\nwasher1(10,20,2);',

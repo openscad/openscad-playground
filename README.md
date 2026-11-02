@@ -43,7 +43,7 @@ Licenses: see [LICENSES](./LICENSE).
 - Fuller PWA support w/ link Sharing, File opening / association to *.scad files... 
 - Look into accessibility
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples that include assets / import local files will run fine.
-- Detect which bundled libraries are included / used in the sources and only download these rather than wait for all of the zips. Means the file explorer would need to be more lazy or have some prebuilt hierarchy.
+- The bundled libraries are mounted on demand for renders, but the file explorer and completions still fetch all of the zips in the background after the first render: ship a prebuilt file hierarchy to make that lazy too.
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
 ## Building
@@ -161,11 +161,9 @@ patched Binaryen the build relies on.
 
 ## Adding OpenSCAD libraries
 
-The build system uses a webpack plugin that reads from `libs-config.json` to manage all library dependencies. You'll need to update 3 files (search for BOSL2 for an example):
+The build system uses a webpack plugin that reads from `libs-config.json` to manage all library dependencies. You'll need to update 2 files (search for BOSL2 for an example):
 
-- [libs-config.json](./libs-config.json): to add the library's metadata including repository URL, branch, and files to include/exclude in the zip archive
-
-- [src/fs/zip-archives.ts](./src/fs/zip-archives.ts): to use the `.zip` archive in the UI (both for file explorer and automatic imports mounting)
+- [libs-config.json](./libs-config.json): the single list of libraries: repository URL, branch, files to include/exclude in the zip archive, and what the UI shows (`description`, `docs` links, `symlinks` that make top-level files such as `tray.scad` includable directly). The zip is only fetched by a render whose sources refer to the library (by its name or one of its `symlinks`), and by the file explorer / completions in the background after the first render. Libraries that include other libraries are covered by `archiveDependencies` in [src/fs/archive-deps.ts](./src/fs/archive-deps.ts) (a missing one is also recovered by re-running the render with it mounted).
 
 - [LICENSE.md](./LICENSE.md): most libraries require proper disclosure of their usage and of their license. If a license is unique, paste it in full, otherwise, link to one of the standard ones already there.
 
@@ -194,5 +192,7 @@ Available build commands:
 - `npm run build:libs:clean` - Clean all build artifacts
 - `npm run build:libs:wasm` - Download/build just the WASM binary
 - `npm run build:libs:fonts` - Download/build just the fonts
+
+To retire a library, delete its entry from `libs-config.json` and add its name to `removedLibraries` there (name -> hint): scripts that still refer to it get OpenSCAD's usual missing-file warning plus that hint in the logs.
 
 Send us a PR, then once it's merged request an update to the hosted https://ochafik.com/openscad2 demo.

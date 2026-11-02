@@ -8,7 +8,7 @@
 // the "too few" direction is caught by `getMissingArchives` (the render is
 // run again with what OpenSCAD complained about added).
 
-import { deployedArchiveNames, zipArchives } from "./zip-archives";
+import { deployedArchiveNames, removedLibraries, zipArchives } from "./zip-archives";
 
 export const FONTS_ARCHIVE = 'fonts';
 
@@ -30,6 +30,23 @@ for (const n of deployedArchiveNames) {
 
 const includedOrQuoted = /<([^<>\n"]+)>|"((?:[^"\\\n]|\\.)*)"/g;
 const usesText = /\b(?:text|textmetrics|fontmetrics)\s*\(|\bfont\s*=/;
+
+/** Messages for references to libraries that are no longer bundled (libs-config.json `removedLibraries`). */
+export function getRemovedLibraryMessages(texts: string[], paths: string[] = []): string[] {
+  const names = Object.keys(removedLibraries).filter(n => !aliasToArchive.has(n));
+  if (names.length === 0) {
+    return [];
+  }
+  const found = new Set<string>();
+  const visitPath = (p: string) => p.split('/').forEach(c => names.includes(c) && found.add(c));
+  paths.forEach(visitPath);
+  for (const text of texts) {
+    for (const m of text.matchAll(includedOrQuoted)) {
+      visitPath(m[1] ?? m[2]);
+    }
+  }
+  return [...found].map(n => `[playground] The library "${n}" is no longer bundled with the playground. ${removedLibraries[n]}`);
+}
 
 /** Archive names (fonts included) that a set of sources / file paths refers to. */
 export function getRequiredArchives(texts: string[], paths: string[] = []): string[] {

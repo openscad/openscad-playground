@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { deployedArchiveNames, zipArchives } from "./zip-archives";
+import { deployedArchiveNames, backgroundArchiveNames, zipArchives } from "./zip-archives";
 import { getResourceLoader, ResourceLoader } from "../resource-loader";
 
 declare var BrowserFS: BrowserFSInterface
@@ -113,7 +113,6 @@ export async function createEditorFS({prefix, allowPersistence, skipLibraries, a
     deferredMounts = {
       readable: fs.getRootFS().getOverlayedFileSystems().readable,
       prefix,
-      archiveNames,
     };
   }
 
@@ -128,33 +127,48 @@ export function onLibrariesMounted(listener: () => void): () => void {
   return () => librariesMountedListeners.delete(listener);
 }
 
-let deferredMounts: {readable: any, prefix: string, archiveNames: string[]} | undefined;
-let librariesMounted: Promise<void> | undefined;
+let deferredMounts: {readable: any, prefix: string} | undefined;
+const mounting = new Map<string, Promise<void>>();
+let notifyScheduled = false;
 
-/**
- * Fetches and mounts the archives left out by createEditorFS({deferArchives}).
- * Idempotent: the first call starts the work, later calls share it.
- */
-export function whenLibrariesMounted(): Promise<void> {
-  if (!deferredMounts) {
-    return Promise.resolve();
-  }
-  return librariesMounted ??= (async () => {
-    try {
-      const {readable, prefix, archiveNames} = deferredMounts!;
-      const mounts = await getBrowserFSLibrariesMounts(archiveNames);
-      for (const [n, {options}] of Object.entries(mounts)) {
+function mountArchive(name: string): Promise<void> {
+  let promise = mounting.get(name);
+  if (!promise) {
+    const {readable, prefix} = deferredMounts!;
+    promise = (async () => {
+      try {
+        const {options} = (await getBrowserFSLibrariesMounts([name]))[name];
         await new Promise<void>((resolve, reject) =>
           BrowserFS.FileSystem.ZipFS.Create(options, (e: Error | null, zipFS: any) => {
             if (e) return reject(e);
-            readable.mount(`${prefix}${n}`, zipFS);
+            readable.mount(`${prefix}${name}`, zipFS);
             resolve();
           }));
+        if (!notifyScheduled) {
+          notifyScheduled = true;
+          setTimeout(() => {
+            notifyScheduled = false;
+            librariesMountedListeners.forEach(listener => listener());
+          });
+        }
+      } catch (e) {
+        console.warn(`Failed to mount the ${name} archive:`, e);
+        mounting.delete(name); // Allow retrying
       }
-      librariesMountedListeners.forEach(listener => listener());
-    } catch (e) {
-      console.warn('Failed to mount the library archives:', e);
-      librariesMounted = undefined; // Allow retrying
-    }
-  })();
+    })();
+    mounting.set(name, promise);
+  }
+  return promise;
+}
+
+/**
+ * Fetches and mounts the archives left out by createEditorFS({deferArchives}):
+ * all the ones the main thread uses (see backgroundArchiveNames), plus the `extra`
+ * ones that something needs now (e.g. the fonts). Idempotent: archives are only mounted once.
+ */
+export function whenLibrariesMounted(extra: string[] = []): Promise<void> {
+  if (!deferredMounts) {
+    return Promise.resolve();
+  }
+  return Promise.all([...new Set([...backgroundArchiveNames, ...extra])].map(mountArchive)).then(() => {});
 }
