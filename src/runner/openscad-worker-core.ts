@@ -9,6 +9,9 @@ import { createEditorFS, symlinkLibraries } from "../fs/filesystem.ts";
 import { OpenSCADInvocation, OpenSCADInvocationCallback, OpenSCADInvocationResults } from "./openscad-runner.ts";
 import { deployedArchiveNames } from "../fs/zip-archives.ts";
 import { fetchSource } from "../utils.ts";
+import UZIP from "uzip";
+import type { LoadedOpenSCAD } from "./openscad-loader.ts";
+import { RenderEngine, WasmUnavailableError } from "./wasm-support.ts";
 
 export type MergedOutputs = {stdout?: string, stderr?: string, error?: string}[];
 
@@ -18,24 +21,57 @@ function callback(payload: OpenSCADInvocationCallback) {
   self.postMessage(payload);
 }
 
+// BrowserFS's EmscriptenFS bridge doesn't work with the wasm2js build, so its
+// library archives are unpacked straight into the Emscripten FS instead.
+async function unpackArchivesIntoFS(FS: any, archives: string[], root: string) {
+  await Promise.all(archives.map(async (name) => {
+    const url = `./libraries/${name}.zip`;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        console.warn(`Failed to fetch ${url}: ${resp.status} ${resp.statusText}`);
+        return;
+      }
+      const files = UZIP.parse(await resp.arrayBuffer());
+      const archiveRoot = `${root}/${name}`;
+      try { FS.mkdir(archiveRoot); } catch (e) { /* already exists */ }
+      for (const relPath in files) {
+        if (relPath.endsWith('/')) continue;
+        const parts = relPath.split('/');
+        let dir = archiveRoot;
+        for (let i = 0; i < parts.length - 1; i++) {
+          dir += '/' + parts[i];
+          try { FS.mkdir(dir); } catch (e) { /* already exists */ }
+        }
+        FS.writeFile(`${archiveRoot}/${relPath}`, files[relPath]);
+      }
+    } catch (e) {
+      console.warn(`Failed to unpack ${url}:`, e);
+    }
+  }));
+}
+
 /**
  * Install the message handler that processes OpenSCAD invocations.
- * @param OpenSCADFactory - The Emscripten module factory
+ * @param loadEngine - Loads and instantiates the Emscripten module (WASM or wasm2js)
  */
-export function installWorkerHandler(OpenSCADFactory: (opts: any) => Promise<any>) {
+export function installWorkerHandler(
+    loadEngine: (moduleArg: any, forceEngine?: RenderEngine) => Promise<LoadedOpenSCAD>) {
   self.addEventListener('message', async (e: MessageEvent<OpenSCADInvocation>) => {
     const {
       mountArchives,
       inputs,
       args,
       outputPaths,
+      forceEngine,
     } = e.data;
 
     const mergedOutputs: MergedOutputs = [];
+    let engine: RenderEngine | undefined;
     let instance: any;
     const start = performance.now();
     try {
-      instance = await OpenSCADFactory({
+      const loaded = await loadEngine({
         noInitialRun: true,
         'print': (text: string) => {
           console.debug('stdout: ' + text);
@@ -47,25 +83,31 @@ export function installWorkerHandler(OpenSCADFactory: (opts: any) => Promise<any
           callback({stderr: text})
           mergedOutputs.push({ stderr: text })
         },
-      });
+      }, forceEngine);
+      engine = loaded.engine;
+      instance = loaded.instance;
 
       if (mountArchives) {
-        // This will mount lots of libraries' ZIP archives under /libraries/<name> -> <name>.zip
-        await createEditorFS({prefix: '', allowPersistence: false});
-
         instance.FS.mkdir('/libraries');
 
-        // https://github.com/emscripten-core/emscripten/issues/10061
-        const BFS = new BrowserFS.EmscriptenFS(
-          instance.FS,
-          instance.PATH ?? {
-            join2: (a: string, b: string) => `${a}/${b}`,
-            join: (...args: string[]) => args.join('/'),
-          },
-          instance.ERRNO_CODES ?? {}
-        );
+        if (engine === 'wasm2js') {
+          await unpackArchivesIntoFS(instance.FS, deployedArchiveNames, '/libraries');
+        } else {
+          // This will mount lots of libraries' ZIP archives under /libraries/<name> -> <name>.zip
+          await createEditorFS({prefix: '', allowPersistence: false});
 
-        instance.FS.mount(BFS, {root: '/'}, '/libraries');
+          // https://github.com/emscripten-core/emscripten/issues/10061
+          const BFS = new BrowserFS.EmscriptenFS(
+            instance.FS,
+            instance.PATH ?? {
+              join2: (a: string, b: string) => `${a}/${b}`,
+              join: (...args: string[]) => args.join('/'),
+            },
+            instance.ERRNO_CODES ?? {}
+          );
+
+          instance.FS.mount(BFS, {root: '/'}, '/libraries');
+        }
 
         await symlinkLibraries(deployedArchiveNames, instance.FS, '/libraries', "/");
       }
@@ -123,6 +165,7 @@ export function installWorkerHandler(OpenSCADFactory: (opts: any) => Promise<any
         mergedOutputs,
         exitCode,
         elapsedMillis,
+        engine,
       }
 
       console.debug(result);
@@ -132,7 +175,7 @@ export function installWorkerHandler(OpenSCADFactory: (opts: any) => Promise<any
       const elapsedMillis = end - start;
 
       console.trace(e);
-      const error = `${e}`;
+      const error = e instanceof WasmUnavailableError ? e.userMessage : `${e}`;
       mergedOutputs.push({ error });
       callback({
         result: {
@@ -140,6 +183,7 @@ export function installWorkerHandler(OpenSCADFactory: (opts: any) => Promise<any
           error,
           mergedOutputs,
           elapsedMillis,
+          engine,
         }
       });
     }

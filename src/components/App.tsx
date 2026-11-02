@@ -10,6 +10,7 @@ import { ModelContext, FSContext } from './contexts';
 import PanelSwitcher from './PanelSwitcher';
 import { ConfirmDialog } from 'primereact/confirmdialog';
 import CustomizerPanel from './CustomizerPanel';
+import WasmStatusBanner from './WasmStatusBanner';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -81,6 +82,8 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
           }}>
           
           <PanelSwitcher />
+
+          <WasmStatusBanner />
     
           <div className={mode === 'multi' ? 'flex flex-row' : 'flex flex-column'}
               style={mode === 'multi' ? {flex: 1} : {
