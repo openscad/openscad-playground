@@ -17,7 +17,32 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps): "
+    ignore:
+      # Majors that must move together (and need code changes); upgrade manually.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "primereact"
+        update-types: ["version-update:semver-major"]
+      # 0.x minors may break deep import paths; review manually.
+      - dependency-name: "monaco-editor"
+        update-types: ["version-update:semver-minor"]
     groups:
+      # Keep the React family in a single PR so it never lands half-bumped.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
       npm-minor-patch:
         update-types:
           - "minor"
