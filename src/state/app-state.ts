@@ -55,6 +55,12 @@ export interface State {
     
     color: string,
     showAxes?: boolean,
+    /** Embed mode: only the viewer (+ customizer overlay). Runtime-only, see state/embed.ts. */
+    embed?: boolean,
+    customizerOverlay?: boolean,
+    /** MCP app: the lazily loaded full UI is mounted / failed to load. Runtime-only. */
+    fullReady?: boolean,
+    layoutError?: string,
     lineNumbers?: boolean,
   }
 

@@ -7,12 +7,12 @@
  * model via updateModelContext.
  */
 
-import React, { CSSProperties, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { App } from '@modelcontextprotocol/ext-apps';
 import { State, StatePersister } from '../state/app-state.ts';
 import { Model } from '../state/model.ts';
-import ViewerPanel, { ViewerPanelHandle } from './ViewerPanel.tsx';
-import CustomizerPanel from './CustomizerPanel.tsx';
+import { ViewerPanelHandle } from './ViewerPanel.tsx';
+import EmbedView, { CornerButton, EmbedIcons } from './EmbedView.tsx';
 import { ModelContext, FSContext, McpContext } from './contexts.ts';
 import {
   ToolEventBuffer,
@@ -26,6 +26,42 @@ import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
+
+/**
+ * The full UI (editor etc.) is only needed when the model switches layout to
+ * 'full': load it lazily so the MCP bundle stays light, and register the
+ * OpenSCAD editor language on first use.
+ */
+/** Falls back to the embed layout (and records why) if the lazily loaded full UI fails to load or crashes. */
+class FullLayoutBoundary extends React.Component<{ model: Model; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error instanceof Event ? `failed to load a script (${error.type}); the host CSP may block it` : error);
+    console.error('Full layout failed:', error);
+    this.props.model.mutate(s => { s.view.embed = true; s.view.fullReady = false; s.view.layoutError = `Full layout failed to load: ${message}`; });
+  }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+/** Marks the lazily loaded full UI as mounted, so set_layout knows it worked. */
+function FullMounted({ model, children }: { model: Model; children: React.ReactNode }) {
+  useEffect(() => {
+    model.mutate(s => { s.view.fullReady = true; s.view.layoutError = undefined; });
+    return () => { model.mutate(s => { s.view.fullReady = false; }); };
+  }, [model]);
+  return <>{children}</>;
+}
+
+const lazyFullLayout = (fs: FS) => React.lazy(async () => {
+  const [{ registerOpenSCADLanguage }, { zipArchives }, layout] = await Promise.all([
+    import('../language/openscad-register-language.ts'),
+    import('../fs/zip-archives.ts'),
+    import('./FullLayout.tsx'),
+  ]);
+  await registerOpenSCADLanguage(fs, '/', zipArchives);
+  return layout;
+});
 
 export function McpApp({
   initialState,
@@ -41,7 +77,6 @@ export function McpApp({
   toolEvents: ToolEventBuffer;
 }) {
   const [state, setState] = useState(initialState);
-  const [showCustomizer, setShowCustomizer] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // One Model for the component's lifetime: a Model per render would leave
@@ -50,6 +85,7 @@ export function McpApp({
   // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const modelRef = useRef(model);
+  const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
   const updateContextRef = useRef<(() => Promise<void>) | null>(null);
   const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,34 +110,6 @@ export function McpApp({
     if (ctx?.theme === 'dark') return true;
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
-
-  // Draggable customizer panel
-  const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null);
-  const customizerRef = useRef<HTMLDivElement>(null);
-
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const panel = customizerRef.current;
-    if (!panel) return;
-    const rect = panel.getBoundingClientRect();
-    const parentRect = (panel.offsetParent as HTMLElement)?.getBoundingClientRect() ?? { left: 0, top: 0 };
-    const curX = rect.left - parentRect.left;
-    const curY = rect.top - parentRect.top;
-    const startX = e.clientX, startY = e.clientY;
-
-    const onMove = (me: MouseEvent) => {
-      setPanelPos({
-        x: Math.max(0, curX + me.clientX - startX),
-        y: Math.max(0, curY + me.clientY - startY),
-      });
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }, []);
 
   useEffect(() => model.init());
 
@@ -211,10 +219,26 @@ export function McpApp({
       startFullRender() {
         modelRef.current.render({ isPreview: false, now: true });
       },
-      setParameters(vars) {
+      setParameters: vars => modelRef.current.setVars(vars),
+      resetParameters: names => modelRef.current.resetVars(names),
+      setLayout(req) {
         const m = modelRef.current;
-        m.mutate(s => s.params.vars = { ...s.params.vars ?? {}, ...vars });
-        m.render({ isPreview: true, now: false });
+        m.mutate(s => {
+          if (req.mode) s.view.embed = req.mode === 'embed';
+          if (req.customizerOverlay) {
+            s.view.customizerOverlay = req.customizerOverlay === 'toggle' ? !s.view.customizerOverlay : req.customizerOverlay === 'open';
+          }
+        });
+        const layout = m.state.view.layout;
+        if (m.state.view.embed) return;
+        if (layout.mode === 'single') {
+          if (req.focus) m.changeSingleVisibility(req.focus);
+        } else {
+          // Show first, so hiding the last visible panel never trips the "at least one" guard.
+          const wanted = [['editor', req.editor], ['viewer', req.viewer], ['customizer', req.customizer]] as const;
+          for (const [id, v] of wanted) if (v === true) m.changeMultiVisibility(id, true);
+          for (const [id, v] of wanted) if (v === false) m.changeMultiVisibility(id, false);
+        }
       },
       setShowAxes(show) {
         modelRef.current.mutate(s => s.view.showAxes = show);
@@ -275,13 +299,6 @@ export function McpApp({
       return () => mq.removeEventListener('change', handler);
     }
   }, [app]);
-
-  const params = state.parameterSet?.parameters ?? [];
-  const hasParams = params.length > 0;
-  const changedParamCount = params.filter(p => {
-    const v = state.params.vars?.[p.name];
-    return v !== undefined && JSON.stringify(v) !== JSON.stringify(p.initial);
-  }).length;
 
   const openInBrowser = useCallback(async () => {
     const fragment = await encodeStateParamsAsFragment(state);
@@ -347,274 +364,46 @@ export function McpApp({
     }
   }, [model, viewerRef]);
 
+  const toolbar = (
+    <>
+      <CornerButton
+        icon={copyStatus === 'copied' ? EmbedIcons.check : EmbedIcons.copy}
+        label={copyStatus === 'copied' ? 'Copied!' : 'Copy'}
+        onClick={copyToClipboard}
+      />
+      <CornerButton
+        icon={EmbedIcons.externalLink}
+        label="Open in Browser"
+        onClick={openInBrowser}
+      />
+    </>
+  );
+
+  // Fullscreen only where the host offers that display mode.
+  const hostModes = app.getHostContext()?.availableDisplayModes;
+  const fullscreen = hostModes?.includes('fullscreen') ? { active: isFullscreen, toggle: toggleFullscreen } : undefined;
+
   return (
     <ModelContext.Provider value={model}>
       <FSContext.Provider value={fs}>
         <McpContext.Provider value={app}>
-          <div className="mcp-viewer-container" style={{
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            position: 'relative',
-            height: '100%',
-            overflow: 'hidden',
-          }}>
-            <style>{`
-              .mcp-viewer-container:hover .mcp-toolbar { opacity: 0.8 !important; }
-              .mcp-toolbar:hover { opacity: 1 !important; }
-              .mcp-dark .p-inputtext, .mcp-dark .p-dropdown, .mcp-dark .p-inputnumber-input,
-              .mcp-dark .p-checkbox .p-checkbox-box, .mcp-dark .p-inputnumber-button {
-                background: var(--color-background-tertiary, rgba(255,255,255,0.1)) !important;
-                color: var(--color-text-primary, #e0e0e0) !important;
-                border-color: var(--color-border-secondary, rgba(255,255,255,0.2)) !important;
-              }
-              .mcp-dark .p-dropdown-panel {
-                background: var(--color-background-secondary, #2a2a2a) !important;
-                color: var(--color-text-primary, #e0e0e0) !important;
-              }
-              .mcp-dark .p-dropdown-item:hover { background: var(--color-background-ghost, rgba(255,255,255,0.1)) !important; }
-              .mcp-dark .p-slider { background: var(--color-background-tertiary, rgba(255,255,255,0.2)) !important; }
-              .mcp-dark .p-slider .p-slider-range, .mcp-dark .p-slider .p-slider-handle {
-                background: var(--color-ring-primary, #6366f1) !important;
-                border-color: var(--color-ring-primary, #6366f1) !important;
-              }
-              .mcp-dark .p-fieldset, .mcp-dark .p-fieldset-legend {
-                border-color: var(--color-border-secondary, rgba(255,255,255,0.15)) !important;
-                color: var(--color-text-primary, #e0e0e0) !important;
-              }
-              .mcp-dark .p-fieldset-legend {
-                background: var(--color-background-tertiary, rgba(50, 50, 50, 0.95)) !important;
-              }
-              .mcp-dark .p-fieldset-legend > a,
-              .mcp-dark .p-fieldset-legend > span {
-                color: var(--color-text-primary, #e0e0e0) !important;
-              }
-            `}</style>
-            {/* Viewer (full size) */}
-            <ViewerPanel ref={viewerRef} style={{ flex: 1 }} disableZoom={!isFullscreen} onCameraChange={scheduleContextUpdate} />
-
-            {/* Progress bar */}
-            <ProgressBar mode="indeterminate"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                visibility: state.rendering || state.previewing || state.checkingSyntax
-                  ? 'visible' : 'hidden',
-                height: '4px',
-                zIndex: 100,
-              }} />
-
-            {/* Customizer floating panel */}
-            {hasParams && showCustomizer && (
-              <div
-                ref={customizerRef}
-                className={isDark ? 'mcp-dark' : ''}
-                style={{
-                  position: 'absolute',
-                  ...(panelPos ? { left: panelPos.x, top: panelPos.y } : { right: 8, top: 48 }),
-                  width: '300px',
-                  maxWidth: 'calc(100% - 16px)',
-                  maxHeight: isFullscreen ? 'calc(100vh - 100px)' : 'calc(100% - 60px)',
-                  backgroundColor: `var(--color-background-secondary, ${isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)'})`,
-                  backdropFilter: 'blur(12px)',
-                  borderRadius: 'var(--border-radius-lg, 10px)',
-                  border: `var(--border-width-regular, 1px) solid var(--color-border-primary, ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'})`,
-                  boxShadow: `var(--shadow-lg, ${isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.15)'})`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  zIndex: 50,
-                  color: `var(--color-text-primary, ${isDark ? '#e0e0e0' : '#333'})`,
-                  fontFamily: 'var(--font-sans, system-ui, sans-serif)',
-                }}>
-                {/* Drag handle */}
-                <div
-                  onMouseDown={onDragStart}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 10px',
-                    cursor: 'grab',
-                    borderBottom: `1px solid var(--color-border-secondary, ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'})`,
-                    borderRadius: 'var(--border-radius-lg, 10px) var(--border-radius-lg, 10px) 0 0',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                    userSelect: 'none',
-                  }}>
-                  <strong style={{ fontSize: 'var(--font-text-sm-size, 13px)' }}>Customizer</strong>
-                  <button
-                    onClick={() => setShowCustomizer(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: '16px',
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                      color: `var(--color-text-secondary, ${isDark ? '#aaa' : '#666'})`,
-                      lineHeight: 1,
-                    }}
-                    title="Close"
-                  >&times;</button>
-                </div>
-                <CustomizerPanel dark={isDark} style={{
-                  maxHeight: 'unset',
-                  overflow: 'auto',
-                  flex: 1,
-                }} />
-              </div>
-            )}
-
-            {/* Zoom hint (inline mode only) */}
-            {!isFullscreen && (
-              <div style={{
-                position: 'absolute',
-                top: '8px',
-                left: '8px',
-                zIndex: 60,
-                fontSize: '11px',
-                color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
-                pointerEvents: 'none',
-                lineHeight: 1.4,
-                fontFamily: 'var(--font-sans, system-ui, sans-serif)',
-              }}>
-                {(() => {
-                  const kbdStyle: CSSProperties = {
-                    padding: '1px 4px',
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`,
-                    borderRadius: '3px',
-                    fontSize: '10px',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.6)',
-                  };
-                  return <>
-                    <kbd style={kbdStyle}>Shift</kbd>{'+scroll · '}
-                    <kbd style={kbdStyle}>+</kbd>{' / '}<kbd style={kbdStyle}>-</kbd>{' zoom · '}
-                    <kbd style={kbdStyle}>Alt</kbd>{'+'}<kbd style={kbdStyle}>Enter</kbd>{' fullscreen'}
-                  </>;
-                })()}
-              </div>
-            )}
-
-            {/* Corner toolbar */}
-            <div className="mcp-toolbar" style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              display: 'flex',
-              gap: '4px',
-              zIndex: 60,
-              opacity: 0,
-              transition: 'opacity 0.2s ease',
-            }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-              onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
-            >
-              {hasParams && (
-                <CornerButton
-                  icon={McpIcons.sliders}
-                  label="Customize"
-                  active={showCustomizer}
-                  badge={changedParamCount || undefined}
-                  onClick={() => setShowCustomizer(!showCustomizer)}
-                />
-              )}
-              <CornerButton
-                icon={copyStatus === 'copied' ? McpIcons.check : McpIcons.copy}
-                label={copyStatus === 'copied' ? 'Copied!' : 'Copy'}
-                onClick={copyToClipboard}
-              />
-              <CornerButton
-                icon={McpIcons.externalLink}
-                label="Open in Browser"
-                onClick={openInBrowser}
-              />
-              <CornerButton
-                icon={isFullscreen ? McpIcons.minimize : McpIcons.maximize}
-                label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                onClick={toggleFullscreen}
-              />
-            </div>
-          </div>
+          {state.view.embed
+            ? <EmbedView
+                viewerRef={viewerRef}
+                isDark={isDark}
+                disableZoom={!isFullscreen}
+                showHint={!isFullscreen}
+                onCameraChange={scheduleContextUpdate}
+                fullscreen={fullscreen}
+                toolbar={toolbar} />
+            : <FullLayoutBoundary key={state.view.layoutError ?? 'ok'} model={model}>
+                <Suspense fallback={<ProgressBar mode="indeterminate" style={{ height: '4px' }} />}>
+                  <FullMounted model={model}><LazyFullLayout viewerRef={viewerRef} /></FullMounted>
+                </Suspense>
+              </FullLayoutBoundary>}
         </McpContext.Provider>
       </FSContext.Provider>
     </ModelContext.Provider>
-  );
-}
-
-// Inline SVG icons (no font dependency — works in sandboxed iframes)
-const SVG = ({ children, ...props }: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    {children}
-  </svg>
-);
-const McpIcons = {
-  sliders: <SVG><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></SVG>,
-  maximize: <SVG><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
-  minimize: <SVG><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
-  copy: <SVG><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></SVG>,
-  check: <SVG><polyline points="20 6 9 17 4 12" /></SVG>,
-  externalLink: <SVG><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></SVG>,
-};
-
-function CornerButton({
-  icon,
-  label,
-  active,
-  badge,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  badge?: number;
-  onClick: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        border: 'none',
-        backgroundColor: active
-          ? 'rgba(79, 70, 229, 0.85)'
-          : hovered ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)',
-        cursor: 'pointer',
-        color: 'white',
-        transition: 'background 0.15s ease',
-      }}
-    >
-      {icon}
-      {badge != null && badge > 0 && (
-        <span style={{
-          position: 'absolute',
-          top: '-4px',
-          right: '-4px',
-          minWidth: '16px',
-          height: '16px',
-          borderRadius: '8px',
-          backgroundColor: '#ef4444',
-          color: 'white',
-          fontSize: '10px',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0 3px',
-          lineHeight: 1,
-        }}>{badge}</span>
-      )}
-    </button>
   );
 }
 
@@ -663,6 +452,17 @@ function buildSnapshot(model: Model, timedOut?: boolean): ViewerSnapshot {
       ...('options' in p && p.options ? { options: p.options } : {}),
     })),
     showAxes: !!s.view.showAxes,
+    layout: {
+      mode: s.view.embed ? 'embed' : 'full',
+      ...(s.view.embed ? {} : { ready: !!s.view.fullReady }),
+      ...(s.view.layoutError ? { error: s.view.layoutError } : {}),
+      customizerOverlay: !!s.view.customizerOverlay,
+      ...(s.view.embed ? {} : {
+        panels: s.view.layout.mode === 'multi'
+          ? { kind: 'multi' as const, editor: s.view.layout.editor, viewer: s.view.layout.viewer, customizer: s.view.layout.customizer }
+          : { kind: 'single' as const, focus: s.view.layout.focus },
+      }),
+    },
   };
 }
 
