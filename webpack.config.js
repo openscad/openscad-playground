@@ -62,6 +62,8 @@ const config = [
     resolve: {
       extensions: ['.tsx', '.ts', '.js'],
     },
+    // @gltf-transform/core's NodeIO dynamically imports node:fs / node:path; we only use the in-memory API.
+    externals: { 'node:fs': 'var undefined', 'node:path': 'var undefined' },
     output: {
       filename: 'index.js',
       path: path.resolve(__dirname, 'dist'),
