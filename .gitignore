@@ -5,5 +5,4 @@ public/libraries
 public/openscad.js
 public/openscad.wasm
 src/wasm
-package-lock.json
 .DS_Store
