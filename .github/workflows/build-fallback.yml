@@ -8,6 +8,8 @@ name: Build wasm2js fallback
 on:
   workflow_dispatch:
   push:
+    # A push filter with only `tags` would ignore branch pushes, so list branches too.
+    branches: [main, ci/build-fallback]  # TEMP: ci/build-fallback only while testing on the fork
     tags: ['v*']
     paths:
       - scripts/build-wasm-fallback.sh
