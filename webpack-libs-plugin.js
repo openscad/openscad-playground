@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import https from 'node:https';
@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 class OpenSCADLibrariesPlugin {
     constructor(options = {}) {
@@ -112,6 +113,38 @@ class OpenSCADLibrariesPlugin {
         } catch (error) {
             console.error(`Failed to clone ${repo}:`, error.message);
             throw error;
+        }
+    }
+
+    // Checks out exactly `commit` (a full SHA) of `repo` into targetDir. GitHub allows
+    // fetching arbitrary reachable SHAs, so a shallow fetch is enough.
+    async checkoutCommit(repo, targetDir, commit) {
+        console.log(`Fetching ${repo}@${commit} to ${targetDir}`);
+        const git = async (...args) => (await execFileAsync('git', args, { cwd: targetDir })).stdout.trim();
+        try {
+            await fs.rm(targetDir, { recursive: true, force: true });
+            await this.ensureDir(targetDir);
+            await git('init', '-q');
+            await git('remote', 'add', 'origin', repo);
+            await git('fetch', '-q', '--depth', '1', 'origin', commit);
+            await git('checkout', '-q', 'FETCH_HEAD');
+            await git('submodule', 'update', '--init', '--recursive', '--depth', '1');
+        } catch (error) {
+            console.error(`Failed to fetch ${repo}@${commit}:`, error.message);
+            await fs.rm(targetDir, { recursive: true, force: true });
+            throw error;
+        }
+    }
+
+    // True if targetDir is a git checkout whose HEAD is `commit`.
+    // A symlinked dir (local development checkout, see README) is always left alone.
+    async isAtCommit(targetDir, commit) {
+        try {
+            if ((await fs.lstat(targetDir)).isSymbolicLink()) return true;
+            const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: targetDir });
+            return stdout.trim() === commit;
+        } catch {
+            return false;
         }
     }
 
@@ -223,7 +256,11 @@ class OpenSCADLibrariesPlugin {
         }
 
         // Clone liberation fonts if not exists
-        if (!existsSync(liberationDir)) {
+        if (fonts.liberationCommit) {
+            if (!(await this.isAtCommit(liberationDir, fonts.liberationCommit))) {
+                await this.checkoutCommit(fonts.liberationRepo, liberationDir, fonts.liberationCommit);
+            }
+        } else if (!existsSync(liberationDir)) {
             await this.cloneRepo(fonts.liberationRepo, liberationDir, fonts.liberationBranch);
         }
 
@@ -243,7 +280,12 @@ class OpenSCADLibrariesPlugin {
         const zipPath = path.join(this.publicLibsDir, `${library.name}.zip`);
 
         // Clone repository if not exists
-        if (!existsSync(libDir)) {
+        if (library.commit) {
+            if (!(await this.isAtCommit(libDir, library.commit))) {
+                await this.checkoutCommit(library.repo, libDir, library.commit);
+            }
+        } else if (!existsSync(libDir)) {
+            console.warn(`Warning: ${library.name} is not pinned to a commit (run npm run libs:update)`);
             await this.cloneRepo(library.repo, libDir, library.branch);
         }
 

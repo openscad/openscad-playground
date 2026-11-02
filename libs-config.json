@@ -13,7 +13,8 @@
             ],
             "zipExcludes": [
                 "**/tests/**"
-            ]
+            ],
+            "commit": "8e8df3ddae295e8667cbc9f6c4fbb7c88b0ec45b"
         },
         {
             "name": "BOSL2",
@@ -23,7 +24,8 @@
                 "*.scad",
                 "LICENSE",
                 "examples"
-            ]
+            ],
+            "commit": "556023bf7e540aae9f44b29bf00dd2ce3b8af02e"
         },
         {
             "name": "BOSL",
@@ -32,7 +34,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "4ce427a8a38786e5f74b728c1e33d9fe7d4904d2"
         },
         {
             "name": "NopSCADlib",
@@ -41,7 +44,8 @@
             "zipIncludes": [
                 "**/*.scad",
                 "COPYING"
-            ]
+            ],
+            "commit": "00ec2898c0a2cdebd446f0175671b633d5ae7d5f"
         },
         {
             "name": "funcutils",
@@ -50,7 +54,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "fac6ac1269d3578b839ece088c03f404a76fb43b"
         },
         {
             "name": "FunctionalOpenSCAD",
@@ -59,7 +64,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "51588ffe13d3124b5ea5c04e521cd8e25ab5d0a9"
         },
         {
             "name": "YAPP_Box",
@@ -68,7 +74,8 @@
             "zipIncludes": [
                 "**/*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "f9400c419ef1dea7dc0b3607876989b4f3faa2b7"
         },
         {
             "name": "MCAD",
@@ -78,7 +85,8 @@
                 "*.scad",
                 "bitmap/*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "bd0a7ba3f042bfbced5ca1894b236cea08904e26"
         },
         {
             "name": "boltsparts",
@@ -91,7 +99,8 @@
             "zipExcludes": [
                 "**/tests/**"
             ],
-            "workingDir": "openscad"
+            "workingDir": "openscad",
+            "commit": "5c83300a57761f70db87f50c9a1f647c7278a4c2"
         },
         {
             "name": "OpenSCAD-Snippet",
@@ -100,7 +109,8 @@
             "zipIncludes": [
                 "**/*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "4f9e3d4d16b5e427186c1f89e10c2181c437dee6"
         },
         {
             "name": "Stemfie_OpenSCAD",
@@ -109,7 +119,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "440c084488915d79b06de88aac8a2a3cdb1662eb"
         },
         {
             "name": "pathbuilder",
@@ -119,7 +130,8 @@
                 "*.scad",
                 "demo/*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "a4cb54aa3a5f5c8f74da640fb553ab54bce24436"
         },
         {
             "name": "openscad_attachable_text3d",
@@ -128,7 +140,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "f8ba8786112d3b45cc05e30d66ba400af00e9b2f"
         },
         {
             "name": "brailleSCAD",
@@ -137,7 +150,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "6b2e4288620f31d109f681395914679dbdbc276a"
         },
         {
             "name": "smooth-prim",
@@ -146,7 +160,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE.txt"
-            ]
+            ],
+            "commit": "0d0038f984465f3eb0f6026a4d5de2f79d2dcea8"
         },
         {
             "name": "plot-function",
@@ -155,7 +170,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE.txt"
-            ]
+            ],
+            "commit": "5f78d0399632ded49a03edb7b695c443056ebbbd"
         },
         {
             "name": "closepoints",
@@ -164,7 +180,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE.txt"
-            ]
+            ],
+            "commit": "8ce827f5a7fec8afe4ab9a13a3427d685bca2ce0"
         },
         {
             "name": "UB.scad",
@@ -174,7 +191,8 @@
                 "libraries/*.scad",
                 "LICENSE",
                 "examples/UBexamples"
-            ]
+            ],
+            "commit": "5419befe8b3927d2300e974976ffcb831abaf644"
         },
         {
             "name": "openscad-tray",
@@ -183,7 +201,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "9fc472032fad5d5fd3f25ea0e230b44fe95c9ccf"
         },
         {
             "name": "lasercut",
@@ -192,7 +211,8 @@
             "zipIncludes": [
                 "*.scad",
                 "LICENSE"
-            ]
+            ],
+            "commit": "a9815be6fcca9bc46411409aa503bbb60921264a"
         }
     ],
     "fonts": {
@@ -241,8 +261,10 @@
             "NotoSansTibetan-Regular.ttf",
             "NotoSansTifinagh-Regular.ttf"
         ],
-        "notoBaseUrl": "https://github.com/openmaptiles/fonts/raw/master/noto-sans/",
+        "notoBaseUrl": "https://github.com/openmaptiles/fonts/raw/d48c5fce2fc58b55c98d353558d807cac45e7262/noto-sans/",
         "liberationRepo": "https://github.com/shantigilbert/liberation-fonts-ttf.git",
-        "liberationBranch": "master"
+        "liberationBranch": "master",
+        "liberationCommit": "ef7161f03e305982b0b247e9a0b7cc472376dd83",
+        "notoBranch": "master"
     }
 }
