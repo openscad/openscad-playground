@@ -25,7 +25,8 @@
                 "LICENSE",
                 "examples"
             ],
-            "commit": "556023bf7e540aae9f44b29bf00dd2ce3b8af02e"
+            "tag": "v2.0.782",
+            "commit": "e3d614aef7552121f993b30a6c3e87f170a2f545"
         },
         {
             "name": "BOSL",
@@ -45,7 +46,8 @@
                 "**/*.scad",
                 "COPYING"
             ],
-            "commit": "00ec2898c0a2cdebd446f0175671b633d5ae7d5f"
+            "tag": "v21.43.1",
+            "commit": "53775b7e099b1256723d5ecbbe28176491a82729"
         },
         {
             "name": "funcutils",

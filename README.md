@@ -90,7 +90,7 @@ rm -fR ../ochafik.github.io/openscad2 && cp -R dist ../ochafik.github.io/opensca
 # Now commit and push changes, wait for site update and enjoy!
 ```
 
-Libraries and fonts are pinned to exact commits in `libs-config.json` (`commit` fields), so builds are reproducible. To bump them to the current branch heads, run `npm run libs:update`, review the diff, and commit (`npm run libs:check` reports out-of-date pins without writing).
+Libraries and fonts are pinned to exact commits in `libs-config.json` (`commit` fields), so builds are reproducible. To bump them to the current branch heads, run `npm run libs:update`, review the diff, and commit (`npm run libs:check` reports out-of-date pins without writing). Libraries with a stable release process (BOSL2, NopSCADlib) set a `tag` field instead: `libs:update` then pins the commit of that tag, and you bump the tag by hand.
 
 ## Build your own WASM binary
 

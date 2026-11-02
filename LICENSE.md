@@ -39,6 +39,7 @@ The WASM build was made possible by https://github.com/DSchroer/openscad-wasm.
 * [SCAD Libraries](#scad-libraries)
   + [BOSL2](#bosl2)
   + [NopSCADlib](#nopscadlib)
+  + [MCAD](#mcad)
   + [brailleSCAD](#braillescad)
   + [FunctionalOpenSCAD](#functionalopenscad)
   + [funcutils](#funcutils)
@@ -214,6 +215,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 https://github.com/nophead/NopSCADlib
 
 Licensed under the [GPLv3](#gplv3).
+
+### MCAD
+
+https://github.com/openscad/MCAD
+
+Licensed under the [GNU LGPLv2.1](#lgplv21) or later (stated in the library's README and file headers).
 
 ### brailleSCAD
 
