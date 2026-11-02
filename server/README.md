@@ -184,6 +184,16 @@ Every mutating tool waits (up to 30 s) for the re-check/re-render and returns th
 
 The previous single `interact` tool (action enum + `commands` batching) was replaced by these focused tools: each has its own JSON schema and description, which models call more reliably than one flat union, and hosts that can issue parallel tool calls do not need a batching parameter. The server's `instructions` describe the intended workflow (create, view_source / str_replace_source, read diagnostics, screenshot, adjust camera).
 
+### Inline size
+
+The view reports its own height to the host (`ui/notifications/size-changed`, via `App.sendSizeChanged`; `autoResize` is off because the app fills its container), rules in `src/state/mcp-sizing.ts`:
+
+- **Default: 400 px** (`INLINE_HEIGHT`), reported explicitly so hosts don't fall back to their own default. For a bigger canvas use the fullscreen button.
+- **Opening the customizer grows the frame** to fit its content (re-measured when sections expand/collapse or the parameter schema changes), up to a conservative cap, and shrinks back to 400 when it closes. The cap is `min(host max height, 0.85 x screen.availHeight minus safe-area insets, 900 px)`, never below 400. The host's maximum is only an upper bound: it can be larger than the visible area (the chat is a scrolling column, mobile browser chrome and keyboards take space, and the iframe cannot see the host viewport; the 2.0.4 host context has no visible-area hint and the SDK has no scroll helper).
+- So the layout stays usable when part of the frame is off-screen: the toolbar and the panel title/close are at the top, nothing essential is at the bottom edge, and the panel scrolls internally.
+- In fullscreen/pip the host owns the size: nothing is reported and the app fills the container. Changes under 4 px are not reported (no resize feedback loops). The full (editor) layout asks for 600 px inline.
+- Reference host: ext-apps `basic-host` applies the reported height to the iframe (animated).
+
 ### Why `data:` URIs for `resource_link`
 
 A `resource_link` needs a URI the receiver can fetch. A `blob:` URL created in the view only exists inside the sandboxed, other-origin iframe, so the host cannot read it. The server is stateless and does not render, so it has no file to serve (passing the bytes in a URL would be a `data:` URI anyway). A `data:` URI is therefore the only portable link; it is capped at 512 KB because it inflates the bytes by a third and hosts rarely fetch large ones. `ui/download-file` accepts `EmbeddedResource | ResourceLink` per the spec and SDK types but advertises no per-form capability, so the app tries the embedded form first and falls back to the link form when the host throws.

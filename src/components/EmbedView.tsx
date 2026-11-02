@@ -38,6 +38,11 @@ export interface EmbedViewProps {
    * fallback when nothing could deliver the file.
    */
   onDownload?: (format: ExportFormat) => Promise<DownloadOutcome>;
+  /**
+   * Natural height of the open customizer (from the top of the frame to the end of its content), or null when
+   * closed or irrelevant. Lets the MCP host frame grow to fit; see state/mcp-sizing.ts.
+   */
+  onPanelContentHeight?: (height: number | null) => void;
 }
 
 export interface DownloadOutcome {
@@ -53,7 +58,10 @@ export interface ExitAction {
   href?: () => string;
 }
 
-export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit, onDownload }: EmbedViewProps) {
+/** Distance of the customizer side sheet from the top of the frame (below the toolbar). */
+const PANEL_TOP = 52;
+
+export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit, onDownload, onPanelContentHeight }: EmbedViewProps) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
@@ -182,6 +190,22 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
   }, [menuOpen]);
 
+  // Report the open panel's natural content height (ResizeObserver: sections expanding/collapsing, schema changes).
+  const panelHeaderRef = useRef<HTMLDivElement>(null);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!onPanelContentHeight) return;
+    if (!showCustomizer) { onPanelContentHeight(null); return; }
+    const scroller = panelScrollRef.current;
+    const content = scroller?.firstElementChild as HTMLElement | null | undefined;
+    if (!scroller || !content) return;
+    const report = () => onPanelContentHeight(PANEL_TOP + (panelHeaderRef.current?.offsetHeight ?? 0) + content.offsetHeight + 2);
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(content);
+    return () => { ro.disconnect(); onPanelContentHeight(null); };
+  }, [showCustomizer, onPanelContentHeight, state.parameterSet]);
+
   const busy = state.rendering || state.previewing || state.checkingSyntax;
   const isFullscreen = !!fullscreen?.active;
 
@@ -272,7 +296,7 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
           className={`embed-panel ${isDark ? 'mcp-dark embed-dark' : ''}`}
           style={{
             position: 'absolute',
-            top: 52,
+            top: PANEL_TOP,
             right: 0,
             bottom: 0,
             width: 'min(360px, 85vw)',
@@ -285,7 +309,7 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             color: `var(--color-text-primary, ${isDark ? '#e0e0e0' : '#333'})`,
             fontFamily: 'var(--font-sans, system-ui, sans-serif)',
           }}>
-          <div style={{
+          <div ref={panelHeaderRef} style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -309,11 +333,13 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
               aria-label="Close customizer"
             >&times;</button>
           </div>
-          <CustomizerPanel dark={isDark} style={{
-            maxHeight: 'unset',
-            overflow: 'auto',
-            flex: 1,
-          }} />
+          {/* Anchored to the top; scrolls internally when the content is taller than the frame */}
+          <div ref={panelScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <CustomizerPanel dark={isDark} style={{
+              maxHeight: 'none',
+              overflow: 'visible',
+            }} />
+          </div>
         </aside>
       )}
 

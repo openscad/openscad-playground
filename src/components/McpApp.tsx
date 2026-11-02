@@ -12,6 +12,7 @@ import type { App } from '@modelcontextprotocol/ext-apps';
 import { State, StatePersister } from '../state/app-state.ts';
 import { Model } from '../state/model.ts';
 import { ViewerPanelHandle } from './ViewerPanel.tsx';
+import { FULL_LAYOUT_HEIGHT, shouldReport, targetHeight } from '../state/mcp-sizing.ts';
 import { useEmbedClass } from './use-embed-class.ts';
 import EmbedView, { CornerButton, EmbedIcons } from './EmbedView.tsx';
 import { ModelContext, FSContext, McpContext } from './contexts.ts';
@@ -88,6 +89,8 @@ export function McpApp({
   // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const modelRef = useRef(model);
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const [displayMode, setDisplayMode] = useState<string | undefined>(() => app.getHostContext()?.displayMode);
   useEmbedClass(state.view.embed);
   const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
@@ -282,6 +285,33 @@ export function McpApp({
     };
   }, []);
 
+  // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
+  const lastReportedHeight = useRef<number | null>(null);
+  const isEmbed = !!state.view.embed;
+  useEffect(() => {
+    if (displayMode && displayMode !== 'inline') {
+      lastReportedHeight.current = null; // the host owns the size; report again on return to inline
+      return;
+    }
+    const ctx = app.getHostContext();
+    const dims = ctx?.containerDimensions as { height?: number; maxHeight?: number } | undefined;
+    if (dims && 'height' in dims && dims.height != null) return; // fixed by the host
+    const next = isEmbed
+      ? targetHeight({
+          panelContentHeight: panelHeight,
+          hostMaxHeight: dims?.maxHeight,
+          screenAvailHeight: window.screen?.availHeight,
+          safeAreaVertical: (ctx?.safeAreaInsets?.top ?? 0) + (ctx?.safeAreaInsets?.bottom ?? 0),
+        })
+      : FULL_LAYOUT_HEIGHT;
+    const timer = setTimeout(() => {
+      if (!shouldReport(lastReportedHeight.current, next)) return;
+      lastReportedHeight.current = next;
+      app.sendSizeChanged({ height: next }).catch(e => console.warn('sendSizeChanged failed:', e));
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [app, panelHeight, isEmbed, displayMode]);
+
   // Apply host styles and listen for changes
   useEffect(() => {
     // Apply initial host styles
@@ -290,6 +320,7 @@ export function McpApp({
     // Listen for host context changes (theme, CSS variables, fonts)
     app.onhostcontextchanged = () => {
       const newCtx = app.getHostContext();
+      setDisplayMode(newCtx?.displayMode);
       applyHostStyles(newCtx);
       if (newCtx?.theme === 'light') setIsDark(false);
       else if (newCtx?.theme === 'dark') setIsDark(true);
@@ -380,6 +411,7 @@ export function McpApp({
                 fullscreen={fullscreen}
                 toolbar={toolbar}
                 onDownload={onDownload}
+                onPanelContentHeight={setPanelHeight}
                 exit={{
                   label: 'Full editor',
                   icon: EmbedIcons.layout,

@@ -22,6 +22,7 @@ import {
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
 import { FORMAT_INFO, LINK_CAP, SIZE_CAPS, buildFilename, bytesToBase64, dataUri, deliveryPlan, parseFormat, ExportError } from "../src/state/export-logic.ts";
+import { FULL_LAYOUT_HEIGHT, INLINE_HEIGHT, MAX_HEIGHT, heightCap, shouldReport, targetHeight } from "../src/state/mcp-sizing.ts";
 import { fullAppUrl, isFramed, resolveMcpSetupUrl, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
 import {
   ToolError,
@@ -326,6 +327,27 @@ async function main() {
     assert.equal(dataUri("model/stl", "QUJD"), "data:model/stl;base64,QUJD");
     assert.equal(bytesToBase64(new Uint8Array([72, 105])), "SGk=");
     assert.equal(bytesToBase64(new Uint8Array(100_000).fill(1)).length, Math.ceil(100_000 / 3) * 4);
+  });
+  await test("sizing: fixed default, grow for the customizer, conservative cap", () => {
+    assert.equal(INLINE_HEIGHT, 400);
+    assert.equal(targetHeight({ panelContentHeight: null }), 400);
+    assert.equal(targetHeight({ panelContentHeight: 250 }), 400); // never below the default
+    assert.equal(targetHeight({ panelContentHeight: 620 }), 620);
+    assert.equal(targetHeight({ panelContentHeight: 5000 }), MAX_HEIGHT);
+    // host max is an upper bound, never the target
+    assert.equal(targetHeight({ panelContentHeight: null, hostMaxHeight: 6000 }), 400);
+    assert.equal(targetHeight({ panelContentHeight: 800, hostMaxHeight: 700 }), 700);
+    // 0.85 x the device's available height, minus safe-area insets
+    assert.equal(heightCap({ panelContentHeight: 0, screenAvailHeight: 800, hostMaxHeight: 6000 }), 680);
+    assert.equal(heightCap({ panelContentHeight: 0, screenAvailHeight: 800, safeAreaVertical: 80 }), 600);
+    assert.equal(targetHeight({ panelContentHeight: 900, screenAvailHeight: 800 }), 680);
+    // tiny screens/hosts never push the cap below the default
+    assert.equal(heightCap({ panelContentHeight: 0, screenAvailHeight: 300, hostMaxHeight: 200 }), 400);
+    assert.equal(FULL_LAYOUT_HEIGHT, 600);
+    // feedback-loop guard
+    assert.equal(shouldReport(null, 400), true);
+    assert.equal(shouldReport(400, 403), false);
+    assert.equal(shouldReport(400, 405), true);
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };
