@@ -8,6 +8,7 @@ import cors from "cors";
 import express from "express";
 import type { Request, Response } from "express";
 import { createServer } from "./openscad-server.js";
+import { envBaseUrl, resolveBaseUrl } from "./base-url.js";
 
 const DIST_DIR = process.env.OPENSCAD_DIST_DIR ?? path.resolve(import.meta.dirname ?? __dirname, "../dist");
 
@@ -34,7 +35,7 @@ async function startStreamableHTTPServer(): Promise<void> {
   // The server is stateless (all interaction happens through the view's own
   // app tools), so each request gets a fresh McpServer instance.
   app.all("/mcp", async (req: Request, res: Response) => {
-    const server = createServer();
+    const server = createServer(selfServe ? resolveBaseUrl(req) : envBaseUrl());
     const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
@@ -87,8 +88,8 @@ async function startStdioServer(): Promise<void> {
       const addr = assetServer.address();
       if (addr && typeof addr === "object") {
         const url = `http://127.0.0.1:${addr.port}/`;
-        // Set BASE_URL so createServer() uses it for CSP and HTML generation
-        process.env.OPENSCAD_BASE_URL = url;
+        // Set BASE_URL so resolveBaseUrl() uses it for CSP and HTML generation
+        process.env.OPENSCAD_BASE_URL = url;  // read by createServer() below
         console.error(`Serving assets from ${DIST_DIR} at ${url}`);
       }
     });
@@ -97,7 +98,7 @@ async function startStdioServer(): Promise<void> {
     await new Promise<void>(resolve => assetServer.on("listening", resolve));
   }
 
-  await createServer().connect(new StdioServerTransport());
+  await createServer(envBaseUrl()).connect(new StdioServerTransport());
   console.error("OpenSCAD MCP server running on stdio");
 }
 

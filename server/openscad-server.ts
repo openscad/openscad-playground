@@ -26,11 +26,7 @@ import {
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-// Read at call time, not module load: stdio --serve-dist sets
-// OPENSCAD_BASE_URL only once its asset server knows its port (index.ts).
-function getBaseUrl(): string {
-  return process.env.OPENSCAD_BASE_URL ?? "https://ochafik.com/openscad2/";
-}
+import { envBaseUrl } from "./base-url.js";
 
 export const RESOURCE_URI = "ui://openscad/viewer.html";
 
@@ -75,7 +71,12 @@ difference() {
 
 // ─── Server ─────────────────────────────────────────────────────────────
 
-export function createServer(): McpServer {
+/**
+ * @param baseUrl Where the app's assets are served from (see base-url.ts).
+ *   The server is stateless and created per request, so callers pass the
+ *   base derived from that request. Defaults to the environment-derived one.
+ */
+export function createServer(baseUrl: string = envBaseUrl()): McpServer {
   const server = new McpServer({
     name: "OpenSCAD Playground",
     version: "0.2.0",
@@ -148,7 +149,6 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
       description: "Interactive OpenSCAD 3D viewer and editor",
     },
     async (): Promise<ReadResourceResult> => {
-      const baseUrl = getBaseUrl();
       const html = buildAppHtml(baseUrl);
       return {
         contents: [
