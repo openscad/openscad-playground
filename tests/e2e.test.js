@@ -100,6 +100,31 @@ describe('e2e', () => {
     expectObjectList();
   }, longTimeout);
 
+  test('sources in subdirectories can be included', async () => {
+    // Regression: the worker did not create parent directories, so /lib/foo.scad failed with an FS error.
+    const state = {
+      params: {
+        activePath: '/main.scad',
+        sources: [
+          { path: '/lib/foo.scad', content: 'module foo() { cube(5); }\n' },
+          { path: '/main.scad', content: 'include </lib/foo.scad>\nfoo();\n' },
+        ],
+        features: [], exportFormat2D: 'svg', exportFormat3D: 'stl',
+      },
+      view: { layout: { mode: 'multi', editor: true, viewer: true, customizer: false }, color: '#f9d72c' },
+    };
+    await page.goto(baseUrl); // same-origin page to run the compressor in
+    const fragment = await page.evaluate(async (json) => {
+      const bytes = new Uint8Array(await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+      return btoa(String.fromCharCode(...bytes));
+    }, JSON.stringify(state));
+    messages.length = 0;
+    await page.goto(`${baseUrl}#${fragment}`);
+    await page.reload();
+    await waitForViewer();
+    expect3DPolySet();
+  }, longTimeout);
+
   test('can render cube', async () => {
     await loadSrc('cube([10, 10, 10]);');
     await waitForViewer();
