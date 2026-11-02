@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { MergedOutputs } from "./openscad-worker.ts";
+import { MergedOutputs } from "./openscad-worker-core.ts";
 import { AbortablePromise } from "../utils.ts";
 import { Source } from "../state/app-state.ts";
 

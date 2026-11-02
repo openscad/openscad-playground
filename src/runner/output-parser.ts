@@ -1,5 +1,5 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { MergedOutputs } from "./openscad-worker";
+import { type MarkerData, MarkerSeverity } from './marker-types';
 
 const ignoredLogs = new Set([
   'Could not initialize localization.'
@@ -30,7 +30,7 @@ export function joinMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOutp
   return allLines.join("\n");
 }
 
-export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOutputsOptions): monaco.editor.IMarkerData[] {
+export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOutputsOptions): MarkerData[] {
   let unmatchedLines = [];
 
   const markers = [];
@@ -42,7 +42,7 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOut
       endLineNumber: Number(line),
       endColumn: 1000,
       message: error,
-      severity: monaco.MarkerSeverity.Error
+      severity: MarkerSeverity.Error
     })
   }
   const shiftSourceName = opts.shiftSourceLines && opts.shiftSourceLines.sourcePath;
@@ -82,7 +82,7 @@ export function parseMergedOutputs(mergedOutputs: MergedOutputs, opts: MergedOut
           endLineNumber: getLine(file, line),
           endColumn: 1000,
           message: warning,
-          severity: monaco.MarkerSeverity.Warning
+          severity: MarkerSeverity.Warning
         })
         continue;
       }
