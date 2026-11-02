@@ -3,7 +3,7 @@ name: Build wasm2js fallback
 # Builds public/openscad.fallback.js (see docs/WASM_FALLBACK.md): a pure-JS
 # OpenSCAD for browsers without WebAssembly. It is expensive (Binaryen +
 # OpenSCAD + emscripten wasm2js link), so it only runs when the recipe changes,
-# on release tags, or on demand — not on ordinary PRs.
+# on release tags, or on demand, not on ordinary PRs.
 
 on:
   workflow_dispatch:
