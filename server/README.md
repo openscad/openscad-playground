@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io/) server that exposes an interactive OpenSCAD 3D viewer as an [MCP App](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/apps). It lets LLMs create, edit, and render OpenSCAD models through tool calls, while users see a live 3D preview in the host UI.
 
-Built with the [MCP Apps SDK](https://github.com/modelcontextprotocol/ext-apps) v2: the server exposes a single `create` tool that opens the viewer, and the viewer itself registers an `interact` app tool with the host. The host routes `interact` calls straight into the iframe, so the server is fully stateless — no command queue, no polling, no external storage.
+Built with the [MCP Apps SDK](https://github.com/modelcontextprotocol/ext-apps) v2: the server exposes a single `create` tool that opens the viewer, and the viewer itself registers a set of app tools (source editing, state, camera, screenshots) with the host. The host routes those calls straight into the iframe, so the server is fully stateless — no command queue, no polling, no external storage.
 
 ## Quick Start
 
@@ -150,28 +150,29 @@ The server is a standard Node.js/Express app. Deploy `server/` with:
 
 ### App-registered tools
 
-The view registers these with the host during the `ui/initialize` handshake (see `src/state/mcp-app.ts`); the host routes calls straight into the iframe:
+The view registers these with the host during the `ui/initialize` handshake (definitions in `src/state/mcp-tools.ts`, pure logic in `src/state/mcp-tools-logic.ts`); the host routes calls straight into the iframe. They are only available once the viewer has loaded (after `create`). Source paths are the playground's virtual files (e.g. `/playground.scad`); `path` defaults to the active file.
 
 | Tool | Description |
 |---|---|
-| `interact` | One tool for every viewer action, with an `action` enum plus a flat schema of per-action fields, and an optional `commands` array for sequential batching (content[i] is the result of commands[i]). |
+| `view_source` | Numbered lines (`cat -n` style) of a file, optional `start_line`/`end_line`, plus the file list. |
+| `str_replace_source` | Exact string replacement like Claude Code's Edit: **fails** if `old_string` is not found, or is not unique unless `replace_all`. |
+| `insert_source` | Insert `text` after line N (0 = top). |
+| `delete_source_lines` | Delete `start_line`..`end_line`. |
+| `write_source` | Create or overwrite a file (`activate` to make it the rendered file; new files can be `include`d from others). |
+| `delete_source_file` | Delete a file (never the last one). |
+| `undo_source_edit` | Undo the last tool edit (history of 20; refuses if the file changed since, e.g. by the user). |
+| `get_viewer_state` | Active file, file list, render status, errors/warnings (`file:line:col`), OpenSCAD log tail, customizer parameters, camera, view options. |
+| `render_model` | Force a full (non-preview) render and wait for it. |
+| `set_parameters` | Set customizer variables without editing the source (unknown names rejected). |
+| `set_camera` | `view` preset (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`) and/or `azimuth_deg`/`elevation_deg`, `zoom` (1 = fit), `distance`, `target`, `field_of_view_deg`, `fit`. |
+| `orbit_camera` | Relative rotate (`azimuth_deg`, `elevation_deg`) and `zoom_factor`. |
+| `get_camera` | Current camera in model-friendly units. |
+| `set_view_options` | `show_axes`. (The embedded viewer has no editor/layout panes, shadows or wireframe.) |
+| `screenshot` | PNG/JPEG image blocks of the 3D canvas (`max_size` up to 1024). `views: ["iso","front","top"]` returns several angles in one call; the camera is restored unless `keep_camera`. |
 
-**`interact` actions:**
+Every mutating tool waits (up to 30 s) for the re-check/re-render and returns the render status, errors/warnings and the OpenSCAD log tail in its result. If the render failed, `isError` is set and the text starts with `EDIT APPLIED, BUT THE RENDER FAILED` so the model knows the source did change. A render still running at the timeout is reported as `STILL RUNNING` (not an error).
 
-| Action | Required fields | Description |
-|---|---|---|
-| `write_source` | `content` | Replace entire source code |
-| `edit_source` | `old_text`, `new_text` | Find-and-replace in source (errors if `old_text` is absent) |
-| `set_camera` | `view` or `theta`+`phi` | Set camera angle (preset name or custom radians) |
-| `set_var` | `name`, `value` | Set a single customizer variable |
-| `set_vars` | `vars` | Set multiple customizer variables at once |
-| `render` | _(none)_ | Trigger a full (non-preview) render |
-| `zoom` | `factor` | Zoom by factor (<1 = zoom in, >1 = zoom out) |
-| `auto_fit` | _(none)_ | Reset zoom to fit the model in view |
-| `get_screenshot` | _(none)_ | Capture the current view as a PNG image |
-| `get_state` | _(none)_ | Read source, errors, warnings, customizer params and camera |
-
-Source/variable mutations return the checker's errors and warnings directly in the tool result, so the model gets immediate feedback without a round-trip through `get_state`.
+The previous single `interact` tool (action enum + `commands` batching) was replaced by these focused tools: each has its own JSON schema and description, which models call more reliably than one flat union, and hosts that can issue parallel tool calls do not need a batching parameter. The server's `instructions` describe the intended workflow (create, view_source / str_replace_source, read diagnostics, screenshot, adjust camera).
 
 ## Architecture
 
@@ -181,7 +182,7 @@ Source/variable mutations return the checker's errors and warnings directly in t
 │   (model)   │                      │  create + UI res │
 └─────────────┘                      └──────────────────┘
        │                                       │ serves ui://openscad/viewer.html
-       │  interact (routed by host)            ▼
+       │  app tools (routed by host)           ▼
        │                              ┌──────────────────┐
        └────────────────────────────▶ │   App (iframe)   │
        ▲                              │ 3D viewer+editor │
@@ -190,8 +191,8 @@ Source/variable mutations return the checker's errors and warnings directly in t
 ```
 
 1. LLM calls `create` — the host opens the viewer resource; the view reads the initial source/vars/camera from the tool's input and result
-2. The view registers `interact` during its `ui/initialize` handshake
-3. LLM calls `interact` — the host routes the call into the iframe, which applies it and answers with results (including screenshots) directly
+2. The view registers its app tools during its `ui/initialize` handshake
+3. LLM calls an app tool (e.g. `str_replace_source`, `screenshot`) — the host routes the call into the iframe, which applies it, waits for the render and answers with diagnostics and images directly
 4. The view also pushes passive state changes (user edits in the customizer, render status) into the model context via `updateModelContext`
 
 ## Testing
@@ -203,7 +204,7 @@ npm test
 
 Runs an in-process test suite over linked in-memory transports, covering the tool/resource surface: `create` registration and `_meta.ui.resourceUri` binding, default application and echo, input validation, and the UI resource's HTML + CSP metadata.
 
-The `interact` tool lives in the view, so it is exercised in a browser host (e.g. basic-host), not here.
+The app tools live in the view. `npm test` also runs `test-tools.ts`, which unit-tests the tool layer and its pure logic (line numbering and range checks, `str_replace` uniqueness, insert/delete, undo, diagnostics wording, camera math, multi-view screenshots) against a mock viewer host. End-to-end behaviour (real renders, screenshots) is exercised in a browser host such as the ext-apps `basic-host`: call `create`, then `bridge.callTool(...)` on the app bridge for each app tool.
 
 ## WebAssembly-less fallback (optional)
 

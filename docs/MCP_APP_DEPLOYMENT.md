@@ -4,7 +4,10 @@ The playground can run as an [MCP App](https://github.com/modelcontextprotocol/e
 an MCP server (`server/`) exposes a `create` tool whose UI resource is a small
 HTML page that loads the playground's JS, worker, WASM and libraries from an
 **asset base URL**. This page explains how to host both parts. For local
-development see [server/README.md](../server/README.md).
+development, and for the tools the viewer exposes to the model (source
+editing, diagnostics, camera, screenshots), see [server/README.md](../server/README.md#app-registered-tools).
+The viewer's tools are registered by the app itself, so the server needs no
+extra state or configuration for them.
 
 ## Pieces
 
