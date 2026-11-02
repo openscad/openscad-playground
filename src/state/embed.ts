@@ -55,3 +55,17 @@ export function fullAppUrl(href: string): string {
   url.hash = stripEmbedFromFragment(url.hash.replace(/^#/, '')) ? '#' + stripEmbedFromFragment(url.hash.replace(/^#/, '')) : '';
   return url.toString();
 }
+
+/**
+ * Absolute URL of the MCP setup page from the build-time OPENSCAD_MCP_URL
+ * (absolute, or relative like `/mcp`), or undefined when it is unset, invalid,
+ * or the page is framed (an embed or the MCP app itself doesn't advertise it).
+ */
+export function resolveMcpSetupUrl(raw: string | undefined, base: string, framed: boolean): string | undefined {
+  if (!raw || framed) return undefined;
+  try {
+    return new URL(raw, base).toString();
+  } catch {
+    return undefined;
+  }
+}

@@ -27,6 +27,10 @@ hosts are accepted. To serve assets from elsewhere (a CDN), set
 origin is added to the CSP (`resourceDomains`, `connectDomains`; `blob:` and
 `data:` are always added to `connectDomains`).
 
+## Linking to the MCP page from the web app
+
+Set `OPENSCAD_MCP_URL` when building the web app (`OPENSCAD_MCP_URL=/mcp npm run build`; a relative value is resolved against the page, an absolute URL also works) to add a **Configure MCP** item to the settings menu. It opens the server's browser help page at `/mcp` in a new tab. Unset (the default, e.g. on a static host without `/mcp`) the item does not exist; it is also hidden inside iframes, including the MCP app itself.
+
 ## Requirements on the asset host
 
 - Serves `dist/` including `openscad-worker.js`, `openscad.wasm`, `libraries/*.zip`.

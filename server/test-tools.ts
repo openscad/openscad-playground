@@ -21,7 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
-import { fullAppUrl, isFramed, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
+import { fullAppUrl, isFramed, resolveMcpSetupUrl, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
 import {
   ToolError,
   azElFromOrbit,
@@ -265,6 +265,15 @@ async function main() {
     assert.equal(stripEmbedFromFragment("embed=0"), "");
     assert.equal(stripEmbedFromFragment("src=embed=1"), "src=embed=1");
     assert.equal(fullAppUrl("https://x.test/app/?embed=1#embed=1&src=abc"), "https://x.test/app/?embed=0#src=abc");
+  });
+  await test("resolveMcpSetupUrl: hidden unless configured, relative or absolute, never when framed", () => {
+    const base = "https://app.example/play/index.html";
+    assert.equal(resolveMcpSetupUrl(undefined, base, false), undefined);
+    assert.equal(resolveMcpSetupUrl("", base, false), undefined);
+    assert.equal(resolveMcpSetupUrl("/mcp", base, false), "https://app.example/mcp");
+    assert.equal(resolveMcpSetupUrl("https://mcp.example/mcp", base, false), "https://mcp.example/mcp");
+    assert.equal(resolveMcpSetupUrl("/mcp", base, true), undefined);
+    assert.equal(resolveMcpSetupUrl("http://", base, false), undefined);
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };
