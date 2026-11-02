@@ -27,10 +27,11 @@ test("MCP headers disable html", () => {
   assert.equal(wantsHtml(get(browsers.chrome, { "mcp-session-id": "x" })), false);
   assert.equal(wantsHtml(get(browsers.chrome, { "mcp-protocol-version": "2025-06-18" })), false);
 });
-test("page contains server URL and commands", () => {
+test("page contains server URL and no Claude Code CLI instructions", () => {
   const h = renderHelpPage("https://openscad.ochafik.com/");
   assert.ok(h.includes("https://openscad.ochafik.com/mcp"));
-  assert.ok(h.includes("claude mcp add --transport http openscad https://openscad.ochafik.com/mcp"));
+  assert.ok(h.includes("needs a client with MCP Apps support"));
+  assert.ok(!h.includes("claude mcp add") && !h.includes("Claude Code"));
   assert.ok(h.includes('href="https://openscad.ochafik.com/"'));
   assert.ok(h.length < 16 * 1024, `page is ${h.length} bytes`);
 });
