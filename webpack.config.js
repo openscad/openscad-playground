@@ -14,6 +14,10 @@ const isDev = process.env.NODE_ENV !== 'production';
 /** @type {import('webpack').Configuration[]} */
 const config = [
   {
+    // Compilers must be named: the dev-server client uses the name to ignore
+    // hash updates from the sibling (worker) compiler, which otherwise cause
+    // an endless "Cannot find update" full-reload loop.
+    name: 'app',
     entry: './src/index.tsx',
     devtool: isDev ? 'source-map' : 'nosources-source-map',
     mode: isDev ? 'development' : 'production',
@@ -121,6 +125,7 @@ const config = [
     ],
   },
   {
+    name: 'worker',
     entry: './src/runner/openscad-worker.ts',
     output: {
       filename: 'openscad-worker.js',
