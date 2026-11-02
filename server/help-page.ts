@@ -7,6 +7,18 @@
  * code.visualstudio.com mcp-configuration reference, cursor.com/docs/mcp,
  * npm mcp-remote, modelcontextprotocol.io inspector). ChatGPT's UI for custom
  * MCP servers is in flux, so it is only mentioned generically.
+ *
+ * One-click links, checked 2026-11-02:
+ *  - Claude: https://claude.ai/customize/connectors?modal=add-custom-connector
+ *    &connectorName=..&connectorUrl=.. (format supplied and tested by the owner).
+ *  - Cursor: cursor://anysphere.cursor-deeplink/mcp/install?name=..&config=<base64
+ *    of JSON.stringify(server config)> per https://cursor.com/docs/mcp/install-links
+ *    (remote servers use {"url": ..} as in mcp.json).
+ *  - VS Code: vscode:mcp/install?<encodeURIComponent(JSON.stringify({name, ...config}))>
+ *    and vscode-insiders: per https://code.visualstudio.com/api/extension-guides/ai/mcp
+ *  - ChatGPT: no documented prefill link (help.openai.com / developers.openai.com
+ *    only describe manual steps), so none is offered. Goose/Windsurf/Zed: no
+ *    official, verifiable link spec found; omitted.
  */
 
 export interface HeadersLike {
@@ -35,6 +47,19 @@ export function wantsHtml(req: HeadersLike): boolean {
   return types.includes("text/html") || types.includes("application/xhtml+xml");
 }
 
+const SERVER_NAME = "openscad";
+
+/** Deep links that pre-fill "add MCP server" in each client, for the full server URL. */
+export function deepLinks(serverUrl: string) {
+  const vscode = encodeURIComponent(JSON.stringify({ name: SERVER_NAME, type: "http", url: serverUrl }));
+  return {
+    claude: `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=OpenSCAD&connectorUrl=${encodeURIComponent(serverUrl)}`,
+    cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=${SERVER_NAME}&config=${encodeURIComponent(Buffer.from(JSON.stringify({ url: serverUrl })).toString("base64"))}`,
+    vscode: `vscode:mcp/install?${vscode}`,
+    vscodeInsiders: `vscode-insiders:mcp/install?${vscode}`,
+  };
+}
+
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -46,6 +71,7 @@ export function renderHelpPage(baseUrl: string): string {
   const json = esc(JSON.stringify({ mcpServers: { openscad: { type: "http", url } } }, null, 2));
   const vscodeJson = esc(JSON.stringify({ servers: { openscad: { type: "http", url } } }, null, 2));
   const remoteJson = esc(JSON.stringify({ mcpServers: { openscad: { command: "npx", args: ["-y", "mcp-remote", url] } } }, null, 2));
+  const links = deepLinks(url);
   const code = (id: string, text: string) =>
     `<div class="code"><pre id="${id}">${text}</pre><button type="button" class="copy" data-copy="${id}" hidden>Copy</button></div>`;
 
@@ -75,6 +101,10 @@ pre{margin:0;padding:.65rem 4.5rem .65rem .8rem;background:var(--code);border:1p
 .copy{position:absolute;top:.4rem;right:.4rem;font:inherit;font-size:.8rem;padding:.2rem .6rem;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);cursor:pointer}
 .copy:hover{border-color:var(--accent)}
 .hero pre{font-size:15px}
+.buttons{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0 .3rem}
+.btn{display:inline-block;padding:.45rem .9rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);text-decoration:none;font-weight:600;font-size:.95rem}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1d1d1b;padding:.6rem 1.2rem;font-size:1.05rem}
 ol{padding-left:1.3rem;margin:.3rem 0}
 footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 </style>
@@ -86,6 +116,13 @@ footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 
 <h2>Server URL</h2>
 <div class="hero">${code("url", u)}</div>
+<p class="buttons">
+<a class="btn primary" href="${esc(links.claude)}" target="_blank" rel="noopener">Add to Claude</a>
+<a class="btn" href="${esc(links.cursor)}">Add to Cursor</a>
+<a class="btn" href="${esc(links.vscode)}">Add to VS Code</a>
+<a class="btn" href="${esc(links.vscodeInsiders)}">VS Code Insiders</a>
+</p>
+<p class="muted">These open the client with the server pre-filled. Manual steps are below.</p>
 
 <h2>Add it to your client</h2>
 <div class="card"><h3>Claude (claude.ai and Claude Desktop)</h3>

@@ -1,6 +1,6 @@
 /** Unit tests for browser content negotiation and the help page (help-page.ts). */
 import assert from "node:assert/strict";
-import { renderHelpPage, wantsHtml } from "./help-page.js";
+import { deepLinks, renderHelpPage, wantsHtml } from "./help-page.js";
 
 let passed = 0;
 const test = (name: string, fn: () => void) => { fn(); passed++; console.log(`  ✓ ${name}`); };
@@ -43,5 +43,30 @@ test("no external requests", () => {
   const h = renderHelpPage("http://localhost:9100/");
   assert.ok(!/(src|href)="https?:\/\/[^"]*\.(js|css|woff2?)"/.test(h));
   assert.ok(!/<link /.test(h));
+});
+test("deep links round-trip, host with port and special chars", () => {
+  const url = "http://localhost:9100/mcp?a=b&c=<d>";
+  const l = deepLinks(url);
+  assert.equal(new URL(l.claude).searchParams.get("connectorUrl"), url);
+  assert.equal(new URL(l.claude).searchParams.get("connectorName"), "OpenSCAD");
+  assert.ok(deepLinks("https://x.test:8443/mcp").claude.endsWith("connectorUrl=https%3A%2F%2Fx.test%3A8443%2Fmcp"));
+  const cu = new URL(l.cursor);
+  assert.equal(cu.protocol, "cursor:");
+  assert.equal(cu.host, "anysphere.cursor-deeplink");
+  assert.equal(cu.pathname, "/mcp/install");
+  assert.equal(cu.searchParams.get("name"), "openscad");
+  assert.deepEqual(JSON.parse(Buffer.from(cu.searchParams.get("config")!, "base64").toString()), { url });
+  for (const [scheme, k] of [["vscode:", "vscode"], ["vscode-insiders:", "vscodeInsiders"]] as const) {
+    const v = (l as Record<string, string>)[k];
+    assert.ok(v.startsWith(`${scheme}mcp/install?`));
+    assert.deepEqual(JSON.parse(decodeURIComponent(v.slice(v.indexOf("?") + 1))), { name: "openscad", type: "http", url });
+  }
+});
+test("page has escaped one-click links", () => {
+  const h = renderHelpPage("https://openscad.ochafik.com/");
+  assert.ok(h.includes('href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=OpenSCAD&amp;connectorUrl=https%3A%2F%2Fopenscad.ochafik.com%2Fmcp"'));
+  assert.ok(h.includes('href="cursor://anysphere.cursor-deeplink/mcp/install?name=openscad&amp;config='));
+  assert.ok(h.includes('href="vscode:mcp/install?%7B'));
+  assert.ok(h.length < 12 * 1024, `page is ${h.length} bytes`);
 });
 console.log(`${passed} passed`);
