@@ -25,6 +25,8 @@ import {
   orbitDelta,
   replaceUnique,
   resolveCamera,
+  describeOptions,
+  validateParameterValues,
   resolvePath,
   type CameraRequest,
   type ResolvedCamera,
@@ -67,11 +69,32 @@ export interface ParameterInfo {
   group?: string;
   caption?: string;
   initial: unknown;
+  /** Current value (the default when not overridden). */
   value: unknown;
   min?: number;
   max?: number;
   step?: number;
-  options?: unknown;
+  options?: Array<{ name: string; value: number | string }>;
+}
+
+export interface LayoutInfo {
+  mode: 'embed' | 'full';
+  customizerOverlay: boolean;
+  /** Full mode: the (lazily loaded) full UI has mounted. */
+  ready?: boolean;
+  /** Why the last switch to full failed (the app fell back to embed). */
+  error?: string;
+  /** Full mode only. */
+  panels?: { kind: 'multi'; editor: boolean; viewer: boolean; customizer: boolean } | { kind: 'single'; focus: 'editor' | 'viewer' | 'customizer' };
+}
+
+export interface LayoutRequest {
+  mode?: 'embed' | 'full';
+  customizerOverlay?: 'open' | 'closed' | 'toggle';
+  editor?: boolean;
+  viewer?: boolean;
+  customizer?: boolean;
+  focus?: 'editor' | 'viewer' | 'customizer';
 }
 
 export interface ViewerSnapshot {
@@ -90,6 +113,7 @@ export interface ViewerSnapshot {
   is2D?: boolean;
   parameters: ParameterInfo[];
   showAxes: boolean;
+  layout: LayoutInfo;
 }
 
 export interface CapturedImage {
@@ -117,7 +141,11 @@ export interface ViewerHost {
   /** Start a full (non-preview) render of the active file. */
   startFullRender(): void;
   /** Merge customizer values and start a preview render. */
-  setParameters(vars: Record<string, unknown>): void;
+  /** Apply validated values like the customizer UI does (skipping unchanged ones). Returns whether anything changed (and a render started). */
+  setParameters(vars: Record<string, unknown>): boolean;
+  /** Drop overrides (all, or the named ones) back to the file's defaults. Returns whether anything changed. */
+  resetParameters(names?: string[]): boolean;
+  setLayout(req: LayoutRequest): void;
   setShowAxes(show: boolean): void;
   getCamera(): Promise<CameraState | null>;
   setCamera(camera: ResolvedCamera): Promise<CameraState | null>;
@@ -446,19 +474,12 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         lines.push(`Files: ${s.files.map(f => `${f.path} (${f.lines} lines)`).join(', ')}`);
         lines.push(`Status: ${s.status}${s.is2D ? ' (2D model)' : ''}${s.hasOutput ? '' : ' (nothing rendered yet)'}`);
         lines.push(formatDiagnostics(s));
-        if (s.parameters.length) {
-          lines.push('Customizer parameters (name = value [default]; use set_parameters):');
-          for (const p of s.parameters) {
-            const range = p.min != null ? ` range ${p.min}..${p.max}${p.step ? ` step ${p.step}` : ''}` : '';
-            lines.push(`  ${p.name} = ${JSON.stringify(p.value)} [${JSON.stringify(p.initial)}] (${p.type}${range})${p.group ? ` group "${p.group}"` : ''}`);
-          }
-        } else {
-          lines.push('Customizer parameters: none');
-        }
+        lines.push(formatParameters(s));
         await host.waitForModel(5_000);
         const cam = await host.getCamera();
         lines.push(`Camera: ${cam ? cameraText(cam) : 'unavailable (viewer not ready)'}`);
         lines.push(`View: axes ${s.showAxes ? 'shown' : 'hidden'}`);
+        lines.push(`Layout: ${layoutText(s.layout)}`);
         lines.push(`Exportable: ${s.hasOutput && !hasRenderFailure(s) ? 'yes (a model has been rendered)' : 'no'}`);
         return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { ...s } as Record<string, unknown> };
       },
@@ -480,30 +501,102 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
     }),
 
     def({
+      name: 'get_parameters',
+      title: 'Get customizer parameters',
+      description:
+        'List the customizer parameters of the active file as the app sees them: name, type, caption, group, default, current value, range (min/max/step) ' +
+        'or the allowed dropdown options (value and label), and whether the value differs from the default. These are the top-level variables annotated like ' +
+        '`/* [Group] */ width = 30; // [10:100]` or `style = "round"; // [round, square]`. Reflects the latest source after any edit has re-rendered.',
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true },
+      handler: async () => {
+        const host = await getHost();
+        const s = await host.settle(RENDER_TIMEOUT_MS);
+        return { content: [{ type: 'text', text: formatParameters(s) }], structuredContent: { parameters: s.parameters } as Record<string, unknown> };
+      },
+    }),
+
+    def({
       name: 'set_parameters',
       title: 'Set customizer parameters',
       description:
-        'Set one or more customizer variables (the `/* [Group] */ name = value; // [min:max]` variables of the active file) without editing the source. ' +
-        'Unknown names are rejected. Waits for the re-render and returns diagnostics. Names/values: see get_viewer_state.',
+        'Set one or many customizer values at once (name -> value) without editing the source; same effect as using the customizer panel. ' +
+        'All values are validated first: if any is unknown or invalid (wrong type, out of range, not an allowed option) NOTHING is changed and each problem is listed ' +
+        'with the allowed range/options. Dropdown options may be given by value or label; vectors as arrays. Waits for the re-render and returns diagnostics. See get_parameters.',
       inputSchema: z.object({
-        values: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.array(z.union([z.number(), z.string(), z.boolean()]))]))
-          .describe('Map of parameter name to new value, e.g. {"width": 40, "style": "round"}.'),
+        values: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.array(z.number())]))
+          .describe('Map of parameter name to new value, e.g. {"width": 40, "style": "round", "size": [1,2,3]}.'),
       }),
       handler: async ({ values }) => {
         const host = await getHost();
-        const known = new Set(host.snapshot().parameters.map(p => p.name));
-        const unknown = Object.keys(values).filter(n => !known.has(n));
-        if (unknown.length) {
-          throw new ToolError(`Unknown parameter(s): ${unknown.join(', ')}. Known: ${[...known].join(', ') || '(none — the active file has no customizer parameters)'}`);
-        }
         if (Object.keys(values).length === 0) throw new ToolError('values is empty');
-        host.setParameters(values);
+        const clean = validateParameterValues(host.snapshot().parameters, values);
+        if (!host.setParameters(clean)) return text('No change: all values already equal the current ones.');
         const snap = await host.settle(RENDER_TIMEOUT_MS);
         const failed = hasRenderFailure(snap);
         return {
-          content: [{ type: 'text', text: `${failed ? 'PARAMETERS SET, BUT THE RENDER FAILED. ' : ''}Set ${Object.entries(values).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')}.\n${formatDiagnostics(snap)}` }],
+          content: [{ type: 'text', text: `${failed ? 'PARAMETERS SET, BUT THE RENDER FAILED. ' : ''}Set ${Object.entries(clean).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')}.\n${formatDiagnostics(snap)}` }],
           ...(failed ? { isError: true } : {}),
         };
+      },
+    }),
+
+    def({
+      name: 'reset_parameters',
+      title: 'Reset customizer parameters',
+      description: 'Reset customizer values to the defaults declared in the source: all of them, or only the named ones. Waits for the re-render and returns diagnostics.',
+      inputSchema: z.object({ names: z.array(z.string()).optional().describe('Parameters to reset. Omit to reset all.') }),
+      handler: async ({ names }) => {
+        const host = await getHost();
+        const params = host.snapshot().parameters;
+        const unknown = (names ?? []).filter(n => !params.some(p => p.name === n));
+        if (unknown.length) throw new ToolError(`Unknown parameter(s): ${unknown.join(', ')}. Known: ${params.map(p => p.name).join(', ') || '(none)'}`);
+        if (!host.resetParameters(names)) return text('No change: nothing differs from the defaults.');
+        const snap = await host.settle(RENDER_TIMEOUT_MS);
+        const failed = hasRenderFailure(snap);
+        return {
+          content: [{ type: 'text', text: `${failed ? 'RESET APPLIED, BUT THE RENDER FAILED. ' : ''}Reset ${names?.join(', ') ?? 'all parameters'} to defaults.\n${formatDiagnostics(snap)}` }],
+          ...(failed ? { isError: true } : {}),
+        };
+      },
+    }),
+
+    def({
+      name: 'set_layout',
+      title: 'Set the viewer layout',
+      description:
+        'Switch the viewer layout. mode "embed" (default here): only the 3D viewer plus a small customizer button; "full": the complete UI with the code editor, ' +
+        'tab bar and footer. customizer_overlay opens/closes/toggles the customizer panel floating over the viewer (embed mode; needs customizer parameters). ' +
+        'In full mode, editor/viewer/customizer (booleans, wide layout) or focus (narrow layout) choose the visible panels. The current layout is reported by get_viewer_state.',
+      inputSchema: z.object({
+        mode: z.enum(['embed', 'full']).optional(),
+        customizer_overlay: z.enum(['open', 'closed', 'toggle']).optional(),
+        editor: z.boolean().optional().describe('Full mode, wide layout: show the code editor.'),
+        viewer: z.boolean().optional().describe('Full mode, wide layout: show the 3D viewer.'),
+        customizer: z.boolean().optional().describe('Full mode, wide layout: show the customizer panel.'),
+        focus: z.enum(['editor', 'viewer', 'customizer']).optional().describe('Full mode, narrow (single-panel) layout: which panel to show.'),
+      }),
+      handler: async ({ mode, customizer_overlay, editor, viewer, customizer, focus }) => {
+        const host = await getHost();
+        const before = host.snapshot();
+        if (customizer_overlay === 'open' || customizer_overlay === 'toggle') {
+          if (before.parameters.length === 0 && (customizer_overlay === 'open' || !before.layout.customizerOverlay)) {
+            throw new ToolError('The active file has no customizer parameters, so there is no customizer to open');
+          }
+        }
+        if ((editor != null || viewer != null || customizer != null || focus != null) && (mode ?? before.layout.mode) !== 'full') {
+          throw new ToolError('editor/viewer/customizer/focus apply to the full layout: also pass mode "full"');
+        }
+        host.setLayout({ mode, customizerOverlay: customizer_overlay, editor, viewer, customizer, focus });
+        // The full UI is loaded lazily: wait until it mounted (or failed and fell back to embed).
+        const deadline = Date.now() + 15_000;
+        await new Promise(r => setTimeout(r, 300));
+        while (host.snapshot().layout.mode === 'full' && !host.snapshot().layout.ready && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 200));
+        }
+        const after = host.snapshot().layout;
+        if (mode === 'full' && after.mode !== 'full') return fail(`set_layout: ${after.error ?? 'could not switch to the full layout'}. Staying in embed mode.`);
+        return text(`Layout: ${layoutText(after)}`);
       },
     }),
 
@@ -659,6 +752,35 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
     }),
   ];
   return tools;
+}
+
+function layoutText(l: LayoutInfo): string {
+  const panels = l.panels
+    ? l.panels.kind === 'multi'
+      ? `; panels: editor ${l.panels.editor ? 'shown' : 'hidden'}, viewer ${l.panels.viewer ? 'shown' : 'hidden'}, customizer ${l.panels.customizer ? 'shown' : 'hidden'}`
+      : `; showing the ${l.panels.focus} panel`
+    : '';
+  return `${l.mode}${l.error ? ` (${l.error})` : ''}${l.mode === 'embed' ? `; customizer overlay ${l.customizerOverlay ? 'open' : 'closed'}` : ''}${panels}`;
+}
+
+/** Customizer parameter listing shared by get_parameters and get_viewer_state. */
+export function formatParameters(s: ViewerSnapshot): string {
+  if (s.parameters.length === 0) {
+    const broken = hasRenderFailure(s) ? ' (the file currently has errors, which can hide its parameters)' : '';
+    return `Customizer parameters: none. ${s.activePath} declares no customizer variables${broken}; annotate top-level variables like \`width = 30; // [10:100]\` to create some.`;
+  }
+  const lines = [`Customizer parameters of ${s.activePath} (name = value; * = differs from default):`];
+  let group: string | undefined;
+  for (const p of s.parameters) {
+    if (p.group !== group) {
+      group = p.group;
+      lines.push(`[${group ?? 'Parameters'}]`);
+    }
+    const changed = JSON.stringify(p.value) !== JSON.stringify(p.initial);
+    const constraint = p.options?.length ? `options: ${describeOptions(p)}` : p.min != null ? `range ${p.min}..${p.max}${p.step ? ` step ${p.step}` : ''}` : '';
+    lines.push(`  ${p.name} = ${JSON.stringify(p.value)}${changed ? ` *(default ${JSON.stringify(p.initial)})` : ''}  ${p.type}${Array.isArray(p.initial) ? `[${p.initial.length}]` : ''}${constraint ? `, ${constraint}` : ''}${p.caption ? `  — ${p.caption}` : ''}`);
+  }
+  return lines.join('\n');
 }
 
 function cameraText(c: CameraState): string {

@@ -163,12 +163,19 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `undo_source_edit` | Undo the last tool edit (history of 20; refuses if the file changed since, e.g. by the user). |
 | `get_viewer_state` | Active file, file list, render status, errors/warnings (`file:line:col`), OpenSCAD log tail, customizer parameters, camera, view options. |
 | `render_model` | Force a full (non-preview) render and wait for it. |
-| `set_parameters` | Set customizer variables without editing the source (unknown names rejected). |
+| `get_parameters` | The active file's customizer schema: name, type, caption, group, default, current value (and whether it differs), min/max/step or dropdown options (value + label). Says so when the file has none; reflects source edits after the re-render. |
+| `set_parameters` | Set one or many values (same path as the customizer UI; unchanged values are skipped). All values are validated first; if any is unknown/invalid nothing changes and every problem is listed with the allowed range/options. Waits for the render. |
+| `reset_parameters` | Reset all (or the named) parameters to the defaults in the source. |
+| `set_layout` | `mode` `embed` \| `full` (full = code editor, tabs, footer; the editor loads lazily from cdn.jsdelivr.net, allowed by the resource CSP), `customizer_overlay` `open`\|`closed`\|`toggle`, and in full mode `editor`/`viewer`/`customizer` or `focus`. The layout is reported by `get_viewer_state`. |
 | `set_camera` | `view` preset (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`) and/or `azimuth_deg`/`elevation_deg`, `zoom` (1 = fit), `distance`, `target`, `field_of_view_deg`, `fit`. |
 | `orbit_camera` | Relative rotate (`azimuth_deg`, `elevation_deg`) and `zoom_factor`. |
 | `get_camera` | Current camera in model-friendly units. |
-| `set_view_options` | `show_axes`. (The embedded viewer has no editor/layout panes, shadows or wireframe.) |
+| `set_view_options` | `show_axes`. (There is no shadows or wireframe mode.) |
 | `screenshot` | PNG/JPEG image blocks of the 3D canvas (`max_size` up to 1024). `views: ["iso","front","top"]` returns several angles in one call; the camera is restored unless `keep_camera`. |
+
+The viewer opens in **embed mode** (see the main README): only the 3D view, with a floating customizer button whose overlay closes on Escape or an outside click; the button and `get_viewer_state` stay in sync with `set_layout`. A fullscreen button appears when the host offers the `fullscreen` display mode.
+
+Parameter presets are not exposed: the app has no preset concept (only the values the customizer holds), so there are no `list_presets`/`apply_preset` tools.
 
 Every mutating tool waits (up to 30 s) for the re-check/re-render and returns the render status, errors/warnings and the OpenSCAD log tail in its result. If the render failed, `isError` is set and the text starts with `EDIT APPLIED, BUT THE RENDER FAILED` so the model knows the source did change. A render still running at the timeout is reported as `STILL RUNNING` (not an error).
 

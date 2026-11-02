@@ -21,6 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
+import { fullAppUrl, isFramed, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
 import {
   ToolError,
   azElFromOrbit,
@@ -37,6 +38,7 @@ import {
   replaceUnique,
   resolveCamera,
   resolvePath,
+  validateParameterValue,
 } from "../src/state/mcp-tools-logic.ts";
 
 // ─── Mock host ──────────────────────────────────────────────────────────
@@ -49,6 +51,13 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
   let camera: CameraState = { theta: Math.PI / 4, phi: Math.PI / 4, radius: 10, fitRadius: 10, target: { x: 0, y: 0, z: 0 }, fov: 45 };
   const captures: Array<{ theta: number; opts: CaptureOptions }> = [];
   const log: string[] = [];
+  let params: ViewerSnapshot["parameters"] = [
+    { name: "width", type: "number", group: "Dimensions", caption: "Box width", initial: 30, value: 30, min: 10, max: 100, step: 1 },
+    { name: "style", type: "string", group: "Style", initial: "round", value: "round", options: [{ name: "Round", value: "round" }, { name: "Square", value: "sq" }] },
+    { name: "lid", type: "boolean", group: "Style", initial: true, value: true },
+    { name: "size", type: "number", group: "Style", initial: [1, 2, 3], value: [1, 2, 3], min: 0, max: 10, step: 1 },
+  ];
+  let layout: ViewerSnapshot["layout"] = { mode: "embed", customizerOverlay: false };
 
   const snapshot = (): ViewerSnapshot => ({
     activePath: active,
@@ -60,8 +69,9 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     hasOutput: true,
     renderKind: "preview",
     elapsedMs: 12,
-    parameters: [{ name: "width", type: "number", initial: 30, value: 30, min: 10, max: 100 }],
+    parameters: params,
     showAxes: false,
+    layout,
   });
   const host: ViewerHost = {
     snapshot,
@@ -70,7 +80,25 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     writeFile: (p, c, o) => { files.set(p, c); if (o?.activate) active = p; log.push(`write ${p}`); },
     removeFile: (p) => { files.delete(p); if (active === p) active = [...files.keys()][0]; },
     startFullRender: () => { log.push("full-render"); },
-    setParameters: (v) => { log.push(`params ${JSON.stringify(v)}`); },
+    setParameters: (v) => {
+      const changed = Object.entries(v).filter(([n, x]) => JSON.stringify(params.find((p) => p.name === n)!.value) !== JSON.stringify(x));
+      if (!changed.length) return false;
+      params = params.map((p) => (p.name in v ? { ...p, value: v[p.name] } : p));
+      log.push(`params ${JSON.stringify(Object.fromEntries(changed))}`);
+      return true;
+    },
+    resetParameters: (names) => {
+      const t = params.filter((p) => JSON.stringify(p.value) !== JSON.stringify(p.initial) && (!names || names.includes(p.name)));
+      if (!t.length) return false;
+      params = params.map((p) => (t.includes(p) ? { ...p, value: p.initial } : p));
+      log.push(`reset ${t.map((p) => p.name)}`);
+      return true;
+    },
+    setLayout: (r) => {
+      layout = { ...layout, ...(r.mode ? { mode: r.mode } : {}) };
+      if (r.customizerOverlay) layout.customizerOverlay = r.customizerOverlay === "toggle" ? !layout.customizerOverlay : r.customizerOverlay === "open";
+      log.push(`layout ${JSON.stringify(r)}`);
+    },
     setShowAxes: (b) => { log.push(`axes ${b}`); },
     getCamera: async () => camera,
     setCamera: async (r) => {
@@ -87,6 +115,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
   return {
     host, files, log, captures,
     setDiagnostics: (d: Diagnostic[]) => { diagnostics = d; },
+    setParams: (p: ViewerSnapshot["parameters"]) => { params = p; },
     setTimedOut: (t: boolean) => { timedOut = t; },
     camera: () => camera,
   };
@@ -220,6 +249,42 @@ async function main() {
     assert.deepEqual(fitSize(300, 200, 1000), { width: 300, height: 200 });
   });
 
+  await test("embed: URL overrides win both ways, else framed decides", () => {
+    assert.equal(parseEmbedOverride("?embed=1", ""), true);
+    assert.equal(parseEmbedOverride("?embed", ""), true);
+    assert.equal(parseEmbedOverride("?embed=0", ""), false);
+    assert.equal(parseEmbedOverride("?x=1", "#embed=1&src=cube(1)%3B"), true);
+    assert.equal(parseEmbedOverride("", "#embed=0"), false);
+    assert.equal(parseEmbedOverride("", "#src=embed=1"), undefined);
+    assert.equal(parseEmbedOverride("?embed=maybe", ""), undefined);
+    assert.equal(resolveEmbed({ search: "", hash: "", framed: true }), true);
+    assert.equal(resolveEmbed({ search: "", hash: "", framed: false }), false);
+    assert.equal(resolveEmbed({ search: "?embed=0", hash: "", framed: true }), false);
+    assert.equal(resolveEmbed({ search: "?embed=1", hash: "", framed: false }), true);
+    assert.equal(stripEmbedFromFragment("embed=1&src=a%26b"), "src=a%26b");
+    assert.equal(stripEmbedFromFragment("embed=0"), "");
+    assert.equal(stripEmbedFromFragment("src=embed=1"), "src=embed=1");
+    assert.equal(fullAppUrl("https://x.test/app/?embed=1#embed=1&src=abc"), "https://x.test/app/?embed=0#src=abc");
+  });
+  await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
+    const w = {} as { self: unknown; top: unknown };
+    w.self = w; w.top = w;
+    assert.equal(isFramed(w), false);
+    assert.equal(isFramed({ self: {}, top: {} }), true);
+    const thrower = { self: {}, get top(): unknown { throw new Error("SecurityError"); } };
+    assert.equal(isFramed(thrower as never), true);
+  });
+
+  await test("validateParameterValue edge cases", () => {
+    const num = { name: "n", type: "number", initial: 1, min: 0, max: 5 };
+    assert.equal(validateParameterValue(num, 5), 5);
+    throwsTool(() => validateParameterValue(num, "5"), /expected a number/);
+    throwsTool(() => validateParameterValue(num, NaN), /expected a number/);
+    const dd = { name: "d", type: "number", initial: 1, options: [{ name: "One", value: 1 }, { name: "Two", value: 2 }] };
+    assert.equal(validateParameterValue(dd, "two"), 2);
+    throwsTool(() => validateParameterValue(dd, 3), /allowed options: 1 \(One\), 2 \(Two\)/);
+  });
+
   // Tools
   await test("view_source lists files and numbers lines", async () => {
     const { call } = tools();
@@ -310,17 +375,64 @@ async function main() {
     assert.ok(!(await call("undo_source_edit")).isError);
     assert.equal(h.files.get("/playground.scad"), "cube(10);\nsphere(5);\n");
   });
-  await test("set_parameters validates names; get_viewer_state lists parameters", async () => {
-    const { h, call } = tools();
-    const bad = await call("set_parameters", { values: { nope: 1 } });
+  await test("get_parameters lists schema, options, ranges, and says so when there are none", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    const t = textOf(await call("get_parameters"));
+    assert.match(t, /\[Dimensions\]/);
+    assert.match(t, /width = 30\s+number, range 10\.\.100 step 1\s+— Box width/);
+    assert.match(t, /style = "round"\s+string, options: "round" \(Round\), "sq" \(Square\)/);
+    assert.match(t, /size = \[1,2,3\]\s+number\[3\]/);
+    h.setParams([]);
+    assert.match(textOf(await call("get_parameters")), /declares no customizer variables/);
+  });
+  await test("set_parameters validates everything first and lists every problem", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    const bad = await call("set_parameters", { values: { nope: 1, width: 500, style: "triangle", lid: "yes", size: [1, 2] } });
     assert.ok(bad.isError);
-    assert.match(textOf(bad), /Unknown parameter.*nope.*Known: width/);
-    assert.ok(!(await call("set_parameters", { values: { width: 50 } })).isError);
-    assert.deepEqual(h.log, ['params {"width":50}']);
-    const st = await call("get_viewer_state");
-    assert.match(textOf(st), /width = 30 \[30\] \(number range 10\.\.100\)/);
-    assert.match(textOf(st), /Active file: \/playground\.scad/);
-    assert.match(textOf(st), /azimuth 45deg/);
+    const t = textOf(bad);
+    assert.match(t, /No parameter was changed/);
+    assert.match(t, /nope: unknown parameter\. Known: width, style, lid, size/);
+    assert.match(t, /width: 500 is out of range 10\.\.100/);
+    assert.match(t, /style: "triangle" is not one of the allowed options: "round" \(Round\), "sq" \(Square\)/);
+    assert.match(t, /lid: expected a boolean/);
+    assert.match(t, /size: expected an array of 3 numbers/);
+    assert.deepEqual(h.log, []);
+  });
+  await test("set_parameters applies valid values (labels map to values), skips unchanged", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    const ok = await call("set_parameters", { values: { width: 50, style: "Square", size: [2, 2, 2] } });
+    assert.ok(!ok.isError, textOf(ok));
+    assert.match(textOf(ok), /Set width=50, style="sq", size=\[2,2,2\]/);
+    assert.deepEqual(h.log, ['params {"width":50,"style":"sq","size":[2,2,2]}']);
+    const again = await call("set_parameters", { values: { width: 50 } });
+    assert.match(textOf(again), /No change/);
+    assert.equal(h.log.length, 1);
+    assert.match(textOf(await call("get_parameters")), /width = 50 \*\(default 30\)/);
+  });
+  await test("reset_parameters resets all or named, rejects unknown names", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    assert.match(textOf(await call("reset_parameters")), /No change/);
+    await call("set_parameters", { values: { width: 50, lid: false } });
+    assert.ok(!(await call("reset_parameters", { names: ["width"] })).isError);
+    assert.match(textOf(await call("get_parameters")), /lid = false \*/);
+    assert.ok((await call("reset_parameters", { names: ["zzz"] })).isError);
+    await call("reset_parameters");
+    assert.doesNotMatch(textOf(await call("get_parameters")), /\*\(default/);
+  });
+  await test("set_layout switches mode/overlay, reports layout in get_viewer_state, validates", async () => {
+    const h = mockHost();
+    const { call } = tools(h);
+    assert.match(textOf(await call("get_viewer_state")), /Layout: embed; customizer overlay closed/);
+    assert.match(textOf(await call("set_layout", { customizer_overlay: "open" })), /embed; customizer overlay open/);
+    assert.match(textOf(await call("set_layout", { customizer_overlay: "toggle" })), /overlay closed/);
+    assert.ok((await call("set_layout", { editor: true })).isError, "panels need full mode");
+    assert.match(textOf(await call("set_layout", { mode: "full" })), /Layout: full/);
+    h.setParams([]);
+    assert.ok((await call("set_layout", { customizer_overlay: "open" })).isError);
   });
   await test("render_model starts a full render and reports failure as an error", async () => {
     const h = mockHost();

@@ -58,6 +58,36 @@ export class Model {
     this.render({isPreview: true, now: false});
   }
 
+  /**
+   * Customizer path shared by the UI and the MCP tools: set several values,
+   * skipping those that already match (some inputs report their initial value
+   * on mount, which must not trigger a render), with a single preview render.
+   * Returns whether anything changed.
+   */
+  setVars(values: {[name: string]: any}): boolean {
+    const current = (name: string) => this.state.params.vars?.[name]
+      ?? this.state.parameterSet?.parameters.find(p => p.name === name)?.initial;
+    const changed = Object.entries(values).filter(([name, v]) => JSON.stringify(current(name)) !== JSON.stringify(v));
+    if (changed.length === 0) return false;
+    this.mutate(s => s.params.vars = {...s.params.vars ?? {}, ...Object.fromEntries(changed)});
+    this.render({isPreview: true, now: false});
+    return true;
+  }
+
+  /** Drop customizer overrides (all, or the named ones) back to the source defaults. Returns whether anything changed. */
+  resetVars(names?: string[]): boolean {
+    const vars = this.state.params.vars ?? {};
+    const targets = (names ?? Object.keys(vars)).filter(n => n in vars);
+    if (targets.length === 0) return false;
+    this.mutate(s => {
+      const next = {...s.params.vars};
+      for (const n of targets) delete next[n];
+      s.params.vars = next;
+    });
+    this.render({isPreview: true, now: false});
+    return true;
+  }
+
   set logsVisible(value: boolean) {
     if (value) {
       if (this.state.view.layout.mode === 'single') {
