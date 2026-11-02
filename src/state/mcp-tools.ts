@@ -241,6 +241,15 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
     return { content: [{ type: 'text', text: parts.join('\n') }], ...(failed ? { isError: true } : {}) };
   }
 
+  /** Camera maths need a loaded model (fit radius, bounds): wait for pending renders and the model load. */
+  async function cameraOf(host: ViewerHost): Promise<CameraState> {
+    await host.settle(RENDER_TIMEOUT_MS);
+    await host.waitForModel(10_000);
+    const cam = await host.getCamera();
+    if (!cam) throw new ToolError('The viewer is not ready (no camera yet)');
+    return cam;
+  }
+
   const snippetAround = (content: string, first: number, last: number) => {
     const total = lineCount(content);
     if (total === 0) return '(file is now empty)';
@@ -446,6 +455,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         } else {
           lines.push('Customizer parameters: none');
         }
+        await host.waitForModel(5_000);
         const cam = await host.getCamera();
         lines.push(`Camera: ${cam ? cameraText(cam) : 'unavailable (viewer not ready)'}`);
         lines.push(`View: axes ${s.showAxes ? 'shown' : 'hidden'}`);
@@ -519,8 +529,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       }),
       handler: async (args) => {
         const host = await getHost();
-        const cur = await host.getCamera();
-        if (!cur) throw new ToolError('The viewer is not ready (no camera yet)');
+        const cur = await cameraOf(host);
         const req: CameraRequest = { ...args, view: args.view ? canonicalPreset(args.view) : undefined };
         if (args.view && !req.view) throw new ToolError(`Unknown view ${args.view}`);
         const after = await host.setCamera(resolveCamera(req, cur));
@@ -536,8 +545,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       annotations: { readOnlyHint: true },
       handler: async () => {
         const host = await getHost();
-        const cam = await host.getCamera();
-        if (!cam) throw new ToolError('The viewer is not ready (no camera yet)');
+        const cam = await cameraOf(host);
         return { content: [{ type: 'text', text: cameraText(cam) }], structuredContent: { ...cam } as Record<string, unknown> };
       },
     }),
@@ -555,8 +563,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       }),
       handler: async (args) => {
         const host = await getHost();
-        const cur = await host.getCamera();
-        if (!cur) throw new ToolError('The viewer is not ready (no camera yet)');
+        const cur = await cameraOf(host);
         const next = orbitDelta(cur, args);
         const after = await host.setCamera({ theta: next.theta, phi: next.phi, distance: next.radius });
         return text(`Camera moved. ${after ? cameraText(after) : ''}`);
@@ -613,8 +620,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
           mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png',
           quality: 0.85,
         };
-        const start = await host.getCamera();
-        if (!start) throw new ToolError('The viewer is not ready (no camera yet)');
+        const start = await cameraOf(host);
 
         const shots: Array<{ label: string; img: CapturedImage }> = [];
         const capture = async (label: string, req?: CameraRequest) => {

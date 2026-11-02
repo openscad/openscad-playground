@@ -43,8 +43,27 @@ async function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * model-viewer's default ('auto') limits clamp the orbit radius to roughly
+ * [0.55, 1] x the fit radius and the field of view to 30deg-ish, which would
+ * silently defeat zoom/fov requests from the MCP tools. Widen them (angles
+ * keep their limits).
+ */
+function widenCameraLimits(mv: any) {
+  // Scale the limits to the model: an extreme near/far ratio wrecks depth precision and the model vanishes.
+  const d = mv.getDimensions();
+  const size = Math.max(d.x, d.y, d.z, 1e-3);
+  mv.minCameraOrbit = `auto 0deg ${size / 20}m`;
+  mv.maxCameraOrbit = `auto 180deg ${size * 20}m`;
+  mv.minFieldOfView = '10deg';
+  mv.maxFieldOfView = '120deg';
+}
+
 /** Radius at which model-viewer frames the whole model, probed without a visible camera jump. */
 async function probeFitRadius(mv: any): Promise<number | undefined> {
+  widenCameraLimits(mv);
+  await mv.updateComplete;
+  mv.jumpCameraToGoal(); // read the settled camera, not a mid-animation one
   const o = mv.getCameraOrbit();
   mv.cameraOrbit = `${o.theta}rad ${o.phi}rad auto`;
   await mv.updateComplete;
@@ -253,10 +272,10 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
   const readCamera = async (): Promise<CameraState | null> => {
     const mv = modelViewerRef.current;
     if (!mv) return null;
+    const fitRadius = loadStatusRef.current.loaded ? await probeFitRadius(mv) : undefined;
     const orbit = mv.getCameraOrbit();
     const target = mv.getCameraTarget();
     const dims = loadStatusRef.current.loaded ? mv.getDimensions() : undefined;
-    const fitRadius = loadStatusRef.current.loaded ? await probeFitRadius(mv) : undefined;
     return {
       theta: orbit.theta,
       phi: orbit.phi,
@@ -279,9 +298,9 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
     },
     setCameraOrbit(theta: number, phi: number) {
       if (modelViewerRef.current) {
-        const orbit = modelViewerRef.current.getCameraOrbit();
-        Object.assign(orbit, { theta, phi });
-        modelViewerRef.current.cameraOrbit = orbit.toString();
+        // Keep the radius 'auto' (framed): copying the current radius would freeze
+        // whatever transient value the camera has before the model has loaded.
+        modelViewerRef.current.cameraOrbit = `${theta}rad ${phi}rad auto`;
         if (axesViewerRef.current) {
           axesViewerRef.current.cameraOrbit = `${theta}rad ${phi}rad auto`;
         }
@@ -313,6 +332,7 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
     async setCamera(r: ResolvedCamera): Promise<CameraState | null> {
       const mv = modelViewerRef.current;
       if (!mv) return null;
+      widenCameraLimits(mv);
       let radius: string;
       if (r.zoom === 1) {
         radius = 'auto';
