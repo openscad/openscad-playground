@@ -86,7 +86,8 @@ export function McpApp({
   toolEvents: ToolEventBuffer;
 }) {
   const [state, setState] = useState(initialState);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Seeded from the host: ChatGPT opens entrypoint launches (sidebar) fullscreen.
+  const [isFullscreen, setIsFullscreen] = useState(() => app.getHostContext()?.displayMode === 'fullscreen');
 
   // One Model for the component's lifetime: a Model per render would leave
   // in-flight async work (checks, renders) mutating a stale state snapshot,
@@ -345,6 +346,7 @@ export function McpApp({
     app.onhostcontextchanged = () => {
       const newCtx = app.getHostContext();
       setDisplayMode(newCtx?.displayMode);
+      if (newCtx?.displayMode) setIsFullscreen(newCtx.displayMode === 'fullscreen');
       applyHostStyles(newCtx);
       if (newCtx?.theme === 'light') setIsDark(false);
       else if (newCtx?.theme === 'dark') setIsDark(true);

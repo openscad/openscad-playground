@@ -57,6 +57,31 @@ async function main() {
     assert.ok(create.outputSchema, "create should declare an outputSchema");
   });
 
+  await test("create is the only server tool; hosts see it as model- and app-visible", async () => {
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map((t) => t.name), ["create"], "viewer tools are registered by the view, not the server");
+    const meta = tools[0]._meta as Record<string, any>;
+    assert.deepEqual(meta.ui.visibility, ["model", "app"]);
+    assert.equal(meta["ui/resourceUri"], RESOURCE_URI, "legacy flat key mirrored by registerAppTool");
+    assert.equal(tools[0].annotations?.readOnlyHint, true);
+    assert.equal(tools[0].annotations?.openWorldHint, false);
+  });
+
+  await test("create declares the ChatGPT global entrypoint and display modes", async () => {
+    const { tools } = await client.listTools();
+    const meta = tools[0]._meta as Record<string, any>;
+    assert.deepEqual(meta["openai/ui"], { entrypoints: [{ type: "global" }] });
+    const res = await client.readResource({ uri: RESOURCE_URI });
+    const rmeta = res.contents[0]._meta as Record<string, any>;
+    assert.deepEqual(rmeta["openai/ui"], { availableDisplayModes: ["inline", "fullscreen"], preferredDisplayMode: "inline" });
+  });
+
+  await test("create accepts {} (entrypoint launches send no arguments)", async () => {
+    const result = await client.callTool({ name: "create", arguments: {} });
+    assert.ok(!result.isError);
+    assert.equal((result.structuredContent as { source: string }).source, DEFAULT_SOURCE);
+  });
+
   await test("create applies defaults", async () => {
     const result = await client.callTool({ name: "create", arguments: {} });
     assert.ok(!result.isError, "create should succeed");

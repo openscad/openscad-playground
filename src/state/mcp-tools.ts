@@ -242,7 +242,13 @@ function def<Shape extends z.ZodRawShape>(d: {
   annotations?: AppToolDef['annotations'];
   handler: (args: z.output<z.ZodObject<Shape>>) => Promise<CallToolResult>;
 }): AppToolDef {
-  return { ...d, handler: args => guarded(d.name, () => d.handler(args)) } as AppToolDef;
+  // MCP's openWorldHint defaults to true; nothing here reaches outside the viewer, so say so
+  // (hosts may otherwise ask for extra approval).
+  return {
+    ...d,
+    annotations: { openWorldHint: false, ...d.annotations },
+    handler: args => guarded(d.name, () => d.handler(args)),
+  } as AppToolDef;
 }
 
 const pathParam = z.string().optional().describe('File path as listed by view_source (e.g. "/playground.scad"). Defaults to the active file.');
