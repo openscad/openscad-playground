@@ -6,27 +6,32 @@
 import { whenLibrariesMounted } from './fs/filesystem.ts';
 import { isMcpMode } from './state/mcp-app.ts';
 
+function reloadWhenHidden() {
+  const reloadIfHidden = () => {
+    if (document.visibilityState === 'hidden') {
+      document.removeEventListener('visibilitychange', reloadIfHidden);
+      window.location.reload();
+    }
+  };
+  document.addEventListener('visibilitychange', reloadIfHidden);
+  reloadIfHidden();
+}
+
 async function registerServiceWorker() {
   // (Not in the MCP app: it runs in a host's sandboxed iframe, on another origin than its assets.)
   if (process.env.NODE_ENV !== 'production' || isMcpMode() || !('serviceWorker' in navigator)) {
     return;
   }
   try {
+    if (navigator.serviceWorker.controller) {
+      // A new version was deployed if another Service Worker takes over this page. It then controls the
+      // page (skipWaiting) while the page still runs the old code: pick the new one up when the user
+      // can't notice, never in the middle of their session (it'd throw away the render in flight and
+      // reset the viewer).
+      navigator.serviceWorker.addEventListener('controllerchange', reloadWhenHidden, {once: true});
+    }
     const registration = await navigator.serviceWorker.register('./sw.js');
     console.log('ServiceWorker registration successful with scope: ', registration.scope);
-
-    registration.onupdatefound = () => {
-      const installingWorker = registration.installing;
-      if (installingWorker) {
-        installingWorker.onstatechange = () => {
-          if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // Reload to activate the service worker and apply caching
-            window.location.reload();
-            return;
-          }
-        };
-      }
-    };
 
     // Wait for it to take control of this page, so that what we fetch next is cached.
     await Promise.race([
