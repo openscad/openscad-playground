@@ -113,7 +113,7 @@ Workflow:
 2. Once the viewer has loaded it registers its own tools with the host (hosts that route "app tools" list them next to this server's tools): view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, download_model, get_parameters, set_parameters, reset_parameters, set_layout, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
 3. Every edit re-renders and the tool result contains the render status, errors/warnings (file:line:col) and the OpenSCAD log tail. A result starting "EDIT APPLIED, BUT THE RENDER FAILED" means the source was changed but is broken: fix it (or undo_source_edit) before continuing.
 4. Verify visually with \`screenshot\` (use views such as ["iso","front","top"] to check several angles in one call), then adjust with set_camera / orbit_camera or edit the source again.
-5. Customizer variables (\`name = value; // [min:max]\`): get_parameters shows the schema (ranges, dropdown options, current values); set_parameters / reset_parameters change them without editing source.
+5. Customizer parameters: top-level variables annotated like \`width = 60; // [10:100]\` (optionally under \`/* [Group] */\`) are a quick way to satisfy requests like "make it taller" or "thicker walls" without editing code. set_parameters overlays values on the source (it does not modify the file), get_parameters lists names, ranges and current values, reset_parameters restores defaults. Check them before editing code for value tweaks; edit the source for structural changes, and annotate the variables a user is likely to adjust.
 6. download_model exports the model (stl, 3mf, glb, off; svg/dxf for 2D) or, with format \"scad\", a source file and has the host save it (delivery \"auto\" falls back to a chat attachment, then to returning the file in the tool result; \"link\" sends a resource_link instead of embedding the bytes).
 7. The viewer opens in a compact embed layout (3D view + customizer button). set_layout mode \"full\" shows the code editor; use it if the user wants to see or edit the code.
 8. Fallback: some hosts do not expose the viewer's own tools to the model. If none of them appear in your tool list, iterate by calling \`create\` again with the complete updated \`source\` (each call opens a fresh viewer) instead of waiting for them.
@@ -145,7 +145,9 @@ export function createServer(baseUrl: string = envBaseUrl()): McpServer {
 
 **All follow-up actions use the viewer's own tools**, which the app registers with the host once it loads: view_source / str_replace_source / insert_source / write_source (edit code and get render diagnostics), get_viewer_state, render_model, set_parameters, set_camera / orbit_camera / get_camera, set_view_options, and screenshot (images, multi-angle). Calling create again opens a SEPARATE viewer (only do that when the viewer's tools are not in your tool list: then pass the complete updated source to iterate).
 
-Optionally pass initial OpenSCAD source code, customizer variable values, and a camera preset. With no source, a default parametric model is shown.`,
+Optionally pass initial OpenSCAD source code, customizer variable values, and a camera preset. With no source, a default parametric model is shown.
+
+Customizer: top-level variables annotated like \`width = 60; // [10:100]\` become parameters, a quick way to satisfy "make it taller/thicker" without editing code: set_parameters overlays values on the source (it does not modify the file), get_parameters lists names/ranges/current values, reset_parameters restores defaults. Check them before editing code for value tweaks; edit the source for structural changes.`,
       inputSchema: z.object({
         source: z
           .string()
@@ -224,7 +226,7 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
       },
     },
     async (): Promise<CallToolResult> => ({
-      content: [{ type: "text", text: "OpenSCAD viewer opened with the default model." }],
+      content: [{ type: "text", text: `OpenSCAD viewer opened with the default model.` }],
       structuredContent: { source: DEFAULT_SOURCE, camera: "diagonal" },
     }),
   );

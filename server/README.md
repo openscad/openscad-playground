@@ -156,6 +156,10 @@ The server and its model-visible/entrypoint tools (`create`, `open_openscad`, `o
 
 All three share the one UI resource and carry `readOnlyHint`/`openWorldHint: false` annotations. Hosts without the OpenAI MCP Extensions ignore the `openai/*` keys.
 
+### Customizer reminder
+
+Top-level variables annotated like `width = 60; // [10:100]` are customizer parameters: `set_parameters` overlays values on the source without modifying it, which is the quickest way to satisfy "make it taller" or "thicker walls". The server `instructions`, the `create` description and the `get_parameters` / `set_parameters` descriptions say so briefly and tell the model to check parameters before editing code for value tweaks. Every model context update lists the parameter names on one short line (with short current values, at most 30 then `+N more`), because each update replaces the previous context.
+
 ### Display mode
 
 The UI resource declares `_meta["openai/ui"] = { availableDisplayModes: ["inline", "fullscreen"], preferredDisplayMode: "fullscreen" }`, so ChatGPT opens the app fullscreen. The MCP Apps spec has no declarative preferred-display-mode field (only `availableDisplayModes` in the app's capabilities and host context), and the view never calls `requestDisplayMode("fullscreen")` on its own, so Claude and other hosts keep the inline default: 400 px, growing for the customizer (see "Inline size"). The fullscreen toolbar button still works wherever the host offers fullscreen.

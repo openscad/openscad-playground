@@ -3,7 +3,7 @@
  * (src/state/mcp-context.ts). Run with: npm test.
  */
 import assert from "node:assert/strict";
-import { ContextScheduler, buildContextBlocks, captureForContext, changedParameters, formatContextText, readContextCaps, readyToPublish, CONTEXT_IMAGE_MAX_BASE64 } from "../src/state/mcp-context.ts";
+import { formatParameterNames, ContextScheduler, buildContextBlocks, captureForContext, changedParameters, formatContextText, readContextCaps, readyToPublish, CONTEXT_IMAGE_MAX_BASE64 } from "../src/state/mcp-context.ts";
 import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from "../src/state/mcp-file.ts";
 import { HostViewStateWriter, ViewStateSaver, chooseRestore, fingerprint, loadLocal, parseViewState, readHostViewState, saveLocal, serializeViewState, type ViewState } from "../src/state/mcp-viewstate.ts";
 import type { CameraState, ViewerSnapshot } from "../src/state/mcp-tools.ts";
@@ -195,6 +195,25 @@ async function main() {
     await saver.flush(); assert.equal(seen.length, 1, "unchanged state is not re-sent");
     state = vs({ axes: false }); await saver.flush(); assert.equal(seen.length, 2);
     saver.dispose();
+  });
+  await test("parameter names: in every update, short values only, capped; follow schema changes", () => {
+    const t = formatContextText(snap(), cam, "s");
+    assert.match(t, /Customizer parameters \(set_parameters overlays values without editing the source\): width=42, depth=20\./);
+    assert.doesNotMatch(formatContextText(snap({ parameters: [] }), cam, "s"), /Customizer parameters/);
+    assert.match(t, /width = 42 \(default 30\)/, "changed values stay listed");
+    assert.equal(formatParameterNames(snap({ parameters: [] })), null);
+    const many = snap({ parameters: Array.from({ length: 45 }, (_, i) => ({ name: `p${i}`, type: "number", initial: i, value: i })) });
+    const line = formatParameterNames(many)!;
+    assert.match(line, /p29=29, \+15 more\.$/);
+    assert.doesNotMatch(line, /p30/);
+    assert.equal(formatParameterNames(snap({ parameters: [{ name: "s", type: "string", initial: "x", value: "a very long string value" }] }))!.includes("s=a very"), false);
+  });
+  await test("every update replaces the last, so each carries the current names", () => {
+    const before = formatContextText(snap(), cam, "s");
+    const after = formatContextText(snap({ parameters: [{ name: "h", type: "number", initial: 1, value: 1 }] }), { ...cam, theta: 1 }, "s2");
+    assert.match(before, /width=42, depth=20/);
+    assert.match(after, /Customizer parameters \(set_parameters overlays values without editing the source\): h=1\./);
+    assert.doesNotMatch(after, /width=/);
   });
   console.log(`${passed} test(s) passed`);
 }

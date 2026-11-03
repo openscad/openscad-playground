@@ -98,6 +98,13 @@ async function main() {
     assert.ok((await client.callTool({ name: "open_scad_file", arguments: {} })).isError, "file is required");
   });
 
+  await test("create description and server instructions carry the customizer reminder", async () => {
+    const { tools } = await client.listTools();
+    const reminder = /width = 60; \/\/ \[10:100\].*set_parameters.*does not modify the file.*get_parameters.*reset_parameters/s;
+    assert.match(tools.find((t) => t.name === "create")!.description!, reminder);
+    assert.match(client.getInstructions() ?? "", reminder);
+  });
+
   await test("create applies defaults", async () => {
     const result = await client.callTool({ name: "create", arguments: {} });
     assert.ok(!result.isError, "create should succeed");
