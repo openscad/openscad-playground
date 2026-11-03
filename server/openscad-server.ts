@@ -252,10 +252,19 @@ function buildAppHtml(baseUrl: string): string {
     .absolute-fill { position: absolute; top: 0; right: 0; left: 0; bottom: 0; }
     .opacity-animated { transition: opacity 0.5s ease-in-out; }
     .opacity-0 { opacity: 0; }
+    /* Before React mounts: a bar that only appears after 250 ms (no flash for fast loads) and is removed on mount. */
+    #boot-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; opacity: 0;
+      background: var(--color-background-tertiary, rgba(127,127,127,0.2)); animation: boot-in 0s linear 0.25s forwards; }
+    #boot-progress::before { content: ""; position: absolute; top: 0; bottom: 0; width: 40%;
+      background: var(--color-ring-primary, #6366f1); animation: boot-slide 1.4s ease-in-out infinite; }
+    @keyframes boot-in { to { opacity: 1; } }
+    @keyframes boot-slide { from { left: -40%; } to { left: 100%; } }
+    @media (prefers-reduced-motion: reduce) { #boot-progress::before { animation: none; left: 0; width: 100%; opacity: 0.55; } }
   </style>
 </head>
 <body>
   <noscript>You need to enable JavaScript to run the OpenSCAD Playground.</noscript>
+  <div id="boot-progress" aria-hidden="true"></div>
   <div id="root"></div>
 </body>
 </html>`;
