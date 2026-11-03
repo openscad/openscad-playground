@@ -39,24 +39,28 @@ export const RESOURCE_URI = "ui://openscad/viewer.html";
 // that don't know them ignore them.
 
 /**
- * Global entrypoint: lists the app in ChatGPT's sidebar so users can open it
- * fullscreen without going through the model. ChatGPT then calls the tool
- * with `{}` as arguments (hence every `create` argument has a default) and
- * ignores `_meta.ui.visibility`.
+ * Entrypoints (sidebar, conversation tab, file handler) are separate app-only
+ * tools so the sidebar entry gets a proper title and the model's tool list
+ * stays `create`. ChatGPT calls the global and thread ones with `{}` and
+ * the file one with `{file: {name, resourceUri}}`; `_meta.ui.visibility` is
+ * ignored when it launches them.
  */
-export const OPENAI_UI_TOOL_META = {
-  entrypoints: [{ type: "global" }],
+export const OPENAI_UI_OPEN_META = {
+  entrypoints: [{ type: "global" }, { type: "thread" }],
+} as const;
+export const OPENAI_UI_FILE_META = {
+  entrypoints: [{ type: "file", extensions: [".scad"] }],
 } as const;
 
 /**
- * Display modes (resource content item). When the model invokes the app we
- * keep the compact inline embed; entrypoints always open fullscreen.
- * Without `preferredDisplayMode` ChatGPT would default to fullscreen as soon
- * as both modes are listed.
+ * Display modes (resource content item): ChatGPT opens the app fullscreen
+ * (entrypoints always do). The MCP Apps spec has no declarative preferred
+ * mode, and the view never calls requestDisplayMode on its own, so other
+ * hosts keep their inline default (400 px, growing for the customizer).
  */
 export const OPENAI_UI_RESOURCE_META = {
   availableDisplayModes: ["inline", "fullscreen"],
-  preferredDisplayMode: "inline",
+  preferredDisplayMode: "fullscreen",
 } as const;
 
 // Must stay in sync with CAMERA_VIEWS in src/state/mcp-app.ts and the preset
@@ -167,7 +171,6 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
       _meta: {
         // registerAppTool mirrors resourceUri to the legacy flat `ui/resourceUri`.
         ui: { resourceUri: RESOURCE_URI, visibility: ["model", "app"] },
-        "openai/ui": OPENAI_UI_TOOL_META,
         "openai/toolInvocation/invoking": "Opening the OpenSCAD viewer…",
         "openai/toolInvocation/invoked": "OpenSCAD viewer ready",
       },
@@ -194,6 +197,55 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
         },
       };
     },
+  );
+
+  // ─── Entrypoint tools (ChatGPT sidebar / conversation tab / .scad files) ───
+
+  const entryAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+
+  registerAppTool(
+    server,
+    "open_openscad",
+    {
+      title: "OpenSCAD",
+      description: "Open the OpenSCAD viewer and editor with the default parametric model. For user-initiated launches (ChatGPT sidebar or conversation tab); models should call `create` instead.",
+      inputSchema: z.object({}),
+      outputSchema: z.object({ source: z.string(), camera: z.string() }),
+      annotations: entryAnnotations,
+      _meta: {
+        ui: { resourceUri: RESOURCE_URI, visibility: ["app"] },
+        "openai/ui": OPENAI_UI_OPEN_META,
+      },
+    },
+    async (): Promise<CallToolResult> => ({
+      content: [{ type: "text", text: "OpenSCAD viewer opened with the default model." }],
+      structuredContent: { source: DEFAULT_SOURCE, camera: "diagonal" },
+    }),
+  );
+
+  registerAppTool(
+    server,
+    "open_scad_file",
+    {
+      title: "Open OpenSCAD file",
+      description: "Open a .scad file in the OpenSCAD viewer and editor. Launched by ChatGPT's file handler; the viewer reads (and saves back) the file through the host's resources.",
+      inputSchema: z.object({
+        file: z.object({
+          name: z.string().min(1).describe("File name including extension"),
+          resourceUri: z.string().min(1).describe("Opaque host URI to read the file through"),
+        }),
+      }),
+      outputSchema: z.object({ file: z.object({ name: z.string(), resourceUri: z.string() }) }),
+      annotations: entryAnnotations,
+      _meta: {
+        ui: { resourceUri: RESOURCE_URI, visibility: ["app"] },
+        "openai/ui": OPENAI_UI_FILE_META,
+      },
+    },
+    async ({ file }): Promise<CallToolResult> => ({
+      content: [{ type: "text", text: `OpenSCAD viewer opened ${file.name}.` }],
+      structuredContent: { file },
+    }),
   );
 
   // ─── UI Resource ───────────────────────────────────────────────────

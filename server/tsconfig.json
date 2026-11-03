@@ -12,5 +12,5 @@
     "skipLibCheck": true
   },
   "include": ["*.ts"],
-  "exclude": ["test-tools.ts"]
+  "exclude": ["test-tools.ts", "test-context.ts"]
 }

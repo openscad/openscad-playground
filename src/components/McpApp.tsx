@@ -29,6 +29,7 @@ import {
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
 import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
+import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from '../state/mcp-file.ts';
 import { ContextScheduler } from '../state/mcp-context.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
@@ -154,10 +155,32 @@ export function McpApp({
     }
   }, []);
 
+  // ChatGPT file entrypoint: the opened .scad file is read through the host and saved back on edits.
+  const fileWriterRef = useRef<HostFileWriter | null>(null);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const openHostFile = useCallback(async (file: { name: string; resourceUri: string }) => {
+    try {
+      if (!hasOpenAIResources(app.getHostCapabilities() as { experimental?: Record<string, unknown> })) {
+        setFileNote(`This host did not provide access to ${file.name}.`);
+        return;
+      }
+      const content = await readHostFile(app as unknown as FileHostApp, file);
+      fileWriterRef.current?.dispose();
+      applySource(content.text);
+      fileWriterRef.current = new HostFileWriter(app as unknown as FileHostApp, file, content, setFileNote);
+      setFileNote(content.writable ? null : `${file.name} is read-only here.`);
+    } catch (e) {
+      setFileNote(`Could not open ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [app]);
+  useEffect(() => () => fileWriterRef.current?.dispose(), []);
+
   // Apply the create tool's input (early: streamed before the result).
   const applyToolInput = useCallback((params: ToolInputParams) => {
     setInputAt(t => t ?? Date.now());
     const args = params.arguments ?? {};
+    const hostFile = parseFileInput(args);
+    if (hostFile) void openHostFile(hostFile);
     if (args.source && typeof args.source === 'string') {
       applySource(args.source);
     }
@@ -166,7 +189,7 @@ export function McpApp({
         modelRef.current.setVar(name, value);
       }
     }
-  }, [applySource]);
+  }, [applySource, openHostFile]);
 
   // Apply the create tool's result — authoritative: carries the server-side
   // defaults (e.g. the demo source and camera preset when the model passed
@@ -290,6 +313,7 @@ export function McpApp({
   const varsJson = JSON.stringify(state.params.vars ?? {});
   const isIdle = !state.rendering && !state.previewing && !state.checkingSyntax;
   useEffect(() => {
+    if (sourceContent != null) fileWriterRef.current?.schedule(sourceContent);
     scheduleContextUpdate();
   }, [sourceContent, varsJson, isIdle, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
 
@@ -460,6 +484,12 @@ export function McpApp({
                   </FullMounted>
                 </Suspense>
               </FullLayoutBoundary>}
+        {fileNote && (
+          <div role="status" onClick={() => setFileNote(null)}
+            style={{ position: 'absolute', left: 8, bottom: 8, zIndex: 2000, maxWidth: '80%', padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', cursor: 'pointer' }}>
+            {fileNote}
+          </div>
+        )}
         </McpContext.Provider>
       </FSContext.Provider>
     </ModelContext.Provider>

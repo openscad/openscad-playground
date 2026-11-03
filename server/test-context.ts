@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { ContextScheduler, buildContextBlocks, captureForContext, changedParameters, formatContextText, readContextCaps, readyToPublish, CONTEXT_IMAGE_MAX_BASE64 } from "../src/state/mcp-context.ts";
+import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from "../src/state/mcp-file.ts";
 import type { CameraState, ViewerSnapshot } from "../src/state/mcp-tools.ts";
 
 const snap = (over: Partial<ViewerSnapshot> = {}): ViewerSnapshot => ({
@@ -88,6 +89,41 @@ async function main() {
     slow = false; release(); await advance(0); await advance(1000); await advance(1000);
     assert.equal(runs, 4, "one coalesced follow-up");
     sch.dispose();
+  });
+  await test("file entrypoint: input parsing, text/blob reads, capability", async () => {
+    assert.equal(parseFileInput({}), null);
+    assert.equal(parseFileInput({ file: { name: "a.scad", resourceUri: " " } }), null);
+    assert.deepEqual(parseFileInput({ file: { name: "a.scad", resourceUri: "host-resource://a" } }), { name: "a.scad", resourceUri: "host-resource://a" });
+    assert.ok(hasOpenAIResources({ experimental: { "openai/resource": {} } }));
+    assert.ok(!hasOpenAIResources({}));
+    let asked: any;
+    const app: FileHostApp = {
+      readServerResource: async (p) => { asked = p; return { contents: [{ uri: p.uri, blob: Buffer.from("cube(1); // é").toString("base64"), _meta: { "openai/resource": { etag: "v1", writable: true } } }] }; },
+      request: async () => ({}),
+    };
+    const got = await readHostFile(app, { name: "a.scad", resourceUri: "u" });
+    assert.deepEqual(got, { text: "cube(1); // é", etag: "v1", writable: true });
+    assert.equal(asked._meta["openai/resource"].representation, "text");
+  });
+  await test("file writer: debounced saves with ifMatch, stops on conflict, read-only never writes", async () => {
+    const calls: any[] = [];
+    let next: any = { outcome: "saved", etag: "v2" };
+    const app: FileHostApp = { readServerResource: async () => ({ contents: [] }), request: async (r) => { calls.push(r.params); return next; } };
+    const msgs: string[] = [];
+    const w = new HostFileWriter(app, { name: "a.scad", resourceUri: "u" }, { text: "a", etag: "v1", writable: true }, (m) => msgs.push(m), 5);
+    w.schedule("a"); w.schedule("b"); w.schedule("bc");
+    await new Promise((r) => setTimeout(r, 40));
+    assert.deepEqual(calls, [{ uri: "u", text: "bc", ifMatch: "v1" }]);
+    next = { outcome: "conflict", etag: "v9" };
+    w.schedule("bcd");
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(calls.length, 2); assert.match(msgs[0], /changed elsewhere/);
+    w.schedule("zzz"); await new Promise((r) => setTimeout(r, 20));
+    assert.equal(calls.length, 2, "stopped after a conflict");
+    const ro = new HostFileWriter(app, { name: "a.scad", resourceUri: "u" }, { text: "a", writable: false }, () => {}, 1);
+    ro.schedule("x"); await new Promise((r) => setTimeout(r, 20));
+    assert.equal(calls.length, 2);
+    w.dispose();
   });
   console.log(`${passed} test(s) passed`);
 }
