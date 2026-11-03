@@ -2,12 +2,6 @@
  * Content negotiation for stray browsers: a person who opens the MCP endpoint
  * in a tab gets an explanatory page instead of a protocol error.
  *
- * Client setup instructions below were checked against the vendors' docs on
- * 2026-11-02 (support.claude.com custom connectors,
- * code.visualstudio.com mcp-configuration reference, cursor.com/docs/mcp,
- * npm mcp-remote, modelcontextprotocol.io inspector). ChatGPT's UI for custom
- * MCP servers is in flux, so it is only mentioned generically.
- *
  * One-click links, checked 2026-11-02:
  *  - Claude: https://claude.ai/customize/connectors?modal=add-custom-connector
  *    &connectorName=..&connectorUrl=.. (format supplied and tested by the owner).
@@ -80,9 +74,6 @@ export function renderHelpPage(baseUrl: string): string {
   const origin = baseUrl.replace(/\/+$/, "");
   const url = `${origin}/mcp`;
   const u = esc(url);
-  const json = esc(JSON.stringify({ mcpServers: { openscad: { type: "http", url } } }, null, 2));
-  const vscodeJson = esc(JSON.stringify({ servers: { openscad: { type: "http", url } } }, null, 2));
-  const remoteJson = esc(JSON.stringify({ mcpServers: { openscad: { command: "npx", args: ["-y", "mcp-remote", url] } } }, null, 2));
   const links = deepLinks(url);
   const code = (id: string, text: string) =>
     `<div class="code"><pre id="${id}">${text}</pre><button type="button" class="copy" data-copy="${id}" hidden>${ICON_COPY}<span>Copy</span></button></div>`;
@@ -106,8 +97,6 @@ h2{font-size:1.15rem;margin:2rem 0 .6rem}
 p{margin:.5rem 0}
 a{color:var(--link)}
 .muted{color:var(--muted);font-size:.92rem}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin:.7rem 0}
-.card h3{margin:0 0 .3rem;font-size:1rem}
 .code{position:relative;margin:.4rem 0}
 pre{margin:0;padding:.65rem 4.5rem .65rem .8rem;background:var(--code);border:1px solid var(--line);border-radius:8px;font:13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .ic{flex-shrink:0;display:block}
@@ -118,7 +107,6 @@ pre{margin:0;padding:.65rem 4.5rem .65rem .8rem;background:var(--code);border:1p
 .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .9rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);text-decoration:none;font-weight:600;font-size:.95rem}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#1d1d1b;padding:.6rem 1.2rem;font-size:1.05rem}
-ol{padding-left:1.3rem;margin:.3rem 0}
 footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 </style>
 </head>
@@ -135,31 +123,7 @@ footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 <a class="btn" href="${esc(links.vscode)}">${ICON_PLUG}Add to VS Code</a>
 <a class="btn" href="${esc(links.vscodeInsiders)}">${ICON_PLUG}VS Code Insiders</a>
 </p>
-<p class="muted">These open the client with the server pre-filled. Manual steps are below.</p>
-
-<h2>Add it to your client</h2>
-<div class="card"><h3>Claude (claude.ai and Claude Desktop)</h3>
-<ol><li>Open <b>Settings → Connectors</b> (labelled <b>Customize → Connectors</b> in some versions).</li>
-<li>Choose <b>Add custom connector</b>.</li>
-<li>Enter a name (for example <i>OpenSCAD</i>), paste the URL above, and click <b>Add</b>. No sign-in is needed.</li></ol>
-<p class="muted">On Team and Enterprise plans an organization owner adds the connector under Organization settings.</p></div>
-
-<div class="card"><h3>VS Code</h3>
-<p>Run <b>MCP: Add Server → HTTP</b>, or put this in <code>.vscode/mcp.json</code>:</p>
-${code("vsc", vscodeJson)}</div>
-
-<div class="card"><h3>Cursor, and other clients with an <code>mcpServers</code> config</h3>
-<p>Add to <code>~/.cursor/mcp.json</code> (or the client's equivalent). Cursor only needs <code>url</code>; other clients may want <code>type</code> too.</p>
-${code("json", json)}
-<p>For clients that only speak stdio, bridge with <a href="https://www.npmjs.com/package/mcp-remote">mcp-remote</a>:</p>
-${code("remote", remoteJson)}</div>
-
-<div class="card"><h3>MCP Inspector</h3>
-${code("insp", "npx @modelcontextprotocol/inspector")}
-<p class="muted">Then choose the <b>Streamable HTTP</b> transport in its UI and paste the URL.</p></div>
-
-<div class="card"><h3>Anything else</h3>
-<p>Any client that supports remote MCP servers over Streamable HTTP can use the URL above.</p></div>
+<p class="muted">These open the client with the server pre-filled. Any client that supports remote MCP servers over Streamable HTTP can use this URL.</p>
 
 <h2>Try it</h2>
 ${code("prompt", "Make a parametric box with a customizer for width and height, then show me a screenshot from the top")}
