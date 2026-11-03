@@ -13,6 +13,7 @@ import { ProgressBar } from 'primereact/progressbar';
 import { ModelContext } from './contexts.ts';
 import ViewerPanel, { ViewerPanelHandle } from './ViewerPanel.tsx';
 import CustomizerPanel from './CustomizerPanel.tsx';
+import { notify, visuallyHidden, type NotifyLevel } from '../state/notify.ts';
 import { FORMAT_INFO, formatsFor, type ExportFormat } from '../state/export-logic.ts';
 
 export interface EmbedViewProps {
@@ -38,6 +39,8 @@ export interface EmbedViewProps {
    * fallback when nothing could deliver the file.
    */
   onDownload?: (format: ExportFormat) => Promise<DownloadOutcome>;
+  /** Download the active file's OpenSCAD source (.scad), delivered like a model download. */
+  onDownloadSource?: () => Promise<DownloadOutcome>;
   /**
    * Natural height of the open customizer (from the top of the frame to the end of its content), or null when
    * closed or irrelevant. Lets the MCP host frame grow to fit; see state/mcp-sizing.ts.
@@ -61,7 +64,7 @@ export interface ExitAction {
 /** Distance of the customizer side sheet from the top of the frame (below the toolbar). */
 const PANEL_TOP = 52;
 
-export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit, onDownload, onPanelContentHeight }: EmbedViewProps) {
+export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, onCameraChange, fullscreen, toolbar, exit, onDownload, onDownloadSource, onPanelContentHeight }: EmbedViewProps) {
   const model = useContext(ModelContext);
   if (!model) throw new Error('No model');
   const state = model.state;
@@ -110,34 +113,20 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
 
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // Copy the active file's OpenSCAD source.
-  const [copyNote, setCopyNote] = useState<string>('');
-  const flash = useCallback((msg: string, ms = 3000) => {
-    setCopyNote(msg);
-    setTimeout(() => setCopyNote(cur => (cur === msg ? '' : cur)), ms);
+  // Status line (aria-live): render results, download confirmations and errors, through the central notification
+  // policy (state/notify.ts): errors/warnings and the sole feedback of an explicit click are shown; anything else
+  // is only announced through a visually hidden live region.
+  const [note, setNote] = useState<string>('');
+  const [announcement, setAnnouncement] = useState('');
+  const flash = useCallback((msg: string, opts: { level?: NotifyLevel; essential?: boolean; ms?: number } = {}) => {
+    notify(true, {
+      toast: () => {
+        setNote(msg);
+        setTimeout(() => setNote(cur => (cur === msg ? '' : cur)), opts.ms ?? 3000);
+      },
+      announce: t => setAnnouncement(prev => prev === t ? t + '\u200b' : t),
+    }, opts.level ?? 'info', msg, { essential: opts.essential });
   }, []);
-  const [copyFallback, setCopyFallback] = useState<string | null>(null);
-  const copySource = useCallback(async () => {
-    const source = model.source;
-    const files = model.state.params.sources.length;
-    const name = model.state.params.activePath.split('/').pop() || model.state.params.activePath;
-    try {
-      await navigator.clipboard.writeText(source);
-      setCopyFallback(null);
-      setCopyNote(`Copied ${name}${files > 1 ? ` (active file of ${files})` : ''}`);
-      setTimeout(() => setCopyNote(''), 2500);
-    } catch (e) {
-      console.warn('Clipboard write failed, showing the source for manual copy:', e);
-      setCopyFallback(source);
-    }
-  }, [model]);
-  const fallbackRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (copyFallback != null) {
-      fallbackRef.current?.focus();
-      fallbackRef.current?.select();
-    }
-  }, [copyFallback]);
 
   // Render: the full render (F6). Announces completion or the first error.
   const userRender = useRef(false);
@@ -152,7 +141,9 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
       userRender.current = false;
       const s = model.state;
       const err = s.error ?? s.lastCheckerRun?.markers.find(m => m.severity === 8)?.message;
-      flash(err ? `Render failed: ${err}` : `Rendered${s.output ? ` in ${s.output.formattedElapsedMillis}` : ''}`, err ? 8000 : 3000);
+      // The sole feedback of an explicit Render click: essential.
+      flash(err ? `Render failed: ${err}` : `Rendered${s.output ? ` in ${s.output.formattedElapsedMillis}` : ''}`,
+        { level: err ? 'error' : 'success', essential: true, ms: err ? 8000 : 3000 });
     }
     wasBusy.current = busyNow;
   }, [busyNow, model, flash]);
@@ -163,20 +154,21 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
   const [dlFallback, setDlFallback] = useState<NonNullable<DownloadOutcome['fallback']> | null>(null);
   const downloadBtnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const runDownload = useCallback(async (format: ExportFormat) => {
-    if (!onDownload) return;
+  const runDelivery = useCallback(async (deliver: () => Promise<DownloadOutcome>) => {
     setMenuOpen(false);
     setDownloading(true);
     try {
-      const outcome = await onDownload(format);
-      flash(outcome.message);
+      const outcome = await deliver();
+      // 'Downloaded playground.scad' etc.: the sole feedback of an explicit click, so essential.
+      flash(outcome.message, { level: 'success', essential: true });
       setDlFallback(outcome.fallback ?? null);
     } catch (e) {
-      flash(`Download failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+      flash(`Download failed: ${e instanceof Error ? e.message : String(e)}`, { level: 'error', ms: 8000 });
     } finally {
       setDownloading(false);
     }
-  }, [onDownload, flash]);
+  }, [flash]);
+  const runDownload = useCallback((format: ExportFormat) => runDelivery(() => onDownload!(format)), [onDownload, runDelivery]);
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setMenuOpen(false); downloadBtnRef.current?.focus(); } };
@@ -416,7 +408,14 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             onClick={() => setMenuOpen(o => !o)}
           />
         )}
-        <CornerButton icon={EmbedIcons.copy} label="Copy source" onClick={copySource} />
+        {onDownloadSource && (
+          <CornerButton
+            icon={EmbedIcons.scad}
+            label="Download .scad"
+            disabled={downloading}
+            onClick={() => runDelivery(onDownloadSource)}
+          />
+        )}
         {toolbar}
         {fullscreen && (
           <CornerButton
@@ -428,22 +427,23 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
         <CornerButton icon={exit.icon} label={exit.label} onClick={exit.onClick} href={exit.href} />
       </div>
 
-      {/* Copy confirmation (announced to screen readers) */}
+      <div data-status-announcer aria-live="polite" aria-atomic="true" style={visuallyHidden}>{announcement}</div>
+      {/* Status line (announced to screen readers) */}
       <div role="status" aria-live="polite" style={{
         position: 'absolute',
         top: 52,
         right: 8,
         zIndex: 70,
         pointerEvents: 'none',
-        padding: copyNote ? '4px 10px' : 0,
+        padding: note ? '4px 10px' : 0,
         borderRadius: '6px',
         fontSize: '12px',
         fontFamily: 'var(--font-sans, system-ui, sans-serif)',
         color: '#fff',
         backgroundColor: 'rgba(0,0,0,0.75)',
-        opacity: copyNote ? 1 : 0,
+        opacity: note ? 1 : 0,
         transition: 'opacity 0.2s ease',
-      }}>{copyNote}</div>
+      }}>{note}</div>
 
       {menuOpen && (
         <div ref={menuRef} role="menu" aria-label="Download format" style={{
@@ -475,23 +475,6 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             target="_blank" rel="noopener" style={{ color: 'inherit' }}>{dlFallback.filename}</a>
         </div>
       )}
-
-      {/* Fallback when the clipboard is unavailable: the source, selected, for manual copy */}
-      {copyFallback != null && (
-        <div role="dialog" aria-label="Copy source" style={{
-          position: 'absolute', top: 52, right: 8, left: 8, maxWidth: 420, marginLeft: 'auto', zIndex: 80,
-          padding: 8, borderRadius: 8, background: isDark ? '#222' : '#fff', color: isDark ? '#eee' : '#222',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 12, fontFamily: 'var(--font-sans, system-ui, sans-serif)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span>Clipboard unavailable: copy the source below (Ctrl/Cmd+C)</span>
-            <button type="button" aria-label="Close" onClick={() => setCopyFallback(null)}
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>&times;</button>
-          </div>
-          <textarea ref={fallbackRef} readOnly value={copyFallback}
-            style={{ width: '100%', height: 140, boxSizing: 'border-box', fontFamily: 'monospace', fontSize: 11 }} />
-        </div>
-      )}
     </div>
   );
 }
@@ -507,7 +490,7 @@ export const EmbedIcons = {
   sliders: <SVG><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></SVG>,
   maximize: <SVG><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
   minimize: <SVG><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
-  copy: <SVG><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></SVG>,
+  scad: <SVG><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><polyline points="10 13 8 15 10 17" /><polyline points="14 13 16 15 14 17" /></SVG>,
   check: <SVG><polyline points="20 6 9 17 4 12" /></SVG>,
   render: <SVG><polygon points="6 4 20 12 6 20 6 4" /></SVG>,
   spinner: <SVG><path d="M21 12a9 9 0 1 1-6.2-8.55" /></SVG>,

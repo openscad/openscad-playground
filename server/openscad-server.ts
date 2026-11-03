@@ -81,7 +81,7 @@ Workflow:
 3. Every edit re-renders and the tool result contains the render status, errors/warnings (file:line:col) and the OpenSCAD log tail. A result starting "EDIT APPLIED, BUT THE RENDER FAILED" means the source was changed but is broken: fix it (or undo_source_edit) before continuing.
 4. Verify visually with \`screenshot\` (use views such as ["iso","front","top"] to check several angles in one call), then adjust with set_camera / orbit_camera or edit the source again.
 5. Customizer variables (\`name = value; // [min:max]\`): get_parameters shows the schema (ranges, dropdown options, current values); set_parameters / reset_parameters change them without editing source.
-6. download_model exports the model (stl, 3mf, glb, off; svg/dxf for 2D) and has the host save it (delivery \"auto\" falls back to a chat attachment, then to returning the file in the tool result; \"link\" sends a resource_link instead of embedding the bytes).
+6. download_model exports the model (stl, 3mf, glb, off; svg/dxf for 2D) or, with format \"scad\", a source file and has the host save it (delivery \"auto\" falls back to a chat attachment, then to returning the file in the tool result; \"link\" sends a resource_link instead of embedding the bytes).
 7. The viewer opens in a compact embed layout (3D view + customizer button). set_layout mode \"full\" shows the code editor; use it if the user wants to see or edit the code.
 Units are millimetres, Z is up.`;
 

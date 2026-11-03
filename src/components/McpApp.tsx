@@ -27,6 +27,7 @@ import {
   applyHostStyles,
 } from '../state/mcp-app.ts';
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
+import { exportSource } from '../state/export-source.ts';
 import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
@@ -251,7 +252,7 @@ export function McpApp({
         modelRef.current.render({ isPreview: mode === 'preview', now: true });
       },
       fileCapabilities: () => hostFileCaps(app),
-      exportFile: (format, filename) => exportAsFile(modelRef.current, format, filename),
+      exportFile: (format, filename, path) => exportAsFile(modelRef.current, format, filename, path),
       deliver: (file, steps) => deliverPlanViaHost(app, file, steps),
       setParameters: vars => modelRef.current.setVars(vars),
       resetParameters: names => modelRef.current.resetVars(names),
@@ -402,13 +403,9 @@ export function McpApp({
     />
   );
 
-  // Toolbar Download: host download, else chat attachment, else a manual-save dialog.
-  const onDownload = useCallback(async (format: ExportFormat) => {
-    const m = modelRef.current;
-    if (m.state.output?.isPreview) await m.render({ isPreview: false, now: true });
-    const file = await exportAsFile(m, format);
-    const caps = hostFileCaps(app);
-    const plan = deliveryPlan('auto', caps, file.size);
+  // Toolbar downloads: host download, else chat attachment, else a manual-save dialog.
+  const deliverUi = useCallback(async (file: ExportedFile) => {
+    const plan = deliveryPlan('auto', hostFileCaps(app), file.size);
     const delivered = await deliverPlanViaHost(app, file, plan);
     if (delivered) return { message: delivered.outcome };
     return {
@@ -416,6 +413,12 @@ export function McpApp({
       fallback: { filename: file.filename, mimeType: file.mimeType, base64: file.base64, note: 'This host cannot download files or attach them to the chat. Try the link (it may be blocked by the sandbox), or use "Open in Browser" and download there.' },
     };
   }, [app]);
+  const onDownload = useCallback(async (format: ExportFormat) => {
+    const m = modelRef.current;
+    if (m.state.output?.isPreview) await m.render({ isPreview: false, now: true });
+    return deliverUi(await exportAsFile(m, format));
+  }, [deliverUi]);
+  const onDownloadSource = useCallback(async () => deliverUi(await exportAsFile(modelRef.current, 'scad')), [deliverUi]);
 
   // Fullscreen only where the host offers that display mode.
   const hostModes = app.getHostContext()?.availableDisplayModes;
@@ -452,6 +455,7 @@ export function McpApp({
                 fullscreen={fullscreen}
                 toolbar={toolbar}
                 onDownload={onDownload}
+                onDownloadSource={onDownloadSource}
                 onPanelContentHeight={setPanelHeight}
                 exit={{
                   label: 'Full editor',
@@ -482,7 +486,11 @@ export function McpApp({
 }
 
 /** Export the rendered model as a base64 file for delivery through the host. */
-async function exportAsFile(model: Model, format: ExportFormat, filename?: string): Promise<ExportedFile> {
+async function exportAsFile(model: Model, format: ExportFormat, filename?: string, path?: string): Promise<ExportedFile> {
+  if (format === 'scad') {
+    const { filename: name, mimeType, base64, size } = exportSource(model.state.params.sources, model.state.params.activePath, path, filename);
+    return { filename: name, mimeType, base64, size };
+  }
   const file = await model.exportFile(format);
   const stem = (model.state.params.activePath.split('/').pop() ?? 'model').replace(/\.[^.]+$/, '');
   return {

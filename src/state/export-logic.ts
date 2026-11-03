@@ -4,7 +4,8 @@
  * host's capabilities. DOM-free so it can be unit tested (server/test-tools.ts).
  */
 
-export type ExportFormat = 'stl' | 'off' | 'glb' | '3mf' | 'svg' | 'dxf';
+/** Model formats, plus 'scad': the OpenSCAD source itself (not an export of the rendered model). */
+export type ExportFormat = 'stl' | 'off' | 'glb' | '3mf' | 'svg' | 'dxf' | 'scad';
 
 export const FORMATS_3D: ExportFormat[] = ['stl', '3mf', 'glb', 'off'];
 export const FORMATS_2D: ExportFormat[] = ['svg', 'dxf'];
@@ -16,6 +17,7 @@ export const FORMAT_INFO: Record<ExportFormat, { label: string; mimeType: string
   off: { label: 'OFF', mimeType: 'model/off' },
   svg: { label: 'SVG', mimeType: 'image/svg+xml' },
   dxf: { label: 'DXF', mimeType: 'image/vnd.dxf' },
+  scad: { label: 'OpenSCAD source (.scad)', mimeType: 'text/x-openscad;charset=utf-8' },
 };
 
 export class ExportError extends Error {}
@@ -33,10 +35,10 @@ export function parseFormat(format: string | undefined, is2D: boolean): ExportFo
   if (format == null || format === '') return defaultFormat(is2D);
   const f = format.toLowerCase() as ExportFormat;
   if (!(f in FORMAT_INFO)) {
-    throw new ExportError(`Unknown format "${format}". Valid: ${formatsFor(is2D).join(', ')}`);
+    throw new ExportError(`Unknown format "${format}". Valid: ${[...formatsFor(is2D), 'scad'].join(', ')}`);
   }
-  if (!formatsFor(is2D).includes(f)) {
-    throw new ExportError(`${f.toUpperCase()} is not available for this ${is2D ? '2D' : '3D'} model. Valid: ${formatsFor(is2D).join(', ')}`);
+  if (f !== 'scad' && !formatsFor(is2D).includes(f)) {
+    throw new ExportError(`${f.toUpperCase()} is not available for this ${is2D ? '2D' : '3D'} model. Valid: ${[...formatsFor(is2D), 'scad'].join(', ')}`);
   }
   return f;
 }

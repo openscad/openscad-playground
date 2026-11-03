@@ -15,6 +15,7 @@
 import assert from "node:assert/strict";
 import { decideNotification, notify } from "../src/state/notify.ts";
 import { NO_INPUT_TIMEOUT_MS, SHOW_DELAY_MS, loadingPhase, loadingView, type LoadingInputs } from "../src/state/loading-state.ts";
+import { exportSource, sourceStem } from "../src/state/export-source.ts";
 import {
   createTools,
   type CameraState,
@@ -90,7 +91,11 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     removeFile: (p) => { files.delete(p); if (active === p) active = [...files.keys()][0]; },
     startRender: (m) => { log.push(m === "full" ? "full-render" : "preview-render"); if (m === "full") renderKind = "full"; },
     fileCapabilities: () => caps,
-    exportFile: async (format, filename) => {
+    exportFile: async (format, filename, path) => {
+      if (format === "scad") {
+        const e = exportSource([...files].map(([p, content]) => ({ path: p, content })), active, path, filename);
+        return { filename: e.filename, mimeType: e.mimeType, base64: e.base64, size: e.size };
+      }
       const bytes = new Uint8Array(opts.bigFile ? 2 * 1024 * 1024 : 200).fill(65);
       return { filename: buildFilename(filename, "playground", format), mimeType: FORMAT_INFO[format].mimeType, base64: bytesToBase64(bytes), size: bytes.length };
     },
@@ -454,6 +459,47 @@ async function main() {
     notify(true, sinks, "error", "Render failed");
     assert.deepEqual(toasts, ["Top view", "Render failed"]);
     assert.deepEqual(said, ["Front view"]);
+  });
+  await test("export-source: filename, mime and content of a .scad download", () => {
+    const files = [{ path: "/playground.scad", content: "cube(10); // é\n" }, { path: "/lib/gear box.scad", content: "module g(){}\n" }, { path: "/empty.scad" }];
+    const a = exportSource(files, "/playground.scad");
+    assert.equal(a.filename, "playground.scad");
+    assert.equal(a.mimeType, "text/x-openscad;charset=utf-8");
+    assert.equal(Buffer.from(a.base64, "base64").toString("utf8"), "cube(10); // é\n", "bytes decode to the source (UTF-8)");
+    assert.equal(a.size, Buffer.byteLength("cube(10); // é\n")); // é is two bytes
+    assert.equal(a.path, "/playground.scad");
+    // another file, named after it (sanitized), and a custom name
+    assert.equal(exportSource(files, "/playground.scad", "/lib/gear box.scad").filename, "gear box.scad");
+    assert.equal(exportSource(files, "/playground.scad", undefined, "../my part?.SCAD").filename, "my part_.scad");
+    assert.equal(exportSource(files, "/empty.scad").size, 0);
+    assert.equal(sourceStem("/x/.scad"), "playground");
+    assert.equal(sourceStem("/foo.bar.scad"), "foo.bar");
+    assert.throws(() => exportSource(files, "/playground.scad", "/nope.scad"), (e) => e instanceof ExportError && /No such file: \/nope\.scad/.test(e.message));
+    assert.equal(parseFormat("scad", true), "scad", "scad is valid for 2D and 3D models");
+    assert.equal(parseFormat("SCAD", false), "scad");
+  });
+  await test("download_model scad: the source, no render needed, same delivery chain", async () => {
+    const h = mockHost({ "/playground.scad": "cube(5);\n", "/lib/a.scad": "module a(){}\n" });
+    const { call } = tools(h);
+    h.setDiagnostics([err()]); // a broken render does not matter for the source
+    h.setCaps({ download: true, message: true });
+    const r = await call("download_model", { format: "scad" });
+    assert.ok(!r.isError, textOf(r));
+    assert.match(textOf(r), /Downloaded playground\.scad\. playground\.scad: 9 bytes .*format scad, text\/x-openscad;charset=utf-8, delivery: download/);
+    assert.deepEqual(h.log, ["deliver download/embedded playground.scad"], "no render was started");
+    h.log.length = 0;
+    assert.match(textOf(await call("download_model", { format: "scad", path: "a.scad", delivery: "message" })), /Sent a\.scad to the chat/);
+    h.setCaps({ download: false, message: false });
+    const ret = await call("download_model", { format: "scad", delivery: "return", filename: "my model" });
+    const res = ret.content.find((c) => c.type === "resource") as { resource: { blob: string; mimeType: string; uri: string } };
+    assert.equal(res.resource.uri, "file:///my%20model.scad");
+    assert.equal(res.resource.mimeType, "text/x-openscad;charset=utf-8");
+    assert.equal(Buffer.from(res.resource.blob, "base64").toString("utf8"), "cube(5);\n");
+    const link = await call("download_model", { format: "scad", delivery: "link" });
+    assert.ok((link.content.find((c) => c.type === "resource_link") as { uri: string }).uri.startsWith("data:text/x-openscad;charset=utf-8;base64,"));
+    // errors
+    assert.match(textOf(await call("download_model", { format: "scad", path: "nope.scad" })), /No such file/);
+    assert.match(textOf(await call("download_model", { format: "stl", path: "a.scad" })), /path only applies to format "scad"/);
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };
