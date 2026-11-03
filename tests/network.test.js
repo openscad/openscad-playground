@@ -148,9 +148,11 @@ function clickTreePath(page, path) {
     await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer')?.src, {timeout: 60000, polling: 50});
     return zipDownloads(server.log);
   }
-  const mountedArchives = () => messages
+  // The set of archives mounted by any run so far (the syntax check's and the render's workers each log one
+  // line, and may not both have finished when we look: only the set is meaningful).
+  const mountedArchives = () => [...new Set(messages
     .filter(m => m.type === 'debug' && m.text.startsWith('Mounting archives: '))
-    .map(m => m.text.substring('Mounting archives: '.length));
+    .map(m => m.text.substring('Mounting archives: '.length)))].sort();
 
   /**
    * After the first render: waits until the Service Worker has been installed and has copied the page's
@@ -165,8 +167,8 @@ function clickTreePath(page, path) {
   test('a script without library references never downloads an archive', async () => {
     const atRender = await openAndRender('cube([10, 10, 10]);');
     expect(atRender).toEqual({});
-    expect(mountedArchives()).toEqual(['(none)', '(none)']); // syntax check + render
     expect(await settle()).toEqual({});
+    expect(mountedArchives()).toEqual(['(none)']);
 
     // No library bytes at all but the small index.
     const libBytes = server.log.filter(r => r.path.startsWith('/libraries/') && r.status === 200).reduce((s, r) => s + r.bytes, 0);
@@ -176,15 +178,15 @@ function clickTreePath(page, path) {
   test('a BOSL2-only script downloads BOSL2, once, and nothing else', async () => {
     const atRender = await openAndRender('include <BOSL2/std.scad>\ncuboid(10);');
     expect(atRender).toEqual({BOSL2: 1});
-    expect(mountedArchives()).toEqual(['BOSL2', 'BOSL2']);
     expect(await settle()).toEqual({BOSL2: 1}); // not once per render / worker / SW
+    expect(mountedArchives()).toEqual(['BOSL2']);
   }, longTimeout);
 
   test('a script using another library downloads that one once', async () => {
     const atRender = await openAndRender('use <MCAD/boxes.scad>\nroundedBox([10, 10, 10], 2, true);');
     expect(atRender).toEqual({MCAD: 1});
-    expect(mountedArchives()).toEqual(['MCAD', 'MCAD']);
     expect(await settle()).toEqual({MCAD: 1});
+    expect(mountedArchives()).toEqual(['MCAD']);
   }, longTimeout);
 
   test('the fonts are only downloaded for text()', async () => {
