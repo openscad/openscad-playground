@@ -11,6 +11,8 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import { z } from 'zod';
+import { ExportError, LINK_CAP, dataUri, SIZE_CAPS, deliveryPlan, formatSize, stepName, formatsFor, parseFormat, type ExportFormat, type HostFileCapabilities, type Step } from './export-logic.ts';
+import type { ExportedFile } from './mcp-download.ts';
 import {
   CAMERA_PRESET_NAMES,
   azElFromOrbit,
@@ -139,7 +141,13 @@ export interface ViewerHost {
   writeFile(path: string, content: string, opts?: { activate?: boolean }): void;
   removeFile(path: string): void;
   /** Start a full (non-preview) render of the active file. */
-  startFullRender(): void;
+  startRender(mode: 'preview' | 'full'): void;
+  /** What the host can do with a file (see export-logic.chooseDelivery). */
+  fileCapabilities(): HostFileCapabilities;
+  /** Export the rendered model (a full render must have completed). */
+  exportFile(format: ExportFormat, filename?: string): Promise<ExportedFile>;
+  /** Try the host steps of a delivery plan (download dialog, chat attachment); undefined if none succeeded. Rejects when the host refuses. */
+  deliver(file: ExportedFile, steps: Step[]): Promise<{ outcome: string; step: Step } | undefined>;
   /** Merge customizer values and start a preview render. */
   /** Apply validated values like the customizer UI does (skipping unchanged ones). Returns whether anything changed (and a render started). */
   setParameters(vars: Record<string, unknown>): boolean;
@@ -325,7 +333,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         new_string: z.string().describe('Replacement text (must differ from old_string).'),
         replace_all: z.boolean().optional().describe('Replace every occurrence instead of requiring a unique match. Default false.'),
       }),
-      annotations: { destructiveHint: false },
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async ({ path, old_string, new_string, replace_all }) => {
         const host = await getHost();
         const p = target(host, path);
@@ -348,6 +356,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         line: z.number().int().min(0).describe('Insert after this 1-based line (0 = at the very top).'),
         text: z.string().min(1).describe('Text to insert; may span several lines.'),
       }),
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async ({ path, line, text: t }) => {
         const host = await getHost();
         const p = target(host, path);
@@ -368,6 +377,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         start_line: z.number().int().min(1).describe('First line to delete.'),
         end_line: z.number().int().min(1).optional().describe('Last line to delete (inclusive). Default: start_line.'),
       }),
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async ({ path, start_line, end_line }) => {
         const host = await getHost();
         const p = target(host, path);
@@ -391,6 +401,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         content: z.string().describe('Complete new file content.'),
         activate: z.boolean().optional().describe('Make this the active (rendered) file. Default: true when no path is given or the file is new and the only file; otherwise false.'),
       }),
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async ({ path, content, activate }) => {
         const host = await getHost();
         const snap = host.snapshot();
@@ -419,7 +430,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       title: 'Delete a source file',
       description: 'Delete a source file from the viewer. The last remaining file cannot be deleted; deleting the active file activates another one.',
       inputSchema: z.object({ path: z.string().describe('File to delete.') }),
-      annotations: { destructiveHint: true },
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async ({ path }) => {
         const host = await getHost();
         const snap = host.snapshot();
@@ -438,6 +449,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         `Undo the most recent edit made through the source tools (history of the last ${MAX_HISTORY} edits is kept in the viewer). ` +
         'Fails if the file was changed by someone else (e.g. the user) since that edit.',
       inputSchema: z.object({}),
+      annotations: { destructiveHint: true, idempotentHint: false },
       handler: async () => {
         const host = await getHost();
         const e = history[history.length - 1];
@@ -489,14 +501,80 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       name: 'render_model',
       title: 'Render the model',
       description:
-        'Force a full (non-preview, CGAL/Manifold) render of the active file and wait for it (up to 30 s). Edits already auto-trigger a fast preview; ' +
-        'use this for the final, accurate geometry. Returns errors/warnings and the OpenSCAD log tail.',
-      inputSchema: z.object({}),
-      handler: async () => {
+        'Render the active file and wait for it (up to 30 s). mode "full" (default) is the final, accurate render (as F6 in the app); "preview" is the fast ' +
+        'preview render (F5) that edits already trigger automatically. Returns errors/warnings and the OpenSCAD log tail.',
+      inputSchema: z.object({ mode: z.enum(['preview', 'full']).optional().describe('Default "full".') }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      handler: async ({ mode }) => {
         const host = await getHost();
-        host.startFullRender();
+        host.startRender(mode ?? 'full');
         const snap = await host.settle(RENDER_TIMEOUT_MS);
         return { content: [{ type: 'text', text: formatDiagnostics(snap) }], ...(hasRenderFailure(snap) ? { isError: true } : {}) };
+      },
+    }),
+
+    def({
+      name: 'download_model',
+      title: 'Download / export the model',
+      description:
+        'Export the rendered model as a file and deliver it. format: 3D stl (default), 3mf, glb, off; 2D svg (default), dxf. A full render is done first if only a preview exists. ' +
+        'delivery: "download" asks the host to save the file for the user (host dialog), "message" attaches it to the chat, "return" returns it in this tool result, ' +
+        '"link" uses a resource_link block (data: URI) instead of embedding the bytes, "auto" (default) tries in order: download (embedded, then link), message (embedded, then link), ' +
+        `return (embedded, then link). Size limits: download ${formatSize(SIZE_CAPS.download)}, message ${formatSize(SIZE_CAPS.message)}, return ${formatSize(SIZE_CAPS.return)}, ` +
+        `links ${formatSize(LINK_CAP)}. Reports filename, bytes, format and how it was delivered.`,
+      inputSchema: z.object({
+        format: z.enum(['stl', '3mf', 'glb', 'off', 'svg', 'dxf']).optional().describe('Export format; default stl (3D) or svg (2D).'),
+        filename: z.string().optional().describe('File name; the extension is added/normalised. Default: the model file name.'),
+        delivery: z.enum(['auto', 'download', 'message', 'return', 'link']).optional().describe('How to deliver. Default auto. "link" sends a resource_link (data: URI, max ' + formatSize(LINK_CAP) + ') through the first channel that takes it.'),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      handler: async ({ format, filename, delivery }) => {
+        const host = await getHost();
+        let snap = await host.settle(RENDER_TIMEOUT_MS);
+        if (!snap.hasOutput) throw new ToolError(`Nothing has been rendered yet.\n${formatDiagnostics(snap)}`);
+        if (hasRenderFailure(snap)) throw new ToolError(`The last render failed; fix the errors first.\n${formatDiagnostics(snap)}`);
+        let fmt: ExportFormat;
+        try {
+          fmt = parseFormat(format, !!snap.is2D);
+        } catch (e) {
+          if (e instanceof ExportError) throw new ToolError(e.message);
+          throw e;
+        }
+        // Exports should come from the accurate render, not the fast preview.
+        if (snap.renderKind === 'preview') {
+          host.startRender('full');
+          snap = await host.settle(RENDER_TIMEOUT_MS);
+          if (hasRenderFailure(snap) || snap.timedOut) throw new ToolError(`The full render did not succeed.\n${formatDiagnostics(snap)}`);
+        }
+        const file = await host.exportFile(fmt, filename);
+        let plan: Step[];
+        try {
+          plan = deliveryPlan(delivery, host.fileCapabilities(), file.size);
+        } catch (e) {
+          if (e instanceof ExportError) throw new ToolError(e.message);
+          throw e;
+        }
+        const summary = `${file.filename}: ${file.size} bytes (${formatSize(file.size)}), format ${fmt}, ${file.mimeType}`;
+        let delivered: { outcome: string; step: Step } | undefined;
+        try {
+          delivered = await host.deliver(file, plan);
+        } catch (e) {
+          throw new ToolError(`${e instanceof Error ? e.message : String(e)} (${summary})`);
+        }
+        if (delivered) {
+          return text(`${delivered.outcome}. ${summary}, delivery: ${delivered.step.channel}, form: ${delivered.step.form === 'link' ? 'resource_link (data: URI)' : 'embedded resource'}.`);
+        }
+        const ret = plan.find(s => s.channel === 'return');
+        if (!ret) throw new ToolError(`The host did not accept the file in any form (tried ${plan.map(stepName).join(', ')}). ${summary}`);
+        const block = ret.form === 'link'
+          ? { type: 'resource_link' as const, uri: dataUri(file.mimeType, file.base64), name: file.filename, mimeType: file.mimeType, size: file.size }
+          : { type: 'resource' as const, resource: { uri: `file:///${encodeURIComponent(file.filename)}`, mimeType: file.mimeType, blob: file.base64 } };
+        return {
+          content: [
+            { type: 'text', text: `Returned ${summary}, delivery: return, form: ${ret.form === 'link' ? 'resource_link (data: URI)' : 'embedded resource'}.` },
+            block,
+          ],
+        };
       },
     }),
 
@@ -527,6 +605,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         values: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.array(z.number())]))
           .describe('Map of parameter name to new value, e.g. {"width": 40, "style": "round", "size": [1,2,3]}.'),
       }),
+      annotations: { destructiveHint: false, idempotentHint: true },
       handler: async ({ values }) => {
         const host = await getHost();
         if (Object.keys(values).length === 0) throw new ToolError('values is empty');
@@ -546,6 +625,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       title: 'Reset customizer parameters',
       description: 'Reset customizer values to the defaults declared in the source: all of them, or only the named ones. Waits for the re-render and returns diagnostics.',
       inputSchema: z.object({ names: z.array(z.string()).optional().describe('Parameters to reset. Omit to reset all.') }),
+      annotations: { destructiveHint: false, idempotentHint: true },
       handler: async ({ names }) => {
         const host = await getHost();
         const params = host.snapshot().parameters;
@@ -576,6 +656,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         customizer: z.boolean().optional().describe('Full mode, wide layout: show the customizer panel.'),
         focus: z.enum(['editor', 'viewer', 'customizer']).optional().describe('Full mode, narrow (single-panel) layout: which panel to show.'),
       }),
+      annotations: { destructiveHint: false, idempotentHint: true },
       handler: async ({ mode, customizer_overlay, editor, viewer, customizer, focus }) => {
         const host = await getHost();
         const before = host.snapshot();
@@ -620,6 +701,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         field_of_view_deg: z.union([z.number().min(10).max(120), z.literal('auto')]).optional().describe('Vertical field of view in degrees (10..120) or "auto".'),
         fit: z.boolean().optional().describe('Re-frame the whole model (overrides zoom/distance/target).'),
       }),
+      annotations: { destructiveHint: false, idempotentHint: true },
       handler: async (args) => {
         const host = await getHost();
         const cur = await cameraOf(host);
@@ -654,6 +736,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         elevation_deg: z.number().optional().describe('Degrees to rotate vertically (result clamped to -90..90).'),
         zoom_factor: z.number().positive().optional().describe('Multiply closeness: 2 = twice as close, 0.5 = twice as far.'),
       }),
+      annotations: { destructiveHint: false, idempotentHint: false },
       handler: async (args) => {
         const host = await getHost();
         const cur = await cameraOf(host);
@@ -670,6 +753,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         'Toggle viewer display options. Currently: show_axes (the orientation axes gizmo in the corner of the viewer). ' +
         'The embedded viewer has no editor/layout panes, shadows or wireframe mode.',
       inputSchema: z.object({ show_axes: z.boolean().optional().describe('Show or hide the axes gizmo.') }),
+      annotations: { destructiveHint: false, idempotentHint: true },
       handler: async ({ show_axes }) => {
         const host = await getHost();
         if (show_axes == null) throw new ToolError('Pass at least one option (show_axes)');

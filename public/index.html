@@ -109,7 +109,30 @@
       }
 
       .github-fork-ribbon:before { background-color: #333; }
+
+      /* Embed mode (set on <html> by the inline script below, then kept in sync with state.view.embed). */
+      .embed-mode .github-fork-ribbon { display: none; }
+      .embed-mode .wasm-banner { padding-right: 8px !important; }
     </style>
+    <script>
+      // Avoid a flash of the "Fork me on GitHub" ribbon in embeds before the app loads.
+      // Duplicates resolveEmbed() in src/state/embed.ts (explicit ?embed= / #embed= wins, else "is framed");
+      // the app re-applies the class from state.view.embed once it runs.
+      (function () {
+        try {
+          var raw = new URLSearchParams(location.search).get('embed');
+          if (raw === null) { var m = /^#embed(?:=([^&]*))?(?:&|$)/.exec(location.hash); if (m) raw = m[1] || ''; }
+          var on;
+          if (raw !== null) {
+            raw = raw.toLowerCase();
+            if (['', '1', 'true', 'yes', 'on'].indexOf(raw) >= 0) on = true;
+            else if (['0', 'false', 'no', 'off'].indexOf(raw) >= 0) on = false;
+          }
+          if (on === undefined) { try { on = window.self !== window.top; } catch (e) { on = true; } }
+          if (on) document.documentElement.classList.add('embed-mode');
+        } catch (e) { /* keep the default look */ }
+      })();
+    </script>
   </head>
   <body>
     <audio id="complete-sound">

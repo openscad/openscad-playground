@@ -45,9 +45,6 @@ window.addEventListener('load', async () => {
   let toolEvents: ToolEventBuffer | undefined;
   if (mcpMode) {
     console.log('[MCP] Detected MCP mode (running in iframe)');
-    const ribbon = document.querySelector('.github-fork-ribbon');
-    if (ribbon) (ribbon as HTMLElement).style.display = 'none';
-
     mcpApp = createMcpApp();
     toolEvents = bufferToolEvents(mcpApp);
     try {

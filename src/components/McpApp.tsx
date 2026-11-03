@@ -12,6 +12,8 @@ import type { App } from '@modelcontextprotocol/ext-apps';
 import { State, StatePersister } from '../state/app-state.ts';
 import { Model } from '../state/model.ts';
 import { ViewerPanelHandle } from './ViewerPanel.tsx';
+import { FULL_LAYOUT_HEIGHT, shouldReport, targetHeight } from '../state/mcp-sizing.ts';
+import { useEmbedClass } from './use-embed-class.ts';
 import EmbedView, { CornerButton, EmbedIcons } from './EmbedView.tsx';
 import { ModelContext, FSContext, McpContext } from './contexts.ts';
 import {
@@ -23,6 +25,8 @@ import {
   applyHostStyles,
 } from '../state/mcp-app.ts';
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
+import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
+import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
@@ -85,6 +89,9 @@ export function McpApp({
   // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const modelRef = useRef(model);
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const [displayMode, setDisplayMode] = useState<string | undefined>(() => app.getHostContext()?.displayMode);
+  useEmbedClass(state.view.embed);
   const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
   const updateContextRef = useRef<(() => Promise<void>) | null>(null);
@@ -216,9 +223,12 @@ export function McpApp({
         });
         m.processSource();
       },
-      startFullRender() {
-        modelRef.current.render({ isPreview: false, now: true });
+      startRender(mode) {
+        modelRef.current.render({ isPreview: mode === 'preview', now: true });
       },
+      fileCapabilities: () => hostFileCaps(app),
+      exportFile: (format, filename) => exportAsFile(modelRef.current, format, filename),
+      deliver: (file, steps) => deliverPlanViaHost(app, file, steps),
       setParameters: vars => modelRef.current.setVars(vars),
       resetParameters: names => modelRef.current.resetVars(names),
       setLayout(req) {
@@ -275,6 +285,33 @@ export function McpApp({
     };
   }, []);
 
+  // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
+  const lastReportedHeight = useRef<number | null>(null);
+  const isEmbed = !!state.view.embed;
+  useEffect(() => {
+    if (displayMode && displayMode !== 'inline') {
+      lastReportedHeight.current = null; // the host owns the size; report again on return to inline
+      return;
+    }
+    const ctx = app.getHostContext();
+    const dims = ctx?.containerDimensions as { height?: number; maxHeight?: number } | undefined;
+    if (dims && 'height' in dims && dims.height != null) return; // fixed by the host
+    const next = isEmbed
+      ? targetHeight({
+          panelContentHeight: panelHeight,
+          hostMaxHeight: dims?.maxHeight,
+          screenAvailHeight: window.screen?.availHeight,
+          safeAreaVertical: (ctx?.safeAreaInsets?.top ?? 0) + (ctx?.safeAreaInsets?.bottom ?? 0),
+        })
+      : FULL_LAYOUT_HEIGHT;
+    const timer = setTimeout(() => {
+      if (!shouldReport(lastReportedHeight.current, next)) return;
+      lastReportedHeight.current = next;
+      app.sendSizeChanged({ height: next }).catch(e => console.warn('sendSizeChanged failed:', e));
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [app, panelHeight, isEmbed, displayMode]);
+
   // Apply host styles and listen for changes
   useEffect(() => {
     // Apply initial host styles
@@ -283,6 +320,7 @@ export function McpApp({
     // Listen for host context changes (theme, CSS variables, fonts)
     app.onhostcontextchanged = () => {
       const newCtx = app.getHostContext();
+      setDisplayMode(newCtx?.displayMode);
       applyHostStyles(newCtx);
       if (newCtx?.theme === 'light') setIsDark(false);
       else if (newCtx?.theme === 'dark') setIsDark(true);
@@ -340,6 +378,21 @@ export function McpApp({
     />
   );
 
+  // Toolbar Download: host download, else chat attachment, else a manual-save dialog.
+  const onDownload = useCallback(async (format: ExportFormat) => {
+    const m = modelRef.current;
+    if (m.state.output?.isPreview) await m.render({ isPreview: false, now: true });
+    const file = await exportAsFile(m, format);
+    const caps = hostFileCaps(app);
+    const plan = deliveryPlan('auto', caps, file.size);
+    const delivered = await deliverPlanViaHost(app, file, plan);
+    if (delivered) return { message: delivered.outcome };
+    return {
+      message: `This host cannot save files; ${file.filename} (${formatSize(file.size)}) is ready below`,
+      fallback: { filename: file.filename, mimeType: file.mimeType, base64: file.base64, note: 'This host cannot download files or attach them to the chat. Try the link (it may be blocked by the sandbox), or use "Open in Browser" and download there.' },
+    };
+  }, [app]);
+
   // Fullscreen only where the host offers that display mode.
   const hostModes = app.getHostContext()?.availableDisplayModes;
   const fullscreen = hostModes?.includes('fullscreen') ? { active: isFullscreen, toggle: toggleFullscreen } : undefined;
@@ -357,6 +410,8 @@ export function McpApp({
                 onCameraChange={scheduleContextUpdate}
                 fullscreen={fullscreen}
                 toolbar={toolbar}
+                onDownload={onDownload}
+                onPanelContentHeight={setPanelHeight}
                 exit={{
                   label: 'Full editor',
                   icon: EmbedIcons.layout,
@@ -383,6 +438,18 @@ export function McpApp({
       </FSContext.Provider>
     </ModelContext.Provider>
   );
+}
+
+/** Export the rendered model as a base64 file for delivery through the host. */
+async function exportAsFile(model: Model, format: ExportFormat, filename?: string): Promise<ExportedFile> {
+  const file = await model.exportFile(format);
+  const stem = (model.state.params.activePath.split('/').pop() ?? 'model').replace(/\.[^.]+$/, '');
+  return {
+    filename: buildFilename(filename, stem, format),
+    mimeType: FORMAT_INFO[format].mimeType,
+    base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
+    size: file.size,
+  };
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────

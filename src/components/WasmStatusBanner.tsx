@@ -36,7 +36,7 @@ export default function WasmStatusBanner() {
 
   return (
     // Right padding keeps the message clear of the "Fork me on GitHub" ribbon.
-    <div style={{ display: 'flex', padding: '4px 150px 4px 8px' }}>
+    <div className="wasm-banner" style={{ display: 'flex', padding: '4px 150px 4px 8px' }}>
       <Message
         severity={compat ? 'warn' : 'error'}
         text={text}

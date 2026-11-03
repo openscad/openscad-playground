@@ -8,8 +8,11 @@ import EmbedView from './EmbedView';
 import { ModelContext, FSContext } from './contexts';
 import { fullAppUrl, isFramed } from '../state/embed';
 import { useFullscreenApi } from './use-fullscreen';
+import { useEmbedClass } from './use-embed-class';
 import { EmbedIcons } from './EmbedView';
 import { startBackgroundLoading } from '../background-loading';
+import { buildFilename, type ExportFormat } from '../state/export-logic';
+import { downloadUrl } from '../utils';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -49,7 +52,20 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     };
   }, []);
 
+  useEmbedClass(state.view.embed);
   const fullscreen = useFullscreenApi();
+  // Plain browser download (works at top level; a sandboxed frame may block it).
+  const onDownload = async (format: ExportFormat) => {
+    if (model.state.output?.isPreview) await model.render({isPreview: false, now: true});
+    const file = await model.exportFile(format);
+    const stem = (model.state.params.activePath.split('/').pop() ?? 'model').replace(/\.[^.]+$/, '');
+    const name = buildFilename(undefined, stem, format);
+    const url = URL.createObjectURL(file);
+    downloadUrl(url, name);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return {message: `Downloaded ${name}`};
+  };
+
   const isDark = false; // the web app has a light theme
 
   return (
@@ -60,6 +76,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
               viewerRef={null}
               isDark={isDark}
               fullscreen={fullscreen}
+              onDownload={onDownload}
               // Framed: open the same state as the full app in a new tab (the embedder wants the iframe to stay
               // compact). Top-level: switch in place.
               exit={isFramed()

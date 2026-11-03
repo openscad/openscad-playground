@@ -18,8 +18,9 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  messages.length = 0;
   await page.goto('about:blank');
+  // Leaving the previous page can log aborted prefetches/CORS errors against about:blank: not this test's.
+  messages.length = 0;
 });
 
 afterEach(async () => {
@@ -628,6 +629,85 @@ describe('embed layout', () => {
   }, longTimeout);
 });
 
+describe('embed render and download', () => {
+  const cube = 'cube([5, 5, 5]);';
+  const labels = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role=toolbar][aria-label="Viewer actions"] [aria-label]')).map(e => e.getAttribute('aria-label')));
+
+  test('the toolbar has Render and Download; Render reports completion', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(cube)}`);
+    await waitForViewer();
+    await page.waitForSelector('button[aria-label="Render"]', { timeout: 45000 });
+    expect(await labels()).toEqual(expect.arrayContaining(['Render', 'Download', 'Copy source']));
+    await page.click('button[aria-label="Render"]');
+    await page.waitForFunction(() => /^Rendered/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''), { timeout: 60000 });
+  }, longTimeout);
+
+  test('Download offers the 3D formats and delivers a valid binary STL', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(cube)}`);
+    await waitForViewer();
+    await page.waitForFunction(() => !document.querySelector('button[aria-label="Download"]')?.disabled, { timeout: 45000 });
+    await page.evaluate(() => {
+      window.__downloads = [];
+      HTMLAnchorElement.prototype.click = function () { window.__downloads.push({ href: this.href, name: this.download }); };
+    });
+    await page.click('button[aria-label="Download"]');
+    await page.waitForSelector('[role=menu][aria-label="Download format"]');
+    const items = await page.evaluate(() => Array.from(document.querySelectorAll('[role=menuitem]')).map(e => e.textContent));
+    expect(items.map(t => t.split(' ')[0])).toEqual(['STL', '3MF', 'GLB', 'OFF']);
+    await page.click('[role=menuitem]'); // STL
+    await page.waitForFunction(() => window.__downloads.length === 1, { timeout: 60000 });
+    const dl = await page.evaluate(async () => {
+      const d = window.__downloads[0];
+      return { name: d.name, bytes: Array.from(new Uint8Array(await (await fetch(d.href)).arrayBuffer())) };
+    });
+    expect(dl.name).toBe('playground.stl');
+    // Binary STL: 80-byte header, uint32 triangle count, 50 bytes per triangle; a cube has 12.
+    const buf = Buffer.from(dl.bytes);
+    expect(buf.readUInt32LE(80)).toBe(12);
+    expect(buf.length).toBe(84 + 12 * 50);
+    await page.waitForFunction(() => /^Downloaded playground\.stl/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''));
+  }, longTimeout);
+});
+
+describe('GitHub ribbon', () => {
+  const ribbonVisible = (target) => target.evaluate(() => {
+    const r = document.querySelector('.github-fork-ribbon');
+    return !!r && getComputedStyle(r).display !== 'none';
+  });
+  const src = `#src=${encodeURIComponent('cube(5);')}`;
+
+  test('visible in the full UI, hidden in embed (?embed=1, framed, runtime toggle)', async () => {
+    await page.setViewport({ width: 1200, height: 900 }); // the ribbon is also hidden on small viewports
+    await page.goto(`${baseUrl}?embed=0${src}`);
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 45000 });
+    expect(await ribbonVisible(page)).toBe(true);
+
+    // Runtime toggle through the settings menu, both ways.
+    await page.click('button[title="Settings menu"]');
+    await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Embed mode')).click());
+    await page.waitForSelector('button[aria-label="Copy source"]', { timeout: 20000 });
+    expect(await ribbonVisible(page)).toBe(false);
+    await page.click('button[aria-label^="Exit embed mode"]');
+    await page.waitForSelector('button[title="Settings menu"]', { timeout: 20000 });
+    expect(await ribbonVisible(page)).toBe(true);
+
+    await page.goto('about:blank');
+    await page.goto(`${baseUrl}?embed=1${src}`);
+    await page.waitForSelector('button[aria-label="Copy source"]', { timeout: 45000 });
+    expect(await ribbonVisible(page)).toBe(false);
+
+    // Framed: no ?embed at all.
+    await page.goto(`${baseUrl}manifest.json`);
+    await page.evaluate((u) => { document.body.innerHTML = `<iframe style="width:1100px;height:800px" src="${u}"></iframe>`; }, `${baseUrl}${src}`);
+    const frame = await (await page.waitForSelector('iframe')).contentFrame();
+    await frame.waitForSelector('button[aria-label="Copy source"]', { timeout: 45000 });
+    expect(await ribbonVisible(frame)).toBe(false);
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].location?.url?.endsWith('/favicon.ico')) messages.splice(i, 1);
+    await page.setViewport({ width: 800, height: 600 });
+  }, longTimeout * 2);
+});
+
 describe('Configure MCP menu entry', () => {
   // The entry is driven by the build-time OPENSCAD_MCP_URL define: hidden by default. Run the suite with
   // OPENSCAD_MCP_URL=/mcp (dev server or build) to exercise the configured case.
@@ -642,15 +722,21 @@ describe('Configure MCP menu entry', () => {
     await openSettings();
     expect(await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).some(a => a.textContent.includes('Configure MCP')))).toBe(false);
   }, longTimeout);
-  (configured ? test : test.skip)('is a new-tab link to the configured URL when set', async () => {
+  (configured ? test : test.skip)('opens the configured URL in a new tab when set', async () => {
     await openSettings();
-    const link = await page.evaluate(() => {
-      const a = Array.from(document.querySelectorAll('a')).find(a => a.textContent.includes('Configure MCP'));
-      return a && { href: a.href, target: a.target, rel: a.rel };
+    const labels = await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).map(a => a.textContent));
+    expect(labels).toContain('Configure MCP');
+    const opened = new Promise(resolve => browser.once('targetcreated', t => resolve(t)));
+    await page.evaluate(() => {
+      Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Configure MCP')).click();
     });
-    expect(link.target).toBe('_blank');
-    expect(link.rel).toContain('noopener');
-    expect(link.href).toBe(new URL(configured, baseUrl).toString());
+    const target = await opened;
+    expect(target.url() === new URL(configured, baseUrl).toString() || target.url() === 'about:blank').toBe(true);
+    // A noopener popup starts at about:blank before navigating: wait for the final URL.
+    await new Promise(r => setTimeout(r, 1500));
+    const urls = (await browser.pages()).map(p => p.url());
+    expect(urls).toContain(new URL(configured, baseUrl).toString());
+    await (await target.page())?.close();
   }, longTimeout);
 });
 

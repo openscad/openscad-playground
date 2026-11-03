@@ -77,11 +77,12 @@ export const INSTRUCTIONS = `OpenSCAD Playground: create and iterate on parametr
 
 Workflow:
 1. Call \`create\` ONCE (with initial \`source\` if you have one). It opens the viewer. Calling it again opens a separate viewer.
-2. Once the viewer has loaded it registers its own tools with the host: view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, get_parameters, set_parameters, reset_parameters, set_layout, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
+2. Once the viewer has loaded it registers its own tools with the host: view_source, str_replace_source, insert_source, delete_source_lines, write_source, delete_source_file, undo_source_edit, get_viewer_state, render_model, download_model, get_parameters, set_parameters, reset_parameters, set_layout, set_camera, get_camera, orbit_camera, set_view_options, screenshot. Use view_source before editing; prefer str_replace_source for small changes (old_string must match exactly and be unique).
 3. Every edit re-renders and the tool result contains the render status, errors/warnings (file:line:col) and the OpenSCAD log tail. A result starting "EDIT APPLIED, BUT THE RENDER FAILED" means the source was changed but is broken: fix it (or undo_source_edit) before continuing.
 4. Verify visually with \`screenshot\` (use views such as ["iso","front","top"] to check several angles in one call), then adjust with set_camera / orbit_camera or edit the source again.
 5. Customizer variables (\`name = value; // [min:max]\`): get_parameters shows the schema (ranges, dropdown options, current values); set_parameters / reset_parameters change them without editing source.
-6. The viewer opens in a compact embed layout (3D view + customizer button). set_layout mode \"full\" shows the code editor; use it if the user wants to see or edit the code.
+6. download_model exports the model (stl, 3mf, glb, off; svg/dxf for 2D) and has the host save it (delivery \"auto\" falls back to a chat attachment, then to returning the file in the tool result; \"link\" sends a resource_link instead of embedding the bytes).
+7. The viewer opens in a compact embed layout (3D view + customizer button). set_layout mode \"full\" shows the code editor; use it if the user wants to see or edit the code.
 Units are millimetres, Z is up.`;
 
 /**

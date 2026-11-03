@@ -162,7 +162,8 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `delete_source_file` | Delete a file (never the last one). |
 | `undo_source_edit` | Undo the last tool edit (history of 20; refuses if the file changed since, e.g. by the user). |
 | `get_viewer_state` | Active file, file list, render status, errors/warnings (`file:line:col`), OpenSCAD log tail, customizer parameters, camera, view options. |
-| `render_model` | Force a full (non-preview) render and wait for it. |
+| `render_model` | Render and wait for it: `mode` `full` (default, F6) or `preview` (F5). |
+| `download_model` | Export the rendered model (`format`: stl default, 3mf, glb, off; svg/dxf for 2D; `filename`) and deliver it. `delivery`: `download` (host `ui/download-file`, host save dialog), `message` (chat attachment via `ui/message`), `return` (in the tool result), `link` (a `resource_link` block with a `data:` URI, max 512 KB, via the first channel that takes it) or `auto` (default). Auto tries, in order: download as embedded resource, download as resource link, message embedded, message link (only if the host advertises `message.resourceLink`), result embedded, result link; a thrown error (host rejects that content form) moves to the next step, an explicit refusal stops. Does a full render first when only a preview exists. Size caps: download 32 MB, message 4 MB, return 1 MB, links 512 KB. Reports filename, bytes, format, channel and form. |
 | `get_parameters` | The active file's customizer schema: name, type, caption, group, default, current value (and whether it differs), min/max/step or dropdown options (value + label). Says so when the file has none; reflects source edits after the re-render. |
 | `set_parameters` | Set one or many values (same path as the customizer UI; unchanged values are skipped). All values are validated first; if any is unknown/invalid nothing changes and every problem is listed with the allowed range/options. Waits for the render. |
 | `reset_parameters` | Reset all (or the named) parameters to the defaults in the source. |
@@ -173,6 +174,8 @@ The view registers these with the host during the `ui/initialize` handshake (def
 | `set_view_options` | `show_axes`. (There is no shadows or wireframe mode.) |
 | `screenshot` | PNG/JPEG image blocks of the 3D canvas (`max_size` up to 1024). `views: ["iso","front","top"]` returns several angles in one call; the camera is restored unless `keep_camera`. |
 
+The embed toolbar also has **Render** (full render, spinner while running, result announced) and **Download** (format menu; uses the host's `ui/download-file`, else attaches the file to the chat, else shows a manual save link, since the sandboxed iframe cannot save files itself).
+
 The viewer opens in **embed mode** (see the main README): only the 3D view and a top-right toolbar (customizer toggle, copy source, fullscreen when the host offers it, exit to the full editor). The customizer is a translucent side sheet docked on the right that overlays, and never resizes, the viewer; it closes with the toggle, Escape, or a tap outside on small screens. `set_layout` and the toolbar share the same state, so `get_viewer_state` always reports what the user sees.
 
 Parameter presets are not exposed: the app has no preset concept (only the values the customizer holds), so there are no `list_presets`/`apply_preset` tools.
@@ -180,6 +183,20 @@ Parameter presets are not exposed: the app has no preset concept (only the value
 Every mutating tool waits (up to 30 s) for the re-check/re-render and returns the render status, errors/warnings and the OpenSCAD log tail in its result. If the render failed, `isError` is set and the text starts with `EDIT APPLIED, BUT THE RENDER FAILED` so the model knows the source did change. A render still running at the timeout is reported as `STILL RUNNING` (not an error).
 
 The previous single `interact` tool (action enum + `commands` batching) was replaced by these focused tools: each has its own JSON schema and description, which models call more reliably than one flat union, and hosts that can issue parallel tool calls do not need a batching parameter. The server's `instructions` describe the intended workflow (create, view_source / str_replace_source, read diagnostics, screenshot, adjust camera).
+
+### Inline size
+
+The view reports its own height to the host (`ui/notifications/size-changed`, via `App.sendSizeChanged`; `autoResize` is off because the app fills its container), rules in `src/state/mcp-sizing.ts`:
+
+- **Default: 400 px** (`INLINE_HEIGHT`), reported explicitly so hosts don't fall back to their own default. For a bigger canvas use the fullscreen button.
+- **Opening the customizer grows the frame** to fit its content (re-measured when sections expand/collapse or the parameter schema changes), up to a conservative cap, and shrinks back to 400 when it closes. The cap is `min(host max height, 0.85 x screen.availHeight minus safe-area insets, 900 px)`, never below 400. The host's maximum is only an upper bound: it can be larger than the visible area (the chat is a scrolling column, mobile browser chrome and keyboards take space, and the iframe cannot see the host viewport; the 2.0.4 host context has no visible-area hint and the SDK has no scroll helper).
+- So the layout stays usable when part of the frame is off-screen: the toolbar and the panel title/close are at the top, nothing essential is at the bottom edge, and the panel scrolls internally.
+- In fullscreen/pip the host owns the size: nothing is reported and the app fills the container. Changes under 4 px are not reported (no resize feedback loops). The full (editor) layout asks for 600 px inline.
+- Reference host: ext-apps `basic-host` applies the reported height to the iframe (animated).
+
+### Why `data:` URIs for `resource_link`
+
+A `resource_link` needs a URI the receiver can fetch. A `blob:` URL created in the view only exists inside the sandboxed, other-origin iframe, so the host cannot read it. The server is stateless and does not render, so it has no file to serve (passing the bytes in a URL would be a `data:` URI anyway). A `data:` URI is therefore the only portable link; it is capped at 512 KB because it inflates the bytes by a third and hosts rarely fetch large ones. `ui/download-file` accepts `EmbeddedResource | ResourceLink` per the spec and SDK types but advertises no per-form capability, so the app tries the embedded form first and falls back to the link form when the host throws.
 
 ## Architecture
 
