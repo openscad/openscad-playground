@@ -69,7 +69,11 @@ const config = [
       path: path.resolve(__dirname, 'dist'),
     },
     devServer: {
-      static: path.join(__dirname, 'dist'),
+      // CI runs the development and production e2e suites at the same time, and the production build rewrites
+      // dist/ (which the dev server also serves). With the default static watcher / live reload each of those
+      // writes can reload the page under test mid-way, which breaks tests that interact with the UI.
+      static: {directory: path.join(__dirname, 'dist'), watch: !process.env.CI},
+      liveReload: !process.env.CI,
       compress: true,
       port: 4000,
     },
