@@ -45,6 +45,18 @@ export function changedParameters(s: ViewerSnapshot): string[] {
     .map(p => `${p.name} = ${JSON.stringify(p.value)} (default ${JSON.stringify(p.initial)})`);
 }
 
+export const PARAM_NAMES_CAP = 30;
+
+const short = (v: unknown) => { const j = JSON.stringify(v) ?? ''; return j.length <= 12 ? j : null; };
+
+/** Customizer parameter names (with the current value when short), capped. In EVERY update: each update replaces the previous context. */
+export function formatParameterNames(s: ViewerSnapshot): string | null {
+  if (s.parameters.length === 0) return null;
+  const items = s.parameters.slice(0, PARAM_NAMES_CAP).map(p => { const v = short(p.value); return v == null ? p.name : `${p.name}=${v}`; });
+  const more = s.parameters.length > PARAM_NAMES_CAP ? `, +${s.parameters.length - PARAM_NAMES_CAP} more` : '';
+  return `Customizer parameters (set_parameters overlays values without editing the source): ${items.join(', ')}${more}.`;
+}
+
 export function formatContextText(s: ViewerSnapshot, camera: CameraState | null, source: string): string {
   const lines: string[] = [];
   const active = s.files.find(f => f.path === s.activePath);
@@ -56,6 +68,8 @@ export function formatContextText(s: ViewerSnapshot, camera: CameraState | null,
   if (camera) lines.push(`Camera: ${cameraText(camera)}`);
   const changed = changedParameters(s);
   if (changed.length) lines.push(`Customizer values changed from defaults: ${changed.join('; ')}.`);
+  const names = formatParameterNames(s);
+  if (names) lines.push(names);
   lines.push(`Layout: ${s.layout.mode}${s.layout.customizerOverlay ? ', customizer open' : ''}; axes ${s.showAxes ? 'shown' : 'hidden'}.`);
   const excerpt = source.length > CONTEXT_SOURCE_MAX_CHARS ? `${source.slice(0, CONTEXT_SOURCE_MAX_CHARS)}\n// … truncated (${source.length - CONTEXT_SOURCE_MAX_CHARS} more chars; use view_source)` : source;
   lines.push('', '```scad', excerpt, '```');

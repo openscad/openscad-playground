@@ -600,7 +600,8 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       description:
         'List the customizer parameters of the active file as the app sees them: name, type, caption, group, default, current value, range (min/max/step) ' +
         'or the allowed dropdown options (value and label), and whether the value differs from the default. These are the top-level variables annotated like ' +
-        '`/* [Group] */ width = 30; // [10:100]` or `style = "round"; // [round, square]`. Reflects the latest source after any edit has re-rendered.',
+        '`/* [Group] */ width = 30; // [10:100]` or `style = "round"; // [round, square]`. Reflects the latest source after any edit has re-rendered. ' +
+        'Check this first for requests that map to a value ("taller", "thicker walls", "more holes"): set_parameters changes them without editing the source.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
       handler: async () => {
@@ -614,7 +615,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       name: 'set_parameters',
       title: 'Set customizer parameters',
       description:
-        'Set one or many customizer values at once (name -> value) without editing the source; same effect as using the customizer panel. ' +
+        'Set one or many customizer values at once (name -> value) as an overlay, WITHOUT editing the source; same effect as using the customizer panel. Prefer this for pure value tweaks; edit the source for structural changes. reset_parameters restores defaults. ' +
         'All values are validated first: if any is unknown or invalid (wrong type, out of range, not an allowed option) NOTHING is changed and each problem is listed ' +
         'with the allowed range/options. Dropdown options may be given by value or label; vectors as arrays. Waits for the re-render and returns diagnostics. See get_parameters.',
       inputSchema: z.object({
