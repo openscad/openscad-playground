@@ -30,8 +30,15 @@ import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.
 import { exportSource } from '../state/export-source.ts';
 import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
+import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from '../state/mcp-file.ts';
+import {
+  HostViewStateWriter, ViewStateSaver, chooseRestore, fingerprint, loadLocal, readHostViewState, saveLocal,
+  type ViewState, type ViewStateHostApp,
+} from '../state/mcp-viewstate.ts';
+import { ContextScheduler } from '../state/mcp-context.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
+import { z } from 'zod';
 import { ProgressBar } from 'primereact/progressbar';
 
 /**
@@ -87,7 +94,8 @@ export function McpApp({
   toolEvents: ToolEventBuffer;
 }) {
   const [state, setState] = useState(initialState);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Seeded from the host: ChatGPT opens entrypoint launches (sidebar) fullscreen.
+  const [isFullscreen, setIsFullscreen] = useState(() => app.getHostContext()?.displayMode === 'fullscreen');
 
   // One Model for the component's lifetime: a Model per render would leave
   // in-flight async work (checks, renders) mutating a stale state snapshot,
@@ -114,21 +122,13 @@ export function McpApp({
   useEmbedClass(state.view.embed);
   const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
-  const updateContextRef = useRef<(() => Promise<void>) | null>(null);
-  const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounced context update — at most once per second
-  const scheduleContextUpdate = useCallback(() => {
-    if (contextTimerRef.current) return; // already scheduled
-    contextTimerRef.current = setTimeout(async () => {
-      contextTimerRef.current = null;
-      try {
-        await updateContextRef.current?.();
-      } catch (e) {
-        console.warn('Auto context update failed:', e);
-      }
-    }, 1000);
-  }, []);
+  const updateContextRef = useRef<(() => Promise<unknown>) | null>(null);
+  
+  // Debounced, rate-limited context update (see state/mcp-context.ts): camera moves, source/customizer
+  // edits and render completion all funnel through here.
+  const scheduler = useMemo(() => new ContextScheduler(async () => { await updateContextRef.current?.(); }, { debounceMs: 800, minIntervalMs: 1000 }), []);
+  const scheduleContextUpdate = useCallback(() => scheduler.request(), [scheduler]);
+  useEffect(() => () => scheduler.dispose(), [scheduler]);
 
   // Theme detection: prefer hostContext, fall back to media query
   const [isDark, setIsDark] = useState(() => {
@@ -161,19 +161,119 @@ export function McpApp({
     }
   }, []);
 
+  // ── View-state persistence (see state/mcp-viewstate.ts for the rules) ──
+  // Saved state is restored only when this mount carries the same tool invocation it was saved for (a reload/replay);
+  // a different create({source}) or a file entrypoint always wins over it.
+  const storageKey = useMemo(() => {
+    const base = document.querySelector('meta[name="openscad-base-url"]')?.getAttribute('content') ?? '';
+    const id = (app.getHostContext() as { toolInfo?: { id?: string | number } } | undefined)?.toolInfo?.id;
+    return `openscad-mcp-view:${base}:${id ?? ''}`;
+  }, [app]);
+  const savedCandidates = useMemo(() => [readHostViewState(app as unknown as ViewStateHostApp), loadLocal(storageKey)], [app, storageKey]);
+  const invocationRef = useRef<string | null>(null);
+  const restoredRef = useRef<ViewState | null>(null);
+  const hostViewWriter = useMemo(() => new HostViewStateWriter(app as unknown as ViewStateHostApp, z.looseObject({})), [app]);
+
+  const applyRestored = useCallback((vs: ViewState) => {
+    const m = modelRef.current;
+    m.mutate(s => {
+      if (vs.files?.length) {
+        s.params.sources = vs.files.map(f => ({ path: f.path, content: f.content }));
+        s.params.activePath = vs.active ?? vs.files[0].path;
+        s.lastCheckerRun = undefined;
+        s.error = undefined;
+      }
+      if (vs.vars) s.params.vars = vs.vars;
+      if (vs.embed != null) s.view.embed = vs.embed;
+      if (vs.overlay != null) s.view.customizerOverlay = vs.overlay;
+      if (vs.axes != null) s.view.showAxes = vs.axes;
+    });
+    if (vs.files?.length) m.processSource();
+    const cam = vs.camera;
+    if (cam) void (async () => {
+      for (let i = 0; i < 100 && !viewerRef.current; i++) await new Promise(r => setTimeout(r, 100));
+      await viewerRef.current?.waitForModel(20_000);
+      await viewerRef.current?.setCamera({ theta: cam.theta, phi: cam.phi, distance: cam.radius, target: cam.target, fov: cam.fov });
+    })();
+  }, []);
+
+  /** First sight of an invocation: restore the saved state if it is the same invocation, else apply the tool's own input. */
+  const decideInvocation = useCallback((input: unknown, isFile: boolean): ViewState | null => {
+    if (invocationRef.current == null) {
+      invocationRef.current = fingerprint(input);
+      const restored = isFile ? null : chooseRestore(invocationRef.current, savedCandidates);
+      restoredRef.current = restored;
+      if (restored) applyRestored(restored);
+    }
+    return restoredRef.current;
+  }, [savedCandidates, applyRestored]);
+
+  const collectViewState = useCallback(async (): Promise<ViewState | null> => {
+    const m = modelRef.current;
+    if (invocationRef.current == null) return null; // nothing decided yet: do not overwrite the saved state with defaults
+    const cam = await viewerRef.current?.getCamera().catch(() => null);
+    return {
+      v: 1,
+      inv: invocationRef.current,
+      files: m.state.params.sources.flatMap(src => src.content == null ? [] : [{ path: src.path, content: src.content }]),
+      active: m.state.params.activePath,
+      vars: m.state.params.vars,
+      ...(cam ? { camera: { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target, fov: cam.fov } } : {}),
+      embed: !!m.state.view.embed,
+      overlay: !!m.state.view.customizerOverlay,
+      axes: m.state.view.showAxes,
+    };
+  }, []);
+  const viewSaver = useMemo(() => new ViewStateSaver(collectViewState, [
+    json => saveLocal(storageKey, json),
+    async json => { if (!(await hostViewWriter.write(json)) && hostViewWriter.lastError) console.debug('[view-state] host write failed:', hostViewWriter.lastError); },
+  ]), [collectViewState, storageKey, hostViewWriter]);
+  useEffect(() => {
+    const flush = () => void viewSaver.flush();
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis); viewSaver.dispose(); };
+  }, [viewSaver]);
+
+  // ChatGPT file entrypoint: the opened .scad file is read through the host and saved back on edits.
+  const fileWriterRef = useRef<HostFileWriter | null>(null);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const openHostFile = useCallback(async (file: { name: string; resourceUri: string }) => {
+    try {
+      if (!hasOpenAIResources(app.getHostCapabilities() as { experimental?: Record<string, unknown> })) {
+        setFileNote(`This host did not provide access to ${file.name}.`);
+        return;
+      }
+      const content = await readHostFile(app as unknown as FileHostApp, file);
+      fileWriterRef.current?.dispose();
+      applySource(content.text);
+      fileWriterRef.current = new HostFileWriter(app as unknown as FileHostApp, file, content, z.looseObject({ outcome: z.string() }), setFileNote);
+      setFileNote(content.writable ? null : `${file.name} is read-only here.`);
+    } catch (e) {
+      setFileNote(`Could not open ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [app]);
+  useEffect(() => () => fileWriterRef.current?.dispose(), []);
+
   // Apply the create tool's input (early: streamed before the result).
   const applyToolInput = useCallback((params: ToolInputParams) => {
     setInputAt(t => t ?? Date.now());
     const args = params.arguments ?? {};
-    if (args.source && typeof args.source === 'string') {
+    const hostFile = parseFileInput(args);
+    const restored = decideInvocation(args, !!hostFile);
+    if (hostFile) void openHostFile(hostFile);
+    // A replay of the invocation this state was saved for: the user's later edits win (for whatever the saved
+    // state kept; sources dropped by the size cap fall back to the tool's own).
+    if (args.source && typeof args.source === 'string' && !restored?.files?.length) {
       applySource(args.source);
     }
-    if (args.vars && typeof args.vars === 'object') {
+    if (args.vars && typeof args.vars === 'object' && !restored?.vars) {
       for (const [name, value] of Object.entries(args.vars as Record<string, unknown>)) {
         modelRef.current.setVar(name, value);
       }
     }
-  }, [applySource]);
+  }, [applySource, openHostFile, decideInvocation]);
 
   // Apply the create tool's result — authoritative: carries the server-side
   // defaults (e.g. the demo source and camera preset when the model passed
@@ -183,10 +283,11 @@ export function McpApp({
     setInitialApplied(true); // from now on tool calls see the created model (see the gate below)
     const sc = params.structuredContent as Record<string, unknown> | undefined;
     if (!sc || typeof sc !== 'object') return;
-    if (typeof sc.source === 'string' && sc.source !== modelRef.current.source) {
+    const restored = decideInvocation(sc, !!parseFileInput(sc)); // see applyToolInput
+    if (typeof sc.source === 'string' && !restored?.files?.length && sc.source !== modelRef.current.source) {
       applySource(sc.source);
     }
-    if (sc.vars && typeof sc.vars === 'object') {
+    if (sc.vars && typeof sc.vars === 'object' && !restored?.vars) {
       for (const [name, value] of Object.entries(sc.vars as Record<string, unknown>)) {
         // Skip values already applied from the tool-input notification —
         // each setVar schedules a preview render.
@@ -196,10 +297,10 @@ export function McpApp({
         }
       }
     }
-    if (typeof sc.camera === 'string') {
+    if (typeof sc.camera === 'string' && !restored?.camera) {
       applyCameraPreset(sc.camera);
     }
-  }, [applySource, applyCameraPreset]);
+  }, [applySource, applyCameraPreset, decideInvocation]);
 
   // Replay events buffered before mount, then take over the handlers.
   useEffect(() => {
@@ -297,18 +398,10 @@ export function McpApp({
   const varsJson = JSON.stringify(state.params.vars ?? {});
   const isIdle = !state.rendering && !state.previewing && !state.checkingSyntax;
   useEffect(() => {
+    if (sourceContent != null) fileWriterRef.current?.schedule(sourceContent);
     scheduleContextUpdate();
-  }, [sourceContent, varsJson, isIdle, scheduleContextUpdate]);
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (contextTimerRef.current) {
-        clearTimeout(contextTimerRef.current);
-        contextTimerRef.current = null;
-      }
-    };
-  }, []);
+    viewSaver.request();
+  }, [sourceContent, varsJson, isIdle, viewSaver, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
 
   // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
   const lastReportedHeight = useRef<number | null>(null);
@@ -346,6 +439,7 @@ export function McpApp({
     app.onhostcontextchanged = () => {
       const newCtx = app.getHostContext();
       setDisplayMode(newCtx?.displayMode);
+      if (newCtx?.displayMode) setIsFullscreen(newCtx.displayMode === 'fullscreen');
       applyHostStyles(newCtx);
       if (newCtx?.theme === 'light') setIsDark(false);
       else if (newCtx?.theme === 'dark') setIsDark(true);
@@ -451,7 +545,7 @@ export function McpApp({
                 isDark={isDark}
                 disableZoom={!isFullscreen}
                 showHint={!isFullscreen}
-                onCameraChange={scheduleContextUpdate}
+                onCameraChange={() => { scheduleContextUpdate(); viewSaver.request(); }}
                 fullscreen={fullscreen}
                 toolbar={toolbar}
                 onDownload={onDownload}
@@ -479,6 +573,12 @@ export function McpApp({
                   </FullMounted>
                 </Suspense>
               </FullLayoutBoundary>}
+        {fileNote && (
+          <div role="status" onClick={() => setFileNote(null)}
+            style={{ position: 'absolute', left: 8, bottom: 8, zIndex: 2000, maxWidth: '80%', padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', cursor: 'pointer' }}>
+            {fileNote}
+          </div>
+        )}
         </McpContext.Provider>
       </FSContext.Provider>
     </ModelContext.Provider>

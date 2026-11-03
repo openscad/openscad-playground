@@ -57,6 +57,45 @@ async function main() {
     assert.ok(create.outputSchema, "create should declare an outputSchema");
   });
 
+  await test("model-visible tool is `create`; entrypoint tools are app-only; hosts see visibility and annotations", async () => {
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map((t) => t.name), ["create", "open_openscad", "open_scad_file"], "viewer tools are registered by the view, not the server");
+    const meta = (n: string) => tools.find((t) => t.name === n)!._meta as Record<string, any>;
+    assert.deepEqual(meta("create").ui.visibility, ["model", "app"]);
+    assert.deepEqual(meta("open_openscad").ui.visibility, ["app"]);
+    assert.deepEqual(meta("open_scad_file").ui.visibility, ["app"]);
+    assert.equal(meta("create")["ui/resourceUri"], RESOURCE_URI, "legacy flat key mirrored by registerAppTool");
+    for (const t of tools) {
+      assert.equal(t.annotations?.readOnlyHint, true);
+      assert.equal(t.annotations?.openWorldHint, false);
+      assert.equal(meta(t.name).ui.resourceUri, RESOURCE_URI);
+    }
+  });
+
+  await test("ChatGPT entrypoints: global+thread, .scad file handler; none on create", async () => {
+    const { tools } = await client.listTools();
+    const meta = (n: string) => tools.find((t) => t.name === n)!._meta as Record<string, any>;
+    assert.equal(meta("create")["openai/ui"], undefined);
+    assert.deepEqual(meta("open_openscad")["openai/ui"], { entrypoints: [{ type: "global" }, { type: "thread" }] });
+    assert.deepEqual(meta("open_scad_file")["openai/ui"], { entrypoints: [{ type: "file", extensions: [".scad"] }] });
+    assert.equal(tools.find((t) => t.name === "open_openscad")!.title, "OpenSCAD");
+    const res = await client.readResource({ uri: RESOURCE_URI });
+    const rmeta = res.contents[0]._meta as Record<string, any>;
+    assert.deepEqual(rmeta["openai/ui"], { availableDisplayModes: ["inline", "fullscreen"], preferredDisplayMode: "fullscreen" });
+  });
+
+  await test("entrypoints launch with their documented arguments", async () => {
+    for (const name of ["create", "open_openscad"]) {
+      const result = await client.callTool({ name, arguments: {} });
+      assert.ok(!result.isError, name);
+      assert.equal((result.structuredContent as { source: string }).source, DEFAULT_SOURCE);
+    }
+    const file = { name: "box.scad", resourceUri: "host-resource://box" };
+    const r = await client.callTool({ name: "open_scad_file", arguments: { file } });
+    assert.deepEqual(r.structuredContent, { file });
+    assert.ok((await client.callTool({ name: "open_scad_file", arguments: {} })).isError, "file is required");
+  });
+
   await test("create applies defaults", async () => {
     const result = await client.callTool({ name: "create", arguments: {} });
     assert.ok(!result.isError, "create should succeed");

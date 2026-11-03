@@ -10,11 +10,11 @@
     "start:stdio": "node --import tsx index.ts --stdio",
     "start:self-serve": "node --import tsx index.ts --serve-dist",
     "dev": "node --import tsx index.ts",
-    "test": "node --import tsx test-e2e.ts && node --import tsx test-tools.ts && node --import tsx test-base-url.ts && node --import tsx test-help-page.ts"
+    "test": "node --import tsx test-e2e.ts && node --import tsx test-tools.ts && node --import tsx test-context.ts && node --import tsx test-base-url.ts && node --import tsx test-help-page.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/express": "^2.0.0",
-    "@modelcontextprotocol/ext-apps": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.1.0",
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "cors": "^2.8.5",

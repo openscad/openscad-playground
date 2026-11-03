@@ -19,7 +19,8 @@ import {
   applyHostStyleVariables,
   type McpUiHostContext,
 } from '@modelcontextprotocol/ext-apps';
-import { createTools, formatDiagnostics, type ViewerHost } from './mcp-tools.ts';
+import { createTools, type ViewerHost } from './mcp-tools.ts';
+import { buildContextBlocks, captureForContext, readContextCaps, readyToPublish } from './mcp-context.ts';
 
 export { isMcpMode } from './mcp-mode.ts';
 
@@ -121,32 +122,24 @@ export function bufferToolEvents(app: App): ToolEventBuffer {
 // ─── Model context updates ───────────────────────────────────────────────
 
 /**
- * Push the viewer's current state (and a screenshot, where the host accepts
- * images) into the model's context, so passive changes made by the user in
- * the UI are visible to the model without it having to call get_viewer_state.
+ * Push the viewer's current state (and a small screenshot, where the host
+ * accepts images) into the model's context, so changes the user makes in the
+ * UI (camera, source, customizer) reach the model without it having to call
+ * get_viewer_state. Replace semantics: each call supersedes the previous one.
+ * Returns whether an update was sent.
  */
-export async function publishModelContext(app: App, host: ViewerHost): Promise<void> {
-  const caps = app.getHostCapabilities();
-  if (!caps?.updateModelContext) return;
-
-  const content: Array<
-    { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
-  > = [];
-
-  if (caps.updateModelContext.image) {
-    const img = await host.captureImage({ maxSize: 512, mimeType: 'image/png', quality: 0.8 });
-    if (img) content.push({ type: 'image', data: img.data, mimeType: img.mimeType });
-  }
-
+export async function publishModelContext(app: App, host: ViewerHost): Promise<boolean> {
+  const caps = readContextCaps(app.getHostCapabilities() as Parameters<typeof readContextCaps>[0]);
+  if (!caps) return false;
   const snap = host.snapshot();
+  if (!readyToPublish(snap)) return false;
+  const [camera, image] = await Promise.all([
+    host.getCamera().catch(() => null),
+    caps.image ? captureForContext(o => host.captureImage(o)) : Promise.resolve(null),
+  ]);
   const source = host.readFile(snap.activePath) ?? '';
-  content.push({
-    type: 'text',
-    text: `OpenSCAD viewer state — active file ${snap.activePath}, status ${snap.status}\n` +
-      `${formatDiagnostics(snap)}\n\n\`\`\`scad\n${source}\n\`\`\``,
-  });
-
-  await app.updateModelContext({ content });
+  await app.updateModelContext({ content: buildContextBlocks(host.snapshot(), camera, source, image, caps) as never });
+  return true;
 }
 
 // ─── Host style helpers ──────────────────────────────────────────────────

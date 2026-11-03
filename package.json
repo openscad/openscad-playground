@@ -8,7 +8,7 @@
     "@gltf-transform/core": "4.5.1",
     "@gltf-transform/extensions": "4.5.1",
     "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/ext-apps": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.1.0",
     "@monaco-editor/loader": "^1.4.0",
     "@monaco-editor/react": "^4.6.0",
     "blurhash": "^2.0.5",

@@ -781,6 +781,7 @@ async function main() {
   await test("every tool has MCP annotations; mutating source tools are destructive, readers read-only", () => {
     const defs = createTools(async () => mockHost().host);
     for (const d of defs) assert.ok(d.annotations && Object.keys(d.annotations).length > 0, `${d.name} lacks annotations`);
+    for (const d of defs) assert.equal(d.annotations!.openWorldHint, false, `${d.name} should declare openWorldHint: false`);
     const a = (n: string) => defs.find((d) => d.name === n)!.annotations!;
     for (const n of ["view_source", "get_viewer_state", "get_parameters", "get_camera", "screenshot"]) assert.equal(a(n).readOnlyHint, true, n);
     for (const n of ["str_replace_source", "insert_source", "delete_source_lines", "write_source", "delete_source_file", "undo_source_edit"]) assert.equal(a(n).destructiveHint, true, n);

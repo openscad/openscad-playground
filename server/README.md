@@ -146,7 +146,23 @@ The server is a standard Node.js/Express app. Deploy `server/` with:
 
 | Tool | Description |
 |---|---|
-| `create` | Open the OpenSCAD viewer (an app tool bound to the `ui://openscad/viewer.html` resource). Accepts optional initial `source`, `vars`, and `camera`; echoes the applied values (defaults included) in `structuredContent`, which the view reads to initialize itself. |
+| `create` | Open the OpenSCAD viewer (an app tool bound to the `ui://openscad/viewer.html` resource). Accepts optional initial `source`, `vars`, and `camera`; echoes the applied values (defaults included) in `structuredContent`, which the view reads to initialize itself. The only tool the model sees. |
+| `open_openscad` | App-only (`visibility: ["app"]`). ChatGPT sidebar and conversation-tab entrypoint (`_meta["openai/ui"].entrypoints`: `global`, `thread`); called with `{}`, opens the default model. |
+| `open_scad_file` | App-only. ChatGPT file entrypoint for `.scad`; receives `{file: {name, resourceUri}}`. The view reads the file through the host (`resources/read`) and saves edits back with `openai/resources/write` when the host marks it writable. |
+
+All three share the one UI resource and carry `readOnlyHint`/`openWorldHint: false` annotations. Hosts without the OpenAI MCP Extensions ignore the `openai/*` keys.
+
+### Display mode
+
+The UI resource declares `_meta["openai/ui"] = { availableDisplayModes: ["inline", "fullscreen"], preferredDisplayMode: "fullscreen" }`, so ChatGPT opens the app fullscreen. The MCP Apps spec has no declarative preferred-display-mode field (only `availableDisplayModes` in the app's capabilities and host context), and the view never calls `requestDisplayMode("fullscreen")` on its own, so Claude and other hosts keep the inline default: 400 px, growing for the customizer (see "Inline size"). The fullscreen toolbar button still works wherever the host offers fullscreen.
+
+### Model context
+
+While the viewer is open it keeps the model informed through `ui/update-model-context` (replace semantics: each update supersedes the last). After camera moves, source or customizer edits, layout changes and render completion (debounced 0.8 s, at most one per second, only once a render has finished or failed) it sends one compact text block (file, status, camera as azimuth/elevation/distance/target/fov plus nearest preset, diagnostics, customizer values that differ from defaults, the source up to 6000 chars) and, when the host advertises `updateModelContext.image`, a JPEG screenshot (<= 768 px, shrunk until under ~150 KB). With the ChatGPT `openai/modelContext` extension the blocks get an "OpenSCAD viewer" group and titles, and the text is marked assistant-only. Hosts that do not advertise `updateModelContext` get nothing. Implementation: `src/state/mcp-context.ts`.
+
+### State persistence
+
+The view saves a versioned JSON (sources, active file, camera, customizer values, layout, axes; capped at 64 KB, biggest sources dropped first) debounced after changes and on `pagehide`, to the host (`ui/set-view-state`) and to `localStorage` (both best effort, errors ignored). The host API is not standardised yet (modelcontextprotocol/ext-apps#417), so the names are assumed: initial state is read from `hostContext.viewState` then `hostInfo.viewState`, and the writer stops for good after a "method not found". On mount the saved state is restored only when the mount carries the same tool invocation it was saved for (fingerprint of the tool input); a different `create({source})` or a file entrypoint always wins. Precedence: this invocation's explicit input > host state > localStorage > defaults. Implementation: `src/state/mcp-viewstate.ts`.
 
 ### App-registered tools
 
