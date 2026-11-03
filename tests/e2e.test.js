@@ -113,6 +113,24 @@ describe('e2e', () => {
     expectObjectList();
   }, longTimeout);
 
+  test('the completion sound ships in compact formats', async () => {
+    await page.goto(baseUrl);
+    const sources = await page.evaluate(() => [...document.querySelectorAll('#complete-sound source')].map(s => s.src));
+    expect(sources.map(s => s.split('/').pop())).toEqual(['complete.ogg', 'complete.m4a']);
+    for (const src of sources) {
+      const res = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        return {ok: r.ok, bytes: (await r.arrayBuffer()).byteLength};
+      }, src);
+      expect(res.ok).toBe(true); // 200, or 206 from servers that answer media requests with ranges
+      expect(res.bytes).toBeGreaterThan(1000);
+      expect(res.bytes).toBeLessThan(20 * 1024);
+    }
+    // The e2e browser (Chrome) must be able to decode the first source.
+    const canPlay = await page.evaluate(() => document.getElementById('complete-sound').canPlayType('audio/ogg; codecs="opus"'));
+    expect(canPlay).not.toBe('');
+  }, longTimeout);
+
   test('sources in subdirectories can be included', async () => {
     // Regression: the worker did not create parent directories, so /lib/foo.scad failed with an FS error.
     const state = {
