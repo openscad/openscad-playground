@@ -70,7 +70,8 @@ async function warmServiceWorkerCaches() {
   }
   await Promise.all([...urls].map(url => {
     const sameOrigin = new URL(url, location.href).origin === location.origin;
-    return fetch(url, sameOrigin ? {} : {mode: 'no-cors'}).then(r => r.body?.cancel(), () => {});
+    // force-cache: use the HTTP cache without revalidating (no request at all if it has the file).
+    return fetch(url, sameOrigin ? {cache: 'force-cache'} : {mode: 'no-cors', cache: 'force-cache'}).then(r => r.body?.cancel(), () => {});
   }));
 }
 
