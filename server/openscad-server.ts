@@ -28,6 +28,7 @@ import {
 import { z } from "zod";
 
 import { envBaseUrl } from "./base-url.js";
+import { serverIcons } from "./icons.js";
 
 export const RESOURCE_URI = "ui://openscad/viewer.html";
 
@@ -124,8 +125,11 @@ Units are millimetres, Z is up.`;
  *   base derived from that request. Defaults to the environment-derived one.
  */
 export function createServer(baseUrl: string = envBaseUrl()): McpServer {
+  const icons = serverIcons(baseUrl);
+  // registerAppTool forwards extra config to registerTool, which supports `icons`; its config type just doesn't list it.
+  const toolIcons: object = { icons };
   const server = new McpServer(
-    { name: "OpenSCAD Playground", version: "0.2.0" },
+    { name: "OpenSCAD Playground", version: "0.2.0", icons },
     { instructions: INSTRUCTIONS },
   );
 
@@ -136,6 +140,7 @@ export function createServer(baseUrl: string = envBaseUrl()): McpServer {
     "create",
     {
       title: "Create OpenSCAD Viewer",
+      ...toolIcons,
       description: `Open an interactive OpenSCAD 3D viewer and editor. Call this ONCE per model.
 
 **All follow-up actions use the viewer's own tools**, which the app registers with the host once it loads: view_source / str_replace_source / insert_source / write_source (edit code and get render diagnostics), get_viewer_state, render_model, set_parameters, set_camera / orbit_camera / get_camera, set_view_options, and screenshot (images, multi-angle). Calling create again opens a SEPARATE viewer (only do that when the viewer's tools are not in your tool list: then pass the complete updated source to iterate).
@@ -208,6 +213,7 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
     "open_openscad",
     {
       title: "OpenSCAD",
+      ...toolIcons,
       description: "Open the OpenSCAD viewer and editor with the default parametric model. For user-initiated launches (ChatGPT sidebar or conversation tab); models should call `create` instead.",
       inputSchema: z.object({}),
       outputSchema: z.object({ source: z.string(), camera: z.string() }),
@@ -228,6 +234,7 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
     "open_scad_file",
     {
       title: "Open OpenSCAD file",
+      ...toolIcons,
       description: "Open a .scad file in the OpenSCAD viewer and editor. Launched by ChatGPT's file handler; the viewer reads (and saves back) the file through the host's resources.",
       inputSchema: z.object({
         file: z.object({
@@ -257,6 +264,7 @@ Optionally pass initial OpenSCAD source code, customizer variable values, and a 
     {
       mimeType: RESOURCE_MIME_TYPE,
       description: "Interactive OpenSCAD 3D viewer and editor",
+      icons,
     },
     async (): Promise<ReadResourceResult> => {
       const html = buildAppHtml(baseUrl);

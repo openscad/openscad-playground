@@ -45,6 +45,11 @@ test("no external requests", () => {
   assert.ok(!/(src|href)="https?:\/\/[^"]*\.(js|css|woff2?)"/.test(h));
   assert.ok(!/<link /.test(h));
 });
+test("shows the logo from the same origin (not an external request)", () => {
+  const h = renderHelpPage("http://localhost:9100/");
+  assert.ok(h.includes('<img src="http://localhost:9100/logo192.png" alt="" width="40" height="40">'));
+  assert.ok(h.length < 10 * 1024, `page is ${h.length} bytes`);
+});
 test("deep links round-trip, host with port and special chars", () => {
   const url = "http://localhost:9100/mcp?a=b&c=<d>";
   const l = deepLinks(url);

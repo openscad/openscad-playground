@@ -140,6 +140,10 @@ The server is a standard Node.js/Express app. Deploy `server/` with:
 | `OPENSCAD_SERVE_DIST` | _(unset)_ | Set to any value to enable static file serving (alternative to `--serve-dist` flag) |
 | `ASSET_PORT` | `0` (auto) | Port for the stdio-mode asset server (only used with `--stdio --serve-dist`) |
 
+## Icons
+
+The server and its model-visible/entrypoint tools (`create`, `open_openscad`, `open_scad_file`) and the UI resource carry the playground's 3D logo as MCP `icons`: `serverInfo.icons` (initialize and `server/discover`; the SDK also stamps it into `_meta["io.modelcontextprotocol/serverInfo"]`) and `icons` on each tool's `tools/list` entry (ChatGPT resolves the tool's icons first, then the server's). Three sizes: absolute `https://<base>/logo512.png` and `logo192.png` (image/png) derived from the same per-request base URL as the app assets (`OPENSCAD_BASE_URL` wins), plus a 64x64 `data:` URI for hosts that refuse remote fetches. The PNGs are `public/logo*.png`, copied to the root of `dist/`; the static host must serve them with CORS open (Vercel sends `access-control-allow-origin: *` for static files). The help page at `/mcp` shows the logo from the same origin.
+
 ## Tools
 
 ### Server tools
