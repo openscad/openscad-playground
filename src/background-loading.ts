@@ -2,7 +2,6 @@
 // for bandwidth: installing the Service Worker, then copying what the page has
 // loaded into its caches (offline use) and fetching the library archives through it.
 
-import { whenLibrariesMounted } from './fs/filesystem.ts';
 import { isMcpMode } from './state/mcp-mode.ts';
 
 function reloadWhenHidden() {
@@ -100,6 +99,5 @@ export function startBackgroundLoading(): Promise<void> {
     if (navigator.serviceWorker?.controller) {
       await warmServiceWorkerCaches();
     }
-    await whenLibrariesMounted();
   })();
 }

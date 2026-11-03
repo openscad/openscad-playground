@@ -15,10 +15,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const dist = path.resolve(__dirname, '..', 'dist');
 const longTimeout = 120000;
 
-// What the build is configured to fetch in the background after the first render.
-const libsConfig = require('../libs-config.json');
-const eager = libsConfig.libraries.filter(l => !l.lazy).map(l => l.name);
-const zipSize = (name) => fs.statSync(path.join(dist, 'libraries', `${name}.zip`)).size;
+// Every library is fetched on demand: when a script refers to it, or something from it is opened.
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css',
@@ -74,7 +71,6 @@ const zipDownloads = (log) => {
   }
   return counts;
 };
-const sortedKeys = (o) => Object.keys(o).sort();
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 /** Waits until `ready()` and then until nothing has been requested for `quietMs`. */
@@ -86,6 +82,26 @@ async function waitForQuiet(log, ready, {quietMs = 3000, timeoutMs = 90000} = {}
     await sleep(250);
   }
   throw new Error(`Timed out waiting for the network to settle (${log.length} requests, ready=${ready()})`);
+}
+
+/** Expands the given nodes of the open file picker tree (retrying: it re-renders), then clicks the last one. */
+function clickTreePath(page, path) {
+  return page.waitForFunction((path) => {
+    const find = (label) => [...document.querySelectorAll('li.p-treenode')]
+      .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+    for (const label of path.slice(0, -1)) {
+      const li = find(label);
+      if (!li) return false;
+      if (li.getAttribute('aria-expanded') !== 'true') {
+        li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+        return false;
+      }
+    }
+    const file = find(path[path.length - 1]);
+    if (!file) return false;
+    file.querySelector(':scope > .p-treenode-content').click();
+    return true;
+  }, {timeout: 30000, polling: 200}, path);
 }
 
 (isProd ? describe : describe.skip)('network', () => {
@@ -124,62 +140,65 @@ async function waitForQuiet(log, ready, {quietMs = 3000, timeoutMs = 90000} = {}
     .filter(m => m.type === 'debug' && m.text.startsWith('Mounting archives: '))
     .map(m => m.text.substring('Mounting archives: '.length));
 
-  /** After the first render: waits for the background fetches, returns what was downloaded in all. */
-  async function settle(expected) {
-    await waitForQuiet(server.log, () => expected.every(n => zipDownloads(server.log)[n]));
+  /**
+   * After the first render: waits until the Service Worker has been installed and has copied the page's
+   * files into its caches (the last thing the app does by itself), then for the network to be quiet,
+   * and returns the archives downloaded in all.
+   */
+  async function settle() {
+    await waitForQuiet(server.log, () => server.log.some(r => r.path === '/sw.js'), {quietMs: 4000});
     return zipDownloads(server.log);
   }
 
-  test('a script without library references downloads no archive until idle, then only the eager ones', async () => {
+  test('a script without library references never downloads an archive', async () => {
     const atRender = await openAndRender('cube([10, 10, 10]);');
     expect(atRender).toEqual({});
     expect(mountedArchives()).toEqual(['(none)', '(none)']); // syntax check + render
+    expect(await settle()).toEqual({});
 
-    const total = await settle(eager);
-    expect(sortedKeys(total)).toEqual([...eager].sort());
-    for (const name of eager) expect(total[name]).toBe(1); // downloaded once, not per render or per worker
-
-    // The bytes spent on libraries: the eager archives (+ the small index), nothing else.
+    // No library bytes at all but the small index.
     const libBytes = server.log.filter(r => r.path.startsWith('/libraries/') && r.status === 200).reduce((s, r) => s + r.bytes, 0);
-    const eagerBytes = eager.reduce((s, n) => s + zipSize(n), 0);
-    const indexBytes = fs.statSync(path.join(dist, 'libraries', 'index.json')).size;
-    expect(libBytes).toBeLessThanOrEqual(eagerBytes + indexBytes);
+    expect(libBytes).toBeLessThanOrEqual(fs.statSync(path.join(dist, 'libraries', 'index.json')).size);
   }, longTimeout);
 
-  test('a BOSL2-only script downloads BOSL2 (and the eager archives), not the other libraries', async () => {
+  test('a BOSL2-only script downloads BOSL2, once, and nothing else', async () => {
     const atRender = await openAndRender('include <BOSL2/std.scad>\ncuboid(10);');
-    expect(Object.keys(atRender).every(n => n === 'BOSL2')).toBe(true);
+    expect(atRender).toEqual({BOSL2: 1});
     expect(mountedArchives()).toEqual(['BOSL2', 'BOSL2']);
-
-    const expected = [...new Set([...eager, 'BOSL2'])].sort();
-    const total = await settle(expected);
-    expect(sortedKeys(total)).toEqual(expected);
-    expect(total.BOSL2).toBe(1); // not once per render / worker / background mount
-    expect(total.NopSCADlib ?? 0).toBe(eager.includes('NopSCADlib') ? 1 : 0);
-    expect(total.MCAD ?? 0).toBe(eager.includes('MCAD') ? 1 : 0);
-    expect(total.fonts).toBeUndefined();
+    expect(await settle()).toEqual({BOSL2: 1}); // not once per render / worker / SW
   }, longTimeout);
 
-  test('a script using another library downloads that one once, and no BOSL2 duplication', async () => {
+  test('a script using another library downloads that one once', async () => {
     const atRender = await openAndRender('use <MCAD/boxes.scad>\nroundedBox([10, 10, 10], 2, true);');
-    expect(Object.keys(atRender).every(n => n === 'MCAD')).toBe(true);
+    expect(atRender).toEqual({MCAD: 1});
     expect(mountedArchives()).toEqual(['MCAD', 'MCAD']);
-
-    const expected = [...new Set([...eager, 'MCAD'])].sort();
-    const total = await settle(expected);
-    expect(sortedKeys(total)).toEqual(expected);
-    for (const name of expected) expect(total[name]).toBe(1);
+    expect(await settle()).toEqual({MCAD: 1});
   }, longTimeout);
 
   test('the fonts are only downloaded for text()', async () => {
     const atRender = await openAndRender('linear_extrude(1) text("Hi");');
-    expect(Object.keys(atRender)).toEqual(['fonts']);
-    expect(atRender.fonts).toBe(1);
+    expect(atRender).toEqual({fonts: 1});
+    expect(await settle()).toEqual({fonts: 1});
+  }, longTimeout);
 
-    const expected = [...new Set([...eager, 'fonts'])].sort();
-    const total = await settle(expected);
-    expect(sortedKeys(total)).toEqual(expected);
-    expect(total.fonts).toBe(1);
+  test('opening an example from the file picker downloads openscad and what it depends on (MCAD), then', async () => {
+    await openAndRender('cube([10, 10, 10]);');
+    await settle();
+    expect(zipDownloads(server.log)).toEqual({});
+    // The picker lists the examples from the index, without the archive...
+    await page.click('.p-treeselect');
+    await clickTreePath(page, ['libraries', 'openscad', 'examples', 'Basics', 'CSG-modules.scad']);
+    // ...and opening one downloads it.
+    await waitForQuiet(server.log, () => zipDownloads(server.log).openscad, {quietMs: 4000});
+    expect(zipDownloads(server.log)).toEqual({openscad: 1, MCAD: 1});
+    expect(page.url()).toContain('#'); // still the app
+    messages.length = 0; // (switching away from the unsaved default file logs 'Error while reading file')
+  }, longTimeout);
+
+  test('a demo link (#path=) downloads openscad and MCAD, once', async () => {
+    await page.goto(`${server.url}#path=${encodeURIComponent('/libraries/openscad/examples/Basics/CSG-modules.scad')}`);
+    await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer')?.src, {timeout: 60000, polling: 50});
+    expect(await settle()).toEqual({openscad: 1, MCAD: 1});
   }, longTimeout);
 
   test.each([
@@ -196,7 +215,7 @@ async function waitForQuiet(log, ready, {quietMs = 3000, timeoutMs = 90000} = {}
 
   test('the engine is downloaded once', async () => {
     await openAndRender('cube([10, 10, 10]);');
-    await settle(eager);
+    await settle();
     const wasm = server.log.filter(r => r.path === '/openscad.wasm' && r.status === 200);
     expect(wasm).toHaveLength(1);
   }, longTimeout);

@@ -208,7 +208,6 @@ export default function FilePicker({className, style}: {className?: string, styl
             return <span>{selected?.label ?? props.placeholder}</span>;
           }}
           filter
-          onShow={() => { whenLibrariesMounted(); }}
           style={style}
           options={fsItems} />
   )

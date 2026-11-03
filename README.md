@@ -43,7 +43,7 @@ Licenses: see [LICENSES](./LICENSE).
 - Fuller PWA support w/ link Sharing, File opening / association to *.scad files... 
 - Look into accessibility
 - Setup [OPENSCADPATH](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Libraries#Setting_OPENSCADPATH) env var w/ Emscripten to ensure examples that include assets / import local files will run fine.
-- The bundled libraries are mounted on demand for renders; the file explorer and completions list `lazy` libraries from the build-time `libraries/index.json` and only the others are fetched in the background after the first render.
+- Every bundled library is fetched on demand (by a render that refers to it, or when a file of it is opened from the file explorer); the file explorer and the `use <` / `include <` completions list all of them from the build-time `libraries/index.json`. Non-`.scad` assets and directories with no `.scad` file are not in the index (not listed in the explorer).
 - Preparse builtin libraries definitions at compile time, ship the JSON.
 
 ## Building
@@ -163,7 +163,7 @@ patched Binaryen the build relies on.
 
 The build system uses a webpack plugin that reads from `libs-config.json` to manage all library dependencies. You'll need to update 2 files (search for BOSL2 for an example):
 
-- [libs-config.json](./libs-config.json): the single list of libraries: repository URL, branch, files to include/exclude in the zip archive, and what the UI shows (`description`, `docs` links, `symlinks` that make top-level files such as `tray.scad` includable directly). The zip is only fetched by a render whose sources refer to the library (by its name or one of its `symlinks`), and by the file explorer / completions in the background after the first render. Libraries that include other libraries are covered by `archiveDependencies` in [src/fs/archive-deps.ts](./src/fs/archive-deps.ts) (a missing one is also recovered by re-running the render with it mounted).
+- [libs-config.json](./libs-config.json): the single list of libraries: repository URL, branch, files to include/exclude in the zip archive, and what the UI shows (`description`, `docs` links, `symlinks` that make top-level files such as `tray.scad` includable directly). Nothing is fetched up front: the zip is only fetched by a render whose sources refer to the library (by its name or one of its `symlinks`), or when a file of it is opened from the file explorer. The explorer and the `use <` / `include <` completions list every library's `.scad` files from `libraries/index.json` (written by the build: each library's zip size and its files), without the zip. Libraries that include other libraries are covered by `archiveDependencies` in [src/fs/archive-deps.ts](./src/fs/archive-deps.ts) (a missing one is also recovered by re-running the render with it mounted).
 
 - [LICENSE.md](./LICENSE.md): most libraries require proper disclosure of their usage and of their license. If a license is unique, paste it in full, otherwise, link to one of the standard ones already there.
 
@@ -180,12 +180,11 @@ In `libs-config.json`, add an entry like this:
   "zipExcludes": ["**/tests/**"],
   "workingDir": ".",
   "tag": "v1.2.3",
-  "commit": "<full SHA, set by `npm run libs:update`>",
-  "lazy": true
+  "commit": "<full SHA, set by `npm run libs:update`>"
 }
 ```
 
-`tag` (optional) pins the library to a release; `commit` is the exact commit that gets built. `lazy` (optional, default `false`) marks large or niche libraries: by default a library is fetched in the background after the first render, while a `lazy` one is fetched only when a script, an opened path or a file opened from the file picker needs it. Lazy libraries stay visible in the file picker and in `use <` / `include <` completions, listed from `libraries/index.json` (written by the build: each library's zip size and its `.scad` files).
+`tag` (optional) pins the library to a release; `commit` is the exact commit that gets built.
 
 Available build commands:
 - `npm run build:libs` - Build all libraries
