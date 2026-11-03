@@ -11,6 +11,7 @@ import { useFullscreenApi } from './use-fullscreen';
 import { useEmbedClass } from './use-embed-class';
 import { EmbedIcons } from './EmbedView';
 import { startBackgroundLoading } from '../background-loading';
+import { exportSource } from '../state/export-source';
 import { buildFilename, type ExportFormat } from '../state/export-logic';
 import { downloadUrl } from '../utils';
 
@@ -66,6 +67,14 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     return {message: `Downloaded ${name}`};
   };
 
+  const onDownloadSource = async () => {
+    const src = exportSource(model.state.params.sources, model.state.params.activePath);
+    const url = URL.createObjectURL(new Blob([src.bytes as BlobPart], {type: src.mimeType}));
+    downloadUrl(url, src.filename);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return {message: `Downloaded ${src.filename}`};
+  };
+
   const isDark = false; // the web app has a light theme
 
   return (
@@ -77,6 +86,7 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
               isDark={isDark}
               fullscreen={fullscreen}
               onDownload={onDownload}
+              onDownloadSource={onDownloadSource}
               // Framed: open the same state as the full app in a new tab (the embedder wants the iframe to stay
               // compact). Top-level: switch in place.
               exit={isFramed()

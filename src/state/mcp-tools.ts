@@ -145,7 +145,7 @@ export interface ViewerHost {
   /** What the host can do with a file (see export-logic.chooseDelivery). */
   fileCapabilities(): HostFileCapabilities;
   /** Export the rendered model (a full render must have completed). */
-  exportFile(format: ExportFormat, filename?: string): Promise<ExportedFile>;
+  exportFile(format: ExportFormat, filename?: string, path?: string): Promise<ExportedFile>;
   /** Try the host steps of a delivery plan (download dialog, chat attachment); undefined if none succeeded. Rejects when the host refuses. */
   deliver(file: ExportedFile, steps: Step[]): Promise<{ outcome: string; step: Step } | undefined>;
   /** Merge customizer values and start a preview render. */
@@ -517,36 +517,46 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       name: 'download_model',
       title: 'Download / export the model',
       description:
-        'Export the rendered model as a file and deliver it. format: 3D stl (default), 3mf, glb, off; 2D svg (default), dxf. A full render is done first if only a preview exists. ' +
+        'Export the rendered model as a file and deliver it. format: 3D stl (default), 3mf, glb, off; 2D svg (default), dxf; or "scad" for the OpenSCAD SOURCE of a file ' +
+        '(`path`, default the active file; no render needed, UTF-8 text/x-openscad). Models: a full render is done first if only a preview exists. ' +
         'delivery: "download" asks the host to save the file for the user (host dialog), "message" attaches it to the chat, "return" returns it in this tool result, ' +
         '"link" uses a resource_link block (data: URI) instead of embedding the bytes, "auto" (default) tries in order: download (embedded, then link), message (embedded, then link), ' +
         `return (embedded, then link). Size limits: download ${formatSize(SIZE_CAPS.download)}, message ${formatSize(SIZE_CAPS.message)}, return ${formatSize(SIZE_CAPS.return)}, ` +
         `links ${formatSize(LINK_CAP)}. Reports filename, bytes, format and how it was delivered.`,
       inputSchema: z.object({
-        format: z.enum(['stl', '3mf', 'glb', 'off', 'svg', 'dxf']).optional().describe('Export format; default stl (3D) or svg (2D).'),
-        filename: z.string().optional().describe('File name; the extension is added/normalised. Default: the model file name.'),
+        format: z.enum(['stl', '3mf', 'glb', 'off', 'svg', 'dxf', 'scad']).optional().describe('Export format; default stl (3D) or svg (2D); scad = the source code.'),
+        path: z.string().optional().describe('With format scad: the project file to export (as listed by view_source). Default: the active file.'),
+        filename: z.string().optional().describe('File name; the extension is added/normalised. Default: the model (or source) file name.'),
         delivery: z.enum(['auto', 'download', 'message', 'return', 'link']).optional().describe('How to deliver. Default auto. "link" sends a resource_link (data: URI, max ' + formatSize(LINK_CAP) + ') through the first channel that takes it.'),
       }),
       annotations: { destructiveHint: false, idempotentHint: true },
-      handler: async ({ format, filename, delivery }) => {
+      handler: async ({ format, filename, delivery, path }) => {
         const host = await getHost();
-        let snap = await host.settle(RENDER_TIMEOUT_MS);
-        if (!snap.hasOutput) throw new ToolError(`Nothing has been rendered yet.\n${formatDiagnostics(snap)}`);
-        if (hasRenderFailure(snap)) throw new ToolError(`The last render failed; fix the errors first.\n${formatDiagnostics(snap)}`);
         let fmt: ExportFormat;
-        try {
-          fmt = parseFormat(format, !!snap.is2D);
-        } catch (e) {
-          if (e instanceof ExportError) throw new ToolError(e.message);
-          throw e;
+        let sourcePath: string | undefined;
+        if (format === 'scad') {
+          // The source is the app state: no render involved.
+          fmt = 'scad';
+          sourcePath = path == null ? undefined : resolvePath(filePaths(host), path);
+        } else {
+          if (path != null) throw new ToolError('path only applies to format "scad"');
+          let snap = await host.settle(RENDER_TIMEOUT_MS);
+          if (!snap.hasOutput) throw new ToolError(`Nothing has been rendered yet.\n${formatDiagnostics(snap)}`);
+          if (hasRenderFailure(snap)) throw new ToolError(`The last render failed; fix the errors first.\n${formatDiagnostics(snap)}`);
+          try {
+            fmt = parseFormat(format, !!snap.is2D);
+          } catch (e) {
+            if (e instanceof ExportError) throw new ToolError(e.message);
+            throw e;
+          }
+          // Exports should come from the accurate render, not the fast preview.
+          if (snap.renderKind === 'preview') {
+            host.startRender('full');
+            snap = await host.settle(RENDER_TIMEOUT_MS);
+            if (hasRenderFailure(snap) || snap.timedOut) throw new ToolError(`The full render did not succeed.\n${formatDiagnostics(snap)}`);
+          }
         }
-        // Exports should come from the accurate render, not the fast preview.
-        if (snap.renderKind === 'preview') {
-          host.startRender('full');
-          snap = await host.settle(RENDER_TIMEOUT_MS);
-          if (hasRenderFailure(snap) || snap.timedOut) throw new ToolError(`The full render did not succeed.\n${formatDiagnostics(snap)}`);
-        }
-        const file = await host.exportFile(fmt, filename);
+        const file = await host.exportFile(fmt, filename, sourcePath);
         let plan: Step[];
         try {
           plan = deliveryPlan(delivery, host.fileCapabilities(), file.size);
