@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import * as monaco from 'monaco-editor/editor/editor.api';
+import type * as monaco from 'monaco-editor/editor/editor.api';
+import { CompletionItemInsertTextRule, CompletionItemKind } from './monaco-enums';
 import { join, Symlinks, whenLibrariesMounted } from '../fs/filesystem';
 import { getRequiredArchives } from '../fs/archive-deps';
 import { listIndexDir, loadLibraryIndex } from '../fs/library-index';
@@ -36,24 +37,24 @@ function makeFunctionoidSuggestion(name: string, mod: ParsedFunctionoidDef) {
   }
   return {
     label: mod.signature,//`${name}(${(mod.params ?? []).join(', ')})`,
-    kind: monaco.languages.CompletionItemKind.Function,
+    kind: CompletionItemKind.Function,
     insertText,
-    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+    insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet
   };
 }
 
 const builtinCompletions = [
   ...[true, false].map(v => ({
     label: `${v}`,
-    kind: monaco.languages.CompletionItemKind.Value,
+    kind: CompletionItemKind.Value,
     insertText: `${v}`,
-    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+    insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet
   })),
   ...openscadLanguage.language.keywords.map((v: string) => ({
     label: v,
-    kind: monaco.languages.CompletionItemKind.Function,
+    kind: CompletionItemKind.Function,
     insertText: v,
-    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+    insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet
   }))
 ];
 
@@ -232,7 +233,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
 
               suggestions.push({
                 label: file,
-                kind: isFolder ? monaco.languages.CompletionItemKind.Folder : monaco.languages.CompletionItemKind.File,
+                kind: isFolder ? CompletionItemKind.Folder : CompletionItemKind.File,
                 insertText: completion
               });
             }
@@ -264,15 +265,15 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
               name => name.indexOf(word) >= 0),
             ...((parsed.vars ?? []).filter(name => name.indexOf(word) >= 0).map(name => ({
               label: name,
-              kind: monaco.languages.CompletionItemKind.Variable,
+              kind: CompletionItemKind.Variable,
               insertText: name.replaceAll('$', '\\$'),
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+              insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet
             }))),
             ...keywordSnippets.map(snippet => ({
               label: cleanupVariables(snippet).replaceAll(/ body/g, ''),
-              kind: monaco.languages.CompletionItemKind.Keyword,
+              kind: CompletionItemKind.Keyword,
               insertText: snippet,
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+              insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet
             })),
             // ...getStatementSuggestions().filter(s => start == '' || s.insertText.indexOf(start) >= 0)
           ];
@@ -290,7 +291,7 @@ export async function buildOpenSCADCompletionItemProvider(fs: FS, workingDir: st
         named.sort(([a], [b]) => a.indexOf(word) - b.indexOf(word));
         // const suggestions = names.map(name => ({
         //   label: name,
-        //   kind: monaco.languages.CompletionItemKind.Constant,
+        //   kind: CompletionItemKind.Constant,
         //   insertText: name
         // }));
 

@@ -1,6 +1,7 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import * as monaco from 'monaco-editor/editor/editor.api';
+import type * as monaco from 'monaco-editor/editor/editor.api';
+import { IndentAction } from './monaco-enums';
 
 const builtInFunctionNames = [
   'abs',
@@ -46,28 +47,28 @@ var conf: monaco.languages.LanguageConfiguration = {
       beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
       afterText: /^\s*\*\/$/,
       action: {
-        indentAction: monaco.languages.IndentAction.IndentOutdent,
+        indentAction: IndentAction.IndentOutdent,
         appendText: " * "
       }
     },
     {
       beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
       action: {
-        indentAction: monaco.languages.IndentAction.None,
+        indentAction: IndentAction.None,
         appendText: " * "
       }
     },
     {
       beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
       action: {
-        indentAction: monaco.languages.IndentAction.None,
+        indentAction: IndentAction.None,
         appendText: "* "
       }
     },
     {
       beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
       action: {
-        indentAction: monaco.languages.IndentAction.None,
+        indentAction: IndentAction.None,
         removeText: 1
       }
     }
