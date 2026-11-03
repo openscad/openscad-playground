@@ -801,3 +801,35 @@ describe('Configure MCP menu entry', () => {
   }, longTimeout);
 });
 
+describe('view notices', () => {
+  const src = encodeURIComponent('cube([5, 5, 5]);');
+  const orbit = () => page.$eval('model-viewer.main-viewer', el => { const o = el.getCameraOrbit(); return [o.theta, o.phi].map(v => Math.round(v * 1000) / 1000); });
+  async function clickAxesGizmo() {
+    await page.waitForSelector('model-viewer:not(.main-viewer)', { timeout: 45000 });
+    await new Promise(r => setTimeout(r, 1500)); // let the models load
+    const box = await (await page.$('model-viewer:not(.main-viewer)')).boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+
+  test('embed: clicking the axes gizmo changes the view without a visible toast, but announces it', async () => {
+    await page.goto(`${baseUrl}?embed=1#src=${src}`);
+    await waitForViewer();
+    await page.waitForSelector('[role=toolbar]', { timeout: 45000 });
+    const before = await orbit();
+    await clickAxesGizmo();
+    await page.waitForFunction(() => /view$/.test(document.querySelector('[data-announcer]')?.textContent ?? ''), { timeout: 10000 });
+    expect(await page.$$('.p-toast-message')).toHaveLength(0);
+    await new Promise(r => setTimeout(r, 1500));
+    expect(await orbit()).not.toEqual(before);
+    expect(await page.$$('.p-toast-message')).toHaveLength(0);
+  }, longTimeout);
+
+  test('full UI: the same click still shows the toast', async () => {
+    await page.goto(`${baseUrl}?embed=0#src=${src}`);
+    await waitForViewer();
+    await clickAxesGizmo();
+    await page.waitForSelector('.p-toast-message', { timeout: 10000 });
+    expect(await page.$eval('.p-toast-message', el => el.textContent)).toMatch(/view/);
+  }, longTimeout);
+});
+

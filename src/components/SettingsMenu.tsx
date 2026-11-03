@@ -9,6 +9,7 @@ import { State } from '../state/app-state.ts';
 import { isInStandaloneMode } from '../utils.ts';
 import { confirmDialog } from 'primereact/confirmdialog';
 import { Toast } from 'primereact/toast';
+import { notify } from '../state/notify.ts';
 import { isFramed, resolveMcpSetupUrl } from '../state/embed.ts';
 
 // Build-time define (webpack EnvironmentPlugin); empty unless the deployment serves an MCP endpoint.
@@ -58,7 +59,8 @@ export default function SettingsMenu({className, style}: {className?: string, st
             const html = await buildEmbedCode(state);
             try {
               await navigator.clipboard.writeText(html);
-              toast.current?.show({severity: 'success', detail: 'Embed code copied', life: 2000});
+              // Sole feedback of an explicit click: essential.
+              notify(!!state.view.embed, {toast: (severity, detail, life) => toast.current?.show({severity, detail, life}), announce: () => {}}, 'success', 'Embed code copied', {essential: true, life: 2000});
             } catch {
               window.prompt('Copy the embed code:', html);
             }
