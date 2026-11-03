@@ -79,6 +79,9 @@ const gzCache = new Map();
 // One shared link: chunks are transmitted one at a time at `bps`; chunks of
 // "prefetch" requests (Sec-Purpose: prefetch) only go out when no other
 // request has a chunk waiting, like an HTTP/2 server honouring priorities.
+// Prefetches (Sec-Purpose: prefetch) and requests with an HTTP/2 priority urgency of 4 or more
+// (fetchpriority=low, images...) only go out when nothing else is waiting.
+const isLowPriority = (headers) => !!headers['sec-purpose']?.includes('prefetch') || Number(/u=(\d)/.exec(headers.priority ?? '')?.[1] ?? 3) >= 4;
 const waiting = [[], []];
 let linkBusy = false;
 function pump() {
@@ -141,7 +144,7 @@ const server = http.createServer(async (req, res) => {
   }
   headers['content-length'] = body.length;
   res.writeHead(200, headers);
-  await shapedSend(res, body, req.headers['sec-purpose']?.includes('prefetch') ? 1 : 0);
+  await shapedSend(res, body, isLowPriority(req.headers) ? 1 : 0);
   res.end();
   Object.assign(entry, { status: 200, wire: body.length, decoded, end: performance.now() - t0 });
   requestLog.push(entry);
@@ -289,7 +292,7 @@ async function interceptCdn(cdp, seen) {
       seen.add(request.url);
       if (first) {
         if (profile.rtt) await sleep(profile.rtt);
-        if (profile.bps !== Infinity) for (let i = 0; i < wire.length; i += 16384) await transmit(0, Math.min(16384, wire.length - i));
+        if (profile.bps !== Infinity) for (let i = 0; i < wire.length; i += 16384) await transmit(['Low', 'VeryLow'].includes(request.initialPriority) ? 1 : 0, Math.min(16384, wire.length - i));
       }
       await cdp.send('Fetch.fulfillRequest', {
         requestId, responseCode: status,

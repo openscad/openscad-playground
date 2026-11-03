@@ -4,7 +4,8 @@ import React, { CSSProperties, useContext, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import { EditorValueSync } from '../state/editor-value-sync.ts';
 import openscadEditorOptions from '../language/openscad-editor-options.ts';
-import * as monaco from 'monaco-editor/editor/editor.api';
+import type * as monaco from 'monaco-editor/editor/editor.api';
+import { KeyCode, KeyMod } from '../language/monaco-enums.ts';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { MenuItem } from 'primereact/menuitem';
@@ -65,13 +66,13 @@ export default function EditorPanel({className, style}: {className?: string, sty
     editor.addAction({
       id: "openscad-save-do-nothing",
       label: "Save (disabled)",
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      keybindings: [KeyMod.CtrlCmd | KeyCode.KeyS],
       run: () => {}
     });
     editor.addAction({
       id: "openscad-save-project",
       label: "Save OpenSCAD project",
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
+      keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS],
       run: () => model.saveProject()
     });
     setEditor(editor)

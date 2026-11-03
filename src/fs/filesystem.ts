@@ -1,6 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { deployedArchiveNames, backgroundArchiveNames, zipArchives } from "./zip-archives";
+import { deployedArchiveNames, zipArchives } from "./zip-archives";
 import { getResourceLoader, ResourceLoader } from "../resource-loader";
 
 declare var BrowserFS: BrowserFSInterface
@@ -81,7 +81,7 @@ function configureAndInstallFS(windowOrSelf: Window, options: any) {
 }
 
 export async function createEditorFS({prefix, allowPersistence, skipLibraries, archiveNames = deployedArchiveNames, deferArchives = false}: {prefix: string, allowPersistence: boolean, skipLibraries?: boolean, archiveNames?: string[], deferArchives?: boolean}): Promise<FS> {
-  // With deferArchives, the archives are mounted later by whenLibrariesMounted().
+  // With deferArchives, none is mounted up front: they are mounted on demand by whenLibrariesMounted().
   const allMounts: FSMounts = {};
   if (!skipLibraries && !deferArchives) {
     const librariesMounts = await getBrowserFSLibrariesMounts(archiveNames);
@@ -169,14 +169,14 @@ function mountArchive(name: string): Promise<void> {
 }
 
 /**
- * Fetches and mounts the archives left out by createEditorFS({deferArchives}):
- * all the ones the main thread uses (see backgroundArchiveNames), plus the `extra`
- * ones that something needs now (e.g. the fonts). Idempotent: archives are only mounted once.
- * Never rejects: check isArchiveMounted() to know whether an archive could be fetched.
+ * Fetches and mounts the given archives on the main thread (the file picker, completions and
+ * opened files read from them), after createEditorFS({deferArchives}). Nothing is mounted
+ * before it is needed. Archives are only mounted once; never rejects: check isArchiveMounted()
+ * to know whether an archive could be fetched.
  */
-export function whenLibrariesMounted(extra: string[] = []): Promise<void> {
+export function whenLibrariesMounted(archives: string[]): Promise<void> {
   if (!deferredMounts) {
     return Promise.resolve();
   }
-  return Promise.all([...new Set([...backgroundArchiveNames, ...extra])].map(mountArchive)).then(() => {});
+  return Promise.all([...new Set(archives)].map(mountArchive)).then(() => {});
 }

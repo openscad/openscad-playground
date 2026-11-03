@@ -2,7 +2,6 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { McpApp } from './components/McpApp.tsx';
 import { createEditorFS } from './fs/filesystem.ts';
 import { zipArchives } from './fs/zip-archives.ts';
 import { createInitialState } from './state/initial-state.ts';
@@ -11,7 +10,9 @@ import './index.css';
 import debug from 'debug';
 import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils.ts';
 import { State, StatePersister } from './state/app-state.ts';
-import { isMcpMode, createMcpApp, bufferToolEvents, ToolEventBuffer } from './state/mcp-app.ts';
+import { isMcpMode } from './state/mcp-mode.ts';
+import { getSharedWasmModule } from './runner/wasm-module.ts';
+import type { ToolEventBuffer } from './state/mcp-app.ts';
 import type { App as McpApp_App } from '@modelcontextprotocol/ext-apps';
 
 import "primereact/resources/themes/lara-light-indigo/theme.css";
@@ -31,6 +32,10 @@ if (process.env.NODE_ENV !== 'production') {
 declare var BrowserFS: BrowserFSInterface
 
 
+// Start downloading and compiling the engine right away (not on `load`): it is on the critical path
+// to the first render.
+getSharedWasmModule();
+
 window.addEventListener('load', async () => {
   const mcpMode = isMcpMode();
 
@@ -45,6 +50,8 @@ window.addEventListener('load', async () => {
   let toolEvents: ToolEventBuffer | undefined;
   if (mcpMode) {
     console.log('[MCP] Detected MCP mode (running in iframe)');
+    // (The MCP SDK is only loaded in MCP mode.)
+    const { createMcpApp, bufferToolEvents } = await import('./state/mcp-app.ts');
     mcpApp = createMcpApp();
     toolEvents = bufferToolEvents(mcpApp);
     try {
@@ -72,6 +79,7 @@ window.addEventListener('load', async () => {
     const initialState = createInitialState(null, { content: '' });
     initialState.view.embed = true; // the MCP app is an embedded viewer; the model can switch to 'full' with set_layout
 
+    const { McpApp } = await import('./components/McpApp.tsx');
     root.render(
       <React.StrictMode>
         <McpApp

@@ -1,10 +1,8 @@
 // Work that is not needed for the first render and would only compete with it
-// for bandwidth: installing the Service Worker (which precaches the app shell),
-// then fetching the library archives and the engine through it so that they
-// land in its runtime cache (offline use).
+// for bandwidth: installing the Service Worker, then copying what the page has
+// loaded into its caches (offline use) and fetching the library archives through it.
 
-import { whenLibrariesMounted } from './fs/filesystem.ts';
-import { isMcpMode } from './state/mcp-app.ts';
+import { isMcpMode } from './state/mcp-mode.ts';
 
 function reloadWhenHidden() {
   const reloadIfHidden = () => {
@@ -46,19 +44,60 @@ async function registerServiceWorker() {
   }
 }
 
+/** Archives the render workers used before the Service Worker took control (see runner). */
+const usedArchives = new Set<string>();
+export function noteUsedArchives(names: string[]) {
+  names.forEach(n => usedArchives.add(n));
+}
+
+/**
+ * The Service Worker has no precache: what the page loaded before it took control
+ * (the shell, the engine, what the workers fetched) wasn't seen by its runtime caching
+ * rules. Fetch it all again through the Service Worker: the HTTP cache serves it (at
+ * worst with a revalidation), and the runtime caches store it.
+ */
+async function warmServiceWorkerCaches() {
+  const urls = new Set<string>([
+    location.href.split('#')[0],
+    './openscad.wasm',
+    './browserfs.min.js',
+    './libraries/index.json',
+    ...[...usedArchives].map(n => `./libraries/${n}.zip`),
+  ]);
+  for (const entry of performance.getEntriesByType('resource')) {
+    if (/^https?:/.test(entry.name)) urls.add(entry.name);
+  }
+  await Promise.all([...urls].map(url => {
+    const sameOrigin = new URL(url, location.href).origin === location.origin;
+    // force-cache: use the HTTP cache without revalidating (no request at all if it has the file).
+    return fetch(url, sameOrigin ? {cache: 'force-cache'} : {mode: 'no-cors', cache: 'force-cache'}).then(r => r.body?.cancel(), () => {});
+  }));
+}
+
+/** Whether the user asked to save data, or is on a slow connection: nothing optional is fetched then. */
+export function isDataConstrained(): boolean {
+  const connection = (navigator as any).connection;
+  return !!connection && (connection.saveData === true || ['slow-2g', '2g', '3g'].includes(connection.effectiveType));
+}
+
 let started: Promise<void> | undefined;
 
 /** Idempotent. Call once the first render is out of the way. */
 export function startBackgroundLoading(): Promise<void> {
   return started ??= (async () => {
-    // Let the first render's model load and paint before anything else uses the network.
+    if (isDataConstrained()) {
+      // (Libraries are still fetched when something needs them, and the picker / completions start the mount.)
+      return;
+    }
+    // Let the first render's model load and paint before anything else uses the network,
+    // and wait for the main thread to be idle.
     await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise<void>(resolve => 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => resolve(), {timeout: 5000})
+      : setTimeout(resolve, 0));
     await registerServiceWorker();
-    await whenLibrariesMounted();
     if (navigator.serviceWorker?.controller) {
-      // Served by the HTTP cache, ends up in the Service Worker's runtime cache.
-      fetch('./openscad.wasm').catch(() => {});
-      fetch('./libraries/index.json').catch(() => {});
+      await warmServiceWorkerCaches();
     }
   })();
 }

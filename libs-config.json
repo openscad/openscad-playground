@@ -43,7 +43,6 @@
         },
         {
             "name": "BOSL",
-            "lazy": true,
             "description": "The Belfry OpenScad Library",
             "repo": "https://github.com/revarbat/BOSL.git",
             "branch": "master",
@@ -55,7 +54,6 @@
         },
         {
             "name": "NopSCADlib",
-            "lazy": true,
             "repo": "https://github.com/nophead/NopSCADlib.git",
             "branch": "master",
             "zipIncludes": [
@@ -67,7 +65,6 @@
         },
         {
             "name": "funcutils",
-            "lazy": true,
             "description": "OpenSCAD collection of functional programming utilities, making use of function-literals.",
             "repo": "https://github.com/thehans/funcutils.git",
             "branch": "master",
@@ -79,7 +76,6 @@
         },
         {
             "name": "YAPP_Box",
-            "lazy": true,
             "description": "Yet Another Parametric Projectbox Box",
             "repo": "https://github.com/mrWheel/YAPP_Box.git",
             "branch": "main",
@@ -91,7 +87,6 @@
         },
         {
             "name": "MCAD",
-            "lazy": true,
             "description": "OpenSCAD Parametric CAD Library",
             "repo": "https://github.com/openscad/MCAD.git",
             "branch": "master",
@@ -104,7 +99,6 @@
         },
         {
             "name": "boltsparts",
-            "lazy": true,
             "description": "OpenSCAD library for generating bolt/nut models",
             "docs": {
                 "Usage": "https://boltsparts.github.io/en/docs/0.3/document/openscad/usage.html"
@@ -123,7 +117,6 @@
         },
         {
             "name": "OpenSCAD-Snippet",
-            "lazy": true,
             "description": "OpenSCAD Snippet Library",
             "symlinks": {
                 "Asset_SCAD": "Asset_SCAD",
@@ -139,7 +132,6 @@
         },
         {
             "name": "Stemfie_OpenSCAD",
-            "lazy": true,
             "description": "OpenSCAD Stemfie Library",
             "repo": "https://github.com/Cantareus/Stemfie_OpenSCAD.git",
             "branch": "main",
@@ -151,7 +143,6 @@
         },
         {
             "name": "pathbuilder",
-            "lazy": true,
             "repo": "https://github.com/dinther/pathbuilder.git",
             "branch": "main",
             "zipIncludes": [
@@ -163,7 +154,6 @@
         },
         {
             "name": "openscad_attachable_text3d",
-            "lazy": true,
             "repo": "https://github.com/jon-gilbert/openscad_attachable_text3d.git",
             "branch": "main",
             "zipIncludes": [
@@ -174,7 +164,6 @@
         },
         {
             "name": "brailleSCAD",
-            "lazy": true,
             "docs": {
                 "Documentation": "https://github.com/BelfrySCAD/brailleSCAD/wiki/TOC"
             },
@@ -188,7 +177,6 @@
         },
         {
             "name": "smooth-prim",
-            "lazy": true,
             "description": "OpenSCAD smooth primitives library",
             "symlinks": {
                 "smooth_prim.scad": "smooth_prim.scad"
@@ -203,7 +191,6 @@
         },
         {
             "name": "plot-function",
-            "lazy": true,
             "description": "OpenSCAD Function Plotting Library",
             "symlinks": {
                 "plot_function.scad": "plot_function.scad"
@@ -218,7 +205,6 @@
         },
         {
             "name": "closepoints",
-            "lazy": true,
             "description": "OpenSCAD ClosePoints Library",
             "symlinks": {
                 "closepoints.scad": "closepoints.scad"
@@ -233,7 +219,6 @@
         },
         {
             "name": "UB.scad",
-            "lazy": true,
             "symlinks": {
                 "ub.scad": "libraries/ub.scad"
             },
@@ -248,7 +233,6 @@
         },
         {
             "name": "openscad-tray",
-            "lazy": true,
             "description": "OpenSCAD library to create rounded rectangular trays with optional subdividers.",
             "symlinks": {
                 "tray.scad": "tray.scad"
@@ -263,7 +247,6 @@
         },
         {
             "name": "lasercut",
-            "lazy": true,
             "description": "Module for OpenSCAD, allowing 3D models to be created from 2D lasercut parts.",
             "symlinks": {
                 "lasercut.scad": "lasercut.scad"
@@ -278,7 +261,6 @@
         },
         {
             "name": "gridfinity-rebuilt-openscad",
-            "lazy": true,
             "description": "Gridfinity: modular storage bins and baseplates.",
             "docs": {
                 "Documentation": "https://github.com/kennetek/gridfinity-rebuilt-openscad#readme"
@@ -294,7 +276,6 @@
         },
         {
             "name": "Round-Anything",
-            "lazy": true,
             "description": "OpenSCAD library for rounding polygons, paths and 3D shapes.",
             "symlinks": {
                 "polyround.scad": "polyround.scad",
@@ -314,7 +295,6 @@
         },
         {
             "name": "threads-scad",
-            "lazy": true,
             "description": "Efficient OpenSCAD threading library.",
             "symlinks": {
                 "threads.scad": "threads.scad"
@@ -329,7 +309,6 @@
         },
         {
             "name": "dotSCAD",
-            "lazy": true,
             "description": "Math, 2D / 3D shapes, paths, patterns and algorithms library.",
             "docs": {
                 "Documentation": "https://openhome.cc/eGossip/OpenSCAD/lib3x-index.html"
@@ -345,7 +324,6 @@
         },
         {
             "name": "scad-utils",
-            "lazy": true,
             "description": "Utility libraries for OpenSCAD: transformations, linear algebra, shapes and lists.",
             "repo": "https://github.com/OskarLinde/scad-utils.git",
             "branch": "master",
@@ -357,7 +335,6 @@
         },
         {
             "name": "KeyV2",
-            "lazy": true,
             "description": "Parametric mechanical keyboard keycap library.",
             "repo": "https://github.com/rsheldiii/KeyV2.git",
             "branch": "master",

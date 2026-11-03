@@ -166,6 +166,9 @@ export default function FilePicker({className, style}: {className?: string, styl
     model.openFile(key);
   };
 
+  // Controlled, otherwise the tree collapses whenever the app re-renders (the options are rebuilt).
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+
   const fsItems: TreeNode[] = [];
   for (const {path} of state.params.sources) {
     const parent = getParentDir(path);
@@ -208,7 +211,8 @@ export default function FilePicker({className, style}: {className?: string, styl
             return <span>{selected?.label ?? props.placeholder}</span>;
           }}
           filter
-          onShow={() => { whenLibrariesMounted(); }}
+          expandedKeys={expandedKeys}
+          onToggle={e => setExpandedKeys(e.value as Record<string, boolean>)}
           style={style}
           options={fsItems} />
   )

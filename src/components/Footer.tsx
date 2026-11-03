@@ -2,7 +2,7 @@
 
 import React, { CSSProperties, useContext, useRef } from 'react';
 import { ModelContext } from './contexts.ts';
-import * as monaco from 'monaco-editor/editor/editor.api';
+import { MarkerSeverity } from '../language/monaco-enums.ts';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
 import { Badge } from 'primereact/badge';
@@ -20,17 +20,17 @@ export default function Footer({style}: {style?: CSSProperties}) {
   
   const toast = useRef<Toast>(null);
 
-  const severityByMarkerSeverity = new Map<monaco.MarkerSeverity, 'danger' | 'warning' | 'info'>([
-    [monaco.MarkerSeverity.Error, 'danger'],
-    [monaco.MarkerSeverity.Warning, 'warning'],
-    [monaco.MarkerSeverity.Info, 'info'],
+  const severityByMarkerSeverity = new Map<number, 'danger' | 'warning' | 'info'>([
+    [MarkerSeverity.Error, 'danger'],
+    [MarkerSeverity.Warning, 'warning'],
+    [MarkerSeverity.Info, 'info'],
   ]);
   const markers = state.lastCheckerRun?.markers ?? [];
-  const getBadge = (s: monaco.MarkerSeverity) => {
+  const getBadge = (s: number) => {
     const count = markers.filter(m => m.severity == s).length;
-    const sev = s == monaco.MarkerSeverity.Error ? 'danger'
-      : s == monaco.MarkerSeverity.Warning ? 'warning'
-      : s == monaco.MarkerSeverity.Info ? 'info'
+    const sev = s == MarkerSeverity.Error ? 'danger'
+      : s == MarkerSeverity.Warning ? 'warning'
+      : s == MarkerSeverity.Info ? 'info'
       : 'success';
     return <>{count > 0 && <Badge value={count} severity={severityByMarkerSeverity.get(s)}></Badge>}</>;
   };
@@ -90,9 +90,9 @@ export default function Footer({style}: {style?: CSSProperties}) {
             onClick={() => model.logsVisible = !state.view.logs}
             className={maxMarkerSeverity && `p-button-${severityByMarkerSeverity.get(maxMarkerSeverity) ?? 'success'}`}
             >
-          {getBadge(monaco.MarkerSeverity.Error)}
-          {getBadge(monaco.MarkerSeverity.Warning)}
-          {getBadge(monaco.MarkerSeverity.Info)}
+          {getBadge(MarkerSeverity.Error)}
+          {getBadge(MarkerSeverity.Warning)}
+          {getBadge(MarkerSeverity.Info)}
         </Button>}
 
       <div style={{flex: 1}}></div>

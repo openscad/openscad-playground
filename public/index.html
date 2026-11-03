@@ -13,6 +13,11 @@
     <meta name="theme-color" content="#000000">
 
     <link rel="preload" href="openscad.wasm" as="fetch" crossorigin>
+    <!-- Monaco is loaded from this CDN once the app script has run (see @monaco-editor/loader): open the
+         connections (DNS + TCP + TLS, a few round trips) meanwhile; one per credentials mode (the loader's
+         plain script tags and its CORS-mode module imports use different connection pools). -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="prefetch" href="openscad-worker.js">
     <script>
       // The default sample uses text(): have its fonts on the way. Not for other scripts.
@@ -135,7 +140,7 @@
     </script>
   </head>
   <body>
-    <audio id="complete-sound">
+    <audio id="complete-sound" preload="none">
       <source src="complete.ogg" type='audio/ogg; codecs="opus"'>
       <source src="complete.m4a" type='audio/mp4; codecs="mp4a.40.2"'>
       Your browser does not support the audio element.
