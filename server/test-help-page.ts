@@ -27,13 +27,13 @@ test("MCP headers disable html", () => {
   assert.equal(wantsHtml(get(browsers.chrome, { "mcp-session-id": "x" })), false);
   assert.equal(wantsHtml(get(browsers.chrome, { "mcp-protocol-version": "2025-06-18" })), false);
 });
-test("page contains server URL and no Claude Code CLI instructions", () => {
+test("page contains server URL, MCP Apps note and the repo link", () => {
   const h = renderHelpPage("https://openscad.ochafik.com/");
   assert.ok(h.includes("https://openscad.ochafik.com/mcp"));
   assert.ok(h.includes("needs a client with MCP Apps support"));
-  assert.ok(!h.includes("claude mcp add") && !h.includes("Claude Code"));
+  assert.ok(!h.includes("mcpServers") && !h.includes("Add it to your client") && !h.includes("inspector"));
   assert.ok(h.includes('href="https://openscad.ochafik.com/"'));
-  assert.ok(h.length < 16 * 1024, `page is ${h.length} bytes`);
+  assert.ok(h.length < 10 * 1024, `page is ${h.length} bytes`);
 });
 test("origin is HTML-escaped", () => {
   const h = renderHelpPage('http://a"><script>alert(1)</script>/');
@@ -68,7 +68,7 @@ test("page has escaped one-click links", () => {
   assert.ok(h.includes('href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=OpenSCAD&amp;connectorUrl=https%3A%2F%2Fopenscad.ochafik.com%2Fmcp"'));
   assert.ok(h.includes('href="cursor://anysphere.cursor-deeplink/mcp/install?name=openscad&amp;config='));
   assert.ok(h.includes('href="vscode:mcp/install?%7B'));
-  assert.ok(h.length < 16 * 1024, `page is ${h.length} bytes`);
+  assert.ok(h.length < 10 * 1024, `page is ${h.length} bytes`);
 });
 test("icons are inline, decorative and theme-following", () => {
   const h = renderHelpPage("http://localhost:9100/");
