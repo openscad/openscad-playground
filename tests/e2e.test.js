@@ -336,7 +336,7 @@ describe('e2e', () => {
     await loadSrc('cube([10, 10, 10]);');
     await waitForViewer();
     await page.click('.p-treeselect');
-    await clickTreePath(['libraries', 'openscad', 'examples'], {expandLast: true});
+    await expandTreePath(['libraries', 'openscad', 'examples']);
     const expandedFolders = () => page.evaluate(() => [...document.querySelectorAll('li.p-treenode[aria-expanded=true]')]
       .map(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent));
     expect(await expandedFolders()).toEqual(expect.arrayContaining(['libraries', 'openscad', 'examples']));
