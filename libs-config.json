@@ -26,6 +26,7 @@
         },
         {
             "name": "BOSL2",
+            "lazy": true,
             "description": "The Belfry OpenScad Library, v2.0",
             "docs": {
                 "CheatSheet": "https://github.com/BelfrySCAD/BOSL2/wiki/CheatSheet",
