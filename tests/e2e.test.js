@@ -389,15 +389,18 @@ describe('e2e', () => {
     }, {timeout: 30000});
     // The widget only renders the first rows: narrow the list down to a lazy library, then to its files.
     const suggests = (text) => page.waitForFunction((text) => document.querySelector('.suggest-widget.visible')?.textContent.includes(text), {timeout: 30000}, text);
-    await page.keyboard.type('bolt');
-    await suggests('boltsparts');
-    await page.keyboard.type('sparts/');
-    await suggests('vacuum');
-    await page.keyboard.type('vacuum/');
-    await suggests('CF-Flange.scad');
-    requests.stop();
-    expect(requests.zips).not.toContain('boltsparts');
-    messages.length = 0; // `use <` alone is not a valid script
+    try {
+      await page.keyboard.type('bolt', {delay: 50});
+      await suggests('boltsparts');
+      await page.keyboard.type('sparts/', {delay: 50});
+      await suggests('vacuum');
+      await page.keyboard.type('vacuum/', {delay: 50});
+      await suggests('CF-Flange.scad');
+      requests.stop();
+      expect(requests.zips).not.toContain('boltsparts');
+    } finally {
+      messages.length = 0; // the incomplete scripts typed here fail to render: not what this test is about
+    }
   }, longTimeout);
 
   test('a removed library gives OpenSCAD\'s missing file warning and a hint', async () => {
