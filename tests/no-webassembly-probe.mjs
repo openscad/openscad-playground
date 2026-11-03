@@ -24,7 +24,8 @@ try {
       return viewer && viewer.src !== '';
     }, {timeout: timeoutMs});
     await page.waitForFunction(
-      () => document.body.innerText.includes('JavaScript compatibility mode'), {timeout: timeoutMs});
+      () => document.documentElement.dataset.engine === 'wasm2js', {timeout: timeoutMs});
+    report.bannerShown = await page.evaluate(() => !!document.querySelector('.wasm-banner'));
     report.rendered = true;
   } catch (e) {
     report.rendered = false;

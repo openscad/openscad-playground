@@ -31,7 +31,12 @@ deployed, uses it instead.
 | Capability probe (`detectWasmSupport`, `probeRenderEngine`) | `src/runner/wasm-support.ts` |
 | Engine selection inside the worker | `src/runner/openscad-loader.ts` |
 | Shared worker logic (invocation, library mounting) | `src/runner/openscad-worker-core.ts` |
-| Banner | `src/components/WasmStatusBanner.tsx` |
+| Engine probe, `data-engine` attribute, error banner when no engine | `src/components/WasmStatusBanner.tsx` |
+
+The probed engine is exposed as `data-engine="wasm|wasm2js|none"` on `<html>`.
+Running on the JavaScript fallback shows no banner (only a `console.info` line);
+with no fallback deployed (`none`) a dismissible error banner explains why
+rendering is unavailable.
 
 `?wasmEngine=wasm2js` (or `wasm`) in the page URL forces an engine, to test the
 fallback on a WASM-capable browser. Without `openscad.fallback.js`,
