@@ -262,11 +262,12 @@ export function McpApp({
     const hostFile = parseFileInput(args);
     const restored = decideInvocation(args, !!hostFile);
     if (hostFile) void openHostFile(hostFile);
-    if (restored) return; // a replay of the invocation this state was saved for: the user's later edits win
-    if (args.source && typeof args.source === 'string') {
+    // A replay of the invocation this state was saved for: the user's later edits win (for whatever the saved
+    // state kept; sources dropped by the size cap fall back to the tool's own).
+    if (args.source && typeof args.source === 'string' && !restored?.files?.length) {
       applySource(args.source);
     }
-    if (args.vars && typeof args.vars === 'object') {
+    if (args.vars && typeof args.vars === 'object' && !restored?.vars) {
       for (const [name, value] of Object.entries(args.vars as Record<string, unknown>)) {
         modelRef.current.setVar(name, value);
       }
@@ -281,11 +282,11 @@ export function McpApp({
     setInitialApplied(true); // from now on tool calls see the created model (see the gate below)
     const sc = params.structuredContent as Record<string, unknown> | undefined;
     if (!sc || typeof sc !== 'object') return;
-    if (decideInvocation(sc, !!parseFileInput(sc))) return; // see applyToolInput
-    if (typeof sc.source === 'string' && sc.source !== modelRef.current.source) {
+    const restored = decideInvocation(sc, !!parseFileInput(sc)); // see applyToolInput
+    if (typeof sc.source === 'string' && !restored?.files?.length && sc.source !== modelRef.current.source) {
       applySource(sc.source);
     }
-    if (sc.vars && typeof sc.vars === 'object') {
+    if (sc.vars && typeof sc.vars === 'object' && !restored?.vars) {
       for (const [name, value] of Object.entries(sc.vars as Record<string, unknown>)) {
         // Skip values already applied from the tool-input notification —
         // each setVar schedules a preview render.
@@ -295,7 +296,7 @@ export function McpApp({
         }
       }
     }
-    if (typeof sc.camera === 'string') {
+    if (typeof sc.camera === 'string' && !restored?.camera) {
       applyCameraPreset(sc.camera);
     }
   }, [applySource, applyCameraPreset, decideInvocation]);
