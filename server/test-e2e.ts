@@ -17,10 +17,12 @@
 import assert from "node:assert/strict";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createServer, DEFAULT_SOURCE, RESOURCE_URI } from "./openscad-server.js";
+import { resolveBaseUrl } from "./base-url.js";
+import { serverIcons } from "./icons.js";
 
-async function connect() {
+async function connect(baseUrl?: string) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer();
+  const server = baseUrl ? createServer(baseUrl) : createServer();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([
     server.connect(serverTransport),
@@ -130,6 +132,45 @@ async function main() {
       arguments: { camera: "isometric-ish" },
     });
     assert.ok(result.isError, "invalid enum value should fail validation");
+  });
+
+  const iconSrcs = (icons: Array<{ src: string; mimeType?: string; sizes?: string[] }> | undefined) => (icons ?? []).map((i) => i.src);
+  const checkIcons = (icons: Array<{ src: string; mimeType?: string; sizes?: string[] }> | undefined, base: string, what: string) => {
+    assert.ok(icons && icons.length >= 3, `${what} should have icons`);
+    const bySize = new Map(icons.map((i) => [i.sizes?.[0], i]));
+    assert.equal(bySize.get("512x512")?.src, `${base}logo512.png`, what);
+    assert.equal(bySize.get("192x192")?.src, `${base}logo192.png`, what);
+    for (const size of ["512x512", "192x192"]) {
+      assert.equal(bySize.get(size)?.mimeType, "image/png", `${what} ${size}`);
+      assert.ok(/^https?:\/\//.test(bySize.get(size)!.src), `${what}: absolute URL`);
+    }
+    const small = bySize.get("64x64");
+    assert.ok(small?.src.startsWith("data:image/png;base64,") && small.src.length < 20_000, `${what}: small data: URI icon`);
+    assert.equal(small?.mimeType, "image/png");
+  };
+
+  await test("server and entrypoint tools carry the logo icons (absolute URLs from the base URL, 3 sizes)", async () => {
+    for (const base of ["https://openscad.ochafik.com/", "https://my-app-git-x.vercel.app", "http://localhost:9100/"]) {
+      const { client: c } = await connect(base);
+      const normalized = base.endsWith("/") ? base : base + "/";
+      checkIcons(c.getServerVersion()?.icons as never, normalized, `serverInfo (${base})`);
+      const { tools } = await c.listTools();
+      for (const name of ["create", "open_openscad", "open_scad_file"]) {
+        checkIcons(tools.find((t) => t.name === name)?.icons as never, normalized, `tool ${name} (${base})`);
+      }
+      const { resources } = await c.listResources();
+      checkIcons(resources.find((r) => r.uri === RESOURCE_URI)?.icons as never, normalized, `UI resource (${base})`);
+    }
+  });
+
+  await test("icon URLs follow the per-request base (Host header, forwarded host, env override)", async () => {
+    const base = (headers: Record<string, string>, env: NodeJS.ProcessEnv = {}) => resolveBaseUrl({ headers }, env);
+    assert.deepEqual(iconSrcs(serverIcons(base({ host: "localhost:9100" }, { OPENSCAD_SERVE_DIST: "1" }))).slice(0, 2),
+      ["http://localhost:9100/logo512.png", "http://localhost:9100/logo192.png"]);
+    assert.equal(serverIcons(base({ host: "internal", "x-forwarded-host": "foo.vercel.app", "x-forwarded-proto": "https" }, { VERCEL: "1" }))[0].src,
+      "https://foo.vercel.app/logo512.png");
+    assert.equal(serverIcons(base({ host: "x.example" }, { OPENSCAD_BASE_URL: "https://cdn.example/openscad/" }))[1].src,
+      "https://cdn.example/openscad/logo192.png");
   });
 
   await test("viewer resource serves HTML with CSP metadata", async () => {

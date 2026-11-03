@@ -89,6 +89,7 @@ export function renderHelpPage(baseUrl: string): string {
 :root{--bg:#fafaf8;--fg:#1d1d1b;--muted:#5f5f5a;--card:#fff;--line:#deddd6;--accent:#b8860b;--code:#f1f0ea;--link:#0b5fb3}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--fg:#ecebe6;--muted:#a3a29b;--card:#1f1f1d;--line:#34332f;--accent:#e0b13c;--code:#262624;--link:#7ab6f5}}
 *{box-sizing:border-box}
+h1 img{vertical-align:middle;margin-right:.45em;border-radius:9px}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:46rem;margin:0 auto;padding:2rem 16px 3rem}
 h1{font-size:1.9rem;margin:0 0 .5rem}
@@ -112,7 +113,7 @@ footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line)}
 </head>
 <body>
 <main>
-<h1>OpenSCAD MCP App</h1>
+<h1><img src="${esc(origin)}/logo192.png" alt="" width="40" height="40">OpenSCAD MCP App</h1>
 <p>This address is an <a href="https://modelcontextprotocol.io">MCP</a> server, not a web page. It opens an interactive OpenSCAD 3D viewer and editor inside AI chat clients that support MCP Apps. The model gets tools to read and edit the source, tweak customizer parameters, move the camera and take screenshots, so you can design parametric models by chatting.</p>
 
 <h2>Server URL</h2>
