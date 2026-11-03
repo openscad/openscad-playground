@@ -332,6 +332,21 @@ describe('e2e', () => {
     expect(await page.evaluate(() => document.body.innerText)).not.toContain('FunctionalOpenSCAD');
   }, longTimeout);
 
+  test('the file picker keeps the folders you expanded when the app re-renders', async () => {
+    await loadSrc('cube([10, 10, 10]);');
+    await waitForViewer();
+    await page.click('.p-treeselect');
+    await clickTreePath(['libraries', 'openscad', 'examples'], {expandLast: true});
+    const expandedFolders = () => page.evaluate(() => [...document.querySelectorAll('li.p-treenode[aria-expanded=true]')]
+      .map(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent));
+    expect(await expandedFolders()).toEqual(expect.arrayContaining(['libraries', 'openscad', 'examples']));
+    // Any state change re-renders the app (here: editing the source, which renders again).
+    const before = await page.evaluate(() => document.querySelector('model-viewer.main-viewer').src);
+    await page.evaluate(() => window.monaco.editor.getModels()[0].setValue('cube([12, 12, 12]);'));
+    await page.waitForFunction((before) => document.querySelector('model-viewer.main-viewer').src !== before, {timeout: 30000}, before);
+    expect(await expandedFolders()).toEqual(expect.arrayContaining(['libraries', 'openscad', 'examples']));
+  }, longTimeout);
+
   test('opening a file of a lazy library fetches the library and opens the file', async () => {
     await loadSrc('cube([10, 10, 10]);');
     await waitForViewer();
