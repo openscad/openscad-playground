@@ -74,13 +74,27 @@ async function warmServiceWorkerCaches() {
   }));
 }
 
+/** Whether the user asked to save data, or is on a slow connection: nothing optional is fetched then. */
+export function isDataConstrained(): boolean {
+  const connection = (navigator as any).connection;
+  return !!connection && (connection.saveData === true || ['slow-2g', '2g', '3g'].includes(connection.effectiveType));
+}
+
 let started: Promise<void> | undefined;
 
 /** Idempotent. Call once the first render is out of the way. */
 export function startBackgroundLoading(): Promise<void> {
   return started ??= (async () => {
-    // Let the first render's model load and paint before anything else uses the network.
+    if (isDataConstrained()) {
+      // (Libraries are still fetched when something needs them, and the picker / completions start the mount.)
+      return;
+    }
+    // Let the first render's model load and paint before anything else uses the network,
+    // and wait for the main thread to be idle.
     await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise<void>(resolve => 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => resolve(), {timeout: 5000})
+      : setTimeout(resolve, 0));
     await registerServiceWorker();
     if (navigator.serviceWorker?.controller) {
       await warmServiceWorkerCaches();

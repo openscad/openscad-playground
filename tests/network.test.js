@@ -182,6 +182,18 @@ async function waitForQuiet(log, ready, {quietMs = 3000, timeoutMs = 90000} = {}
     expect(total.fonts).toBe(1);
   }, longTimeout);
 
+  test.each([
+    ['saveData', {saveData: true, effectiveType: '4g'}],
+    ['a slow connection', {saveData: false, effectiveType: '3g'}],
+  ])('nothing optional is fetched in the background with %s', async (_, connection) => {
+    await page.evaluateOnNewDocument((c) => Object.defineProperty(navigator, 'connection', {value: c}), connection);
+    const atRender = await openAndRender('cube([10, 10, 10]);');
+    expect(atRender).toEqual({});
+    await waitForQuiet(server.log, () => true, {quietMs: 5000});
+    expect(zipDownloads(server.log)).toEqual({});
+    expect(server.log.some(r => r.path === '/sw.js')).toBe(false); // no Service Worker either
+  }, longTimeout);
+
   test('the engine is downloaded once', async () => {
     await openAndRender('cube([10, 10, 10]);');
     await settle(eager);

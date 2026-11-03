@@ -21,16 +21,16 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
   const model = new Model(fs, state, setState, statePersister);
   useEffect(() => model.init());
 
-  // Only needed by the file picker, completions, offline use...: do it once
-  // the first render is out of the way (or after a while).
-  const firstRenderSettled = state.output != null || state.error != null;
+  // Only needed by the file picker, completions, offline use...: once the first render
+  // is out of the way (never while it is in progress, however long it takes). With
+  // nothing to render, there is no first render to wait for.
+  const activeSource = state.params.sources.find(s => s.path === state.params.activePath);
+  const nothingToRender = activeSource?.content != null && activeSource.content.trim() === '';
+  const firstRenderSettled = state.output != null || state.error != null || nothingToRender;
   useEffect(() => {
     if (firstRenderSettled) {
       startBackgroundLoading();
-      return;
     }
-    const timer = setTimeout(startBackgroundLoading, 15000);
-    return () => clearTimeout(timer);
   }, [firstRenderSettled]);
 
   useEffect(() => {
