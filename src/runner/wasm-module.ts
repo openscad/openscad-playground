@@ -16,7 +16,7 @@ let shared: Promise<WebAssembly.Module | undefined> | undefined;
 export function getSharedWasmModule(): Promise<WebAssembly.Module | undefined> {
   return shared ??= (async () => {
     // (The MCP app loads the engine through its own resource loader, in the worker.)
-    if (isMcpMode() || getForcedEngine() === 'wasm2js' || typeof WebAssembly?.compile !== 'function') {
+    if (isMcpMode() || getForcedEngine() === 'wasm2js' || typeof WebAssembly === 'undefined' || typeof WebAssembly.compile !== 'function') {
       return undefined;
     }
     try {
