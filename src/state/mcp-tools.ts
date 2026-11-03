@@ -873,7 +873,7 @@ export function formatParameters(s: ViewerSnapshot): string {
   return lines.join('\n');
 }
 
-function cameraText(c: CameraState): string {
+export function cameraText(c: CameraState): string {
   const { azimuth, elevation } = azElFromOrbit(c.theta, c.phi);
   const near = nearestPreset(c.theta, c.phi);
   const preset = near.distanceDeg < 1 ? `preset ${near.name}` : `nearest preset ${near.name}, ~${Math.round(near.distanceDeg)}deg away`;

@@ -29,6 +29,7 @@ import {
 import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.ts';
 import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
+import { ContextScheduler } from '../state/mcp-context.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
 import { ProgressBar } from 'primereact/progressbar';
@@ -114,21 +115,13 @@ export function McpApp({
   useEmbedClass(state.view.embed);
   const LazyFullLayout = useMemo(() => lazyFullLayout(fs), [fs]);
   const viewerRef = useRef<ViewerPanelHandle>(null);
-  const updateContextRef = useRef<(() => Promise<void>) | null>(null);
-  const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounced context update — at most once per second
-  const scheduleContextUpdate = useCallback(() => {
-    if (contextTimerRef.current) return; // already scheduled
-    contextTimerRef.current = setTimeout(async () => {
-      contextTimerRef.current = null;
-      try {
-        await updateContextRef.current?.();
-      } catch (e) {
-        console.warn('Auto context update failed:', e);
-      }
-    }, 1000);
-  }, []);
+  const updateContextRef = useRef<(() => Promise<unknown>) | null>(null);
+  
+  // Debounced, rate-limited context update (see state/mcp-context.ts): camera moves, source/customizer
+  // edits and render completion all funnel through here.
+  const scheduler = useMemo(() => new ContextScheduler(async () => { await updateContextRef.current?.(); }, { debounceMs: 800, minIntervalMs: 1000 }), []);
+  const scheduleContextUpdate = useCallback(() => scheduler.request(), [scheduler]);
+  useEffect(() => () => scheduler.dispose(), [scheduler]);
 
   // Theme detection: prefer hostContext, fall back to media query
   const [isDark, setIsDark] = useState(() => {
@@ -298,17 +291,7 @@ export function McpApp({
   const isIdle = !state.rendering && !state.previewing && !state.checkingSyntax;
   useEffect(() => {
     scheduleContextUpdate();
-  }, [sourceContent, varsJson, isIdle, scheduleContextUpdate]);
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (contextTimerRef.current) {
-        clearTimeout(contextTimerRef.current);
-        contextTimerRef.current = null;
-      }
-    };
-  }, []);
+  }, [sourceContent, varsJson, isIdle, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
 
   // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
   const lastReportedHeight = useRef<number | null>(null);
