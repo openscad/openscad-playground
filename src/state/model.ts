@@ -1,10 +1,10 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { checkSyntax, render, RenderArgs, RenderOutput } from "../runner/actions.ts";
+import { checkSyntax, render, renderIsolated, RenderArgs, RenderOutput } from "../runner/actions.ts";
 import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state.ts";
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
 import { bubbleUpDeepMutations } from "./deep-mutate.ts";
-import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL } from '../utils.ts'
+import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL, SupersededError } from '../utils.ts'
 
 import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner.ts";
@@ -20,6 +20,12 @@ import type { ExportFormat } from "./export-logic.ts";
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
 
 export class Model {
+  // Call counters: every check/render call supersedes the previous one (the job runner cancels the older job and
+  // rejects its promise), so only the newest call may touch the busy flags or publish its output. Otherwise an
+  // older call finishing (or being cancelled) leaves `previewing`/`checkingSyntax` stuck or clears them early.
+  private renderGen = 0;
+  private syntaxGen = 0;
+
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
     private statePersister?: StatePersister) {
   }
@@ -222,18 +228,21 @@ export class Model {
   }
 
   async checkSyntax() {
+    const gen = ++this.syntaxGen;
     this.mutate(s => s.checkingSyntax = true);
     try {
       const checkerRun = await checkSyntax({
         activePath: this.state.params.activePath,
         sources: this.state.params.sources,
       })({now: false});
+      if (gen !== this.syntaxGen) return; // a newer check owns the result and the flag
       this.mutate(s => {
         s.lastCheckerRun = checkerRun;
         s.parameterSet = checkerRun?.parameterSet;
         s.checkingSyntax = false;
       });
     } catch (err) {
+      if (err instanceof SupersededError || gen !== this.syntaxGen) return;
       console.error('Error while checking syntax:', err)
       // Clear the flag or everything that waits for idle (e.g. MCP tool
       // handlers) blocks on its timeout forever after a checker failure.
@@ -302,7 +311,7 @@ export class Model {
           markers: [],
         };
       } else {
-        output = await render({
+        output = await renderIsolated({
           mountArchives: false,
           scadPath: '/export.scad',
           sources: [
@@ -367,7 +376,7 @@ export class Model {
       const colors = this.state.params.extruderColors?.map(c => chroma(c));
       return new File([export3MF(data, colors)], `${stem}.3mf`);
     }
-    const result = await render({
+    const result = await renderIsolated({
       mountArchives: false,
       scadPath: '/export.scad',
       sources: [
@@ -416,9 +425,12 @@ export class Model {
         s.rendering = value;
       }
     }
+    // This call supersedes any older one (see renderGen): its busy flag replaces the older call's.
+    const gen = ++this.renderGen;
     this.mutate(s => {
       s.currentRunLogs = [];
-      setRendering(s, true);
+      s.previewing = isPreview;
+      s.rendering = !isPreview;
     });
 
     let {
@@ -429,6 +441,15 @@ export class Model {
     } = this.state.params;
 
     let is2D = this.state.is2D;
+
+    // An empty file yields no output and a baffling "Failed to read output file": say what is wrong instead.
+    if (activePath.endsWith('.scad') && (sources.find(src => src.path === activePath)?.content ?? '').trim() === '') {
+      this.mutate(s => {
+        setRendering(s, false);
+        s.error = 'The source is empty: nothing to render';
+      });
+      return;
+    }
 
     const extension = activePath.split('.').pop() ?? '';
     if (!activePath.endsWith('.scad')) {
@@ -459,6 +480,7 @@ export class Model {
     };
     try {
       let output = await render(renderArgs)({now});
+      if (gen !== this.renderGen) return;
       let displayFile = output.outFile;
       if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
         is2D = true;
@@ -492,6 +514,7 @@ export class Model {
       }
       const outFileURL = URL.createObjectURL(output.outFile);
       const displayFileURL = displayFile && await readFileAsDataURL(displayFile);
+      if (gen !== this.renderGen) return;
       this.mutate(s => {
         setRendering(s, false);
         s.error = undefined;
@@ -524,6 +547,7 @@ export class Model {
         }
       });
     } catch (err) {
+      if (err instanceof SupersededError || gen !== this.renderGen) return;
       this.mutate(s => {
         setRendering(s, false);
         console.error('Error while doing ' + (isPreview ? 'preview' : 'rendering') + ':', err)

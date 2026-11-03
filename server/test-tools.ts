@@ -21,6 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
+import { AbortablePromise, SupersededError, turnIntoDelayableExecution } from "../src/utils.ts";
 import { FORMAT_INFO, LINK_CAP, SIZE_CAPS, buildFilename, bytesToBase64, dataUri, deliveryPlan, parseFormat, ExportError } from "../src/state/export-logic.ts";
 import { FULL_LAYOUT_HEIGHT, INLINE_HEIGHT, MAX_HEIGHT, heightCap, shouldReport, targetHeight } from "../src/state/mcp-sizing.ts";
 import { fullAppUrl, isFramed, resolveMcpSetupUrl, parseEmbedOverride, resolveEmbed, stripEmbedFromFragment } from "../src/state/embed.ts";
@@ -348,6 +349,37 @@ async function main() {
     assert.equal(shouldReport(null, 400), true);
     assert.equal(shouldReport(400, 403), false);
     assert.equal(shouldReport(400, 405), true);
+  });
+  await test("delayable jobs: a newer call supersedes older ones, and every call settles", async () => {
+    (globalThis as any).window ??= globalThis;
+    const events: string[] = [];
+    const delayable = turnIntoDelayableExecution(15, (id: string) =>
+      AbortablePromise<string>((resolve) => {
+        events.push(`start ${id}`);
+        const t = setTimeout(() => resolve(`done ${id}`), 40);
+        return () => { events.push(`kill ${id}`); clearTimeout(t); };
+      }));
+    const outcome = (p: Promise<string>) => p.then((v) => v, (e) => (e instanceof SupersededError ? "superseded" : `error ${e}`));
+    // 1. a debounced call replaced before its timer fires never runs and rejects instead of hanging
+    const a = outcome(delayable("a")({ now: false }));
+    const b = outcome(delayable("b")({ now: true }));
+    assert.deepEqual(await Promise.all([a, b]), ["superseded", "done b"]);
+    assert.deepEqual(events, ["start b"]);
+    // 2. a running job replaced by a newer call is killed and its call rejects
+    events.length = 0;
+    const c = outcome(delayable("c")({ now: true }));
+    await new Promise((r) => setTimeout(r, 10));
+    const d = outcome(delayable("d")({ now: true }));
+    assert.deepEqual(await Promise.all([c, d]), ["superseded", "done d"]);
+    assert.deepEqual(events, ["start c", "kill c", "start d"]);
+    // 3. an older job that finishes does not clear the kill signal of a newer one
+    events.length = 0;
+    const e1 = outcome(delayable("e")({ now: true }));
+    assert.equal(await e1, "done e");
+    const f1 = outcome(delayable("f")({ now: true }));
+    const g1 = outcome(delayable("g")({ now: true }));
+    assert.deepEqual(await Promise.all([f1, g1]), ["superseded", "done g"]);
+    assert.ok(events.includes("kill f"));
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };

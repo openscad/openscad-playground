@@ -670,6 +670,20 @@ describe('embed render and download', () => {
   }, longTimeout);
 });
 
+describe('render supersede', () => {
+  test('a full render started while the initial preview is still pending leaves nothing stuck busy', async () => {
+    // Regression: the full render cancelled the debounced preview, whose promise never settled, so `previewing`
+    // stayed true: the Render button spun forever and tools waiting for idle timed out.
+    await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent('cube([5, 5, 5]);')}`);
+    // The toolbar shows "Rendering…" (disabled) while the initial preview is pending; F6 is the full render.
+    await page.waitForSelector('[role=toolbar] button[aria-label="Rendering…"], [role=toolbar] button[aria-label="Render"]', { timeout: 45000 });
+    await page.keyboard.press('F6'); // within the preview debounce window: cancels the pending preview
+    await page.waitForSelector('[role=toolbar] button[aria-label="Render"]:not([disabled])', { timeout: 60000 });
+    await new Promise(r => setTimeout(r, 2500)); // longer than the preview debounce
+    expect(await page.$('[role=toolbar] button[aria-label="Render"]:not([disabled])')).not.toBeNull();
+  }, longTimeout);
+});
+
 describe('GitHub ribbon', () => {
   const ribbonVisible = (target) => target.evaluate(() => {
     const r = document.querySelector('.github-fork-ribbon');
