@@ -225,6 +225,24 @@ function clickTreePath(page, path) {
     expect(server.log.some(r => r.path === '/sw.js')).toBe(false); // no Service Worker either
   }, longTimeout);
 
+  test('an archive is downloaded once even when its download outlasts the start of the workers', async () => {
+    server.delays.set('/libraries/BOSL2.zip', 3000); // stalls in the middle of the body
+    try {
+      await openAndRender('include <BOSL2/std.scad>\ncuboid(10);');
+    } finally {
+      server.delays.delete('/libraries/BOSL2.zip');
+    }
+    expect(await settle()).toEqual({BOSL2: 1});
+    // The syntax check's and the render's workers used the download (revalidated at most).
+    expect(server.log.filter(r => r.path === '/libraries/BOSL2.zip' && r.status === 200)).toHaveLength(1);
+  }, longTimeout);
+
+  test('the default sample downloads the fonts once', async () => {
+    await page.goto(server.url);
+    await page.waitForFunction(() => document.querySelector('model-viewer.main-viewer')?.src, {timeout: 60000, polling: 50});
+    expect(await settle()).toEqual({fonts: 1});
+  }, longTimeout);
+
   test('the engine is downloaded once, even when its download outlasts the start of the workers', async () => {
     server.delays.set('/openscad.wasm', 3000); // a slow link: the workers are ready long before the engine is
     try {
