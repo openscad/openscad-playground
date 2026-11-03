@@ -3,7 +3,7 @@
 // loaded into its caches (offline use) and fetching the library archives through it.
 
 import { whenLibrariesMounted } from './fs/filesystem.ts';
-import { isMcpMode } from './state/mcp-app.ts';
+import { isMcpMode } from './state/mcp-mode.ts';
 
 function reloadWhenHidden() {
   const reloadIfHidden = () => {

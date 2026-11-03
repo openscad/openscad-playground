@@ -19,4 +19,10 @@ const count = (text, needle) => text.split(needle).length - 1;
       expect(count(text, 'vs/editor/')).toBeLessThan(20);
     }
   });
+
+  test('the MCP SDK is only in chunks loaded in MCP mode, not in the standalone entry chunk', () => {
+    // McpApp / mcp-app.ts must be reached through import() from index.tsx.
+    const entry = fs.readFileSync(path.join(dist, 'index.js'), 'utf8');
+    expect(count(entry, 'ui/initialize')).toBe(0);
+  });
 });

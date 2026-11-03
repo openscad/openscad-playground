@@ -19,18 +19,9 @@ import {
   applyHostStyleVariables,
   type McpUiHostContext,
 } from '@modelcontextprotocol/ext-apps';
-import { isFramed } from './embed.ts';
 import { createTools, formatDiagnostics, type ViewerHost } from './mcp-tools.ts';
 
-/**
- * Running as an MCP app: framed AND loaded from the MCP resource HTML (which
- * carries the `openscad-base-url` meta tag). A plain iframe of the web app is
- * not an MCP app (there is no host to handshake with) and runs standalone.
- */
-export function isMcpMode(): boolean {
-  if (!isFramed()) return false;
-  return document.querySelector('meta[name="openscad-base-url"]') != null;
-}
+export { isMcpMode } from './mcp-mode.ts';
 
 // Must stay in sync with CAMERA_VIEWS in server/openscad-server.ts (the
 // create tool's enum). `diagonal` is the legacy name of `iso`.
