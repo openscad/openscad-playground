@@ -13,6 +13,7 @@
  */
 
 import assert from "node:assert/strict";
+import { NO_INPUT_TIMEOUT_MS, SHOW_DELAY_MS, loadingPhase, loadingView, type LoadingInputs } from "../src/state/loading-state.ts";
 import {
   createTools,
   type CameraState,
@@ -406,6 +407,31 @@ async function main() {
     // Unrelated external text while typing in flight is passed through.
     sync.emitted("cube(1);y");
     assert.equal(sync.valueProp("from a tool"), "from a tool");
+  });
+  await test("loading state machine: waiting -> loading -> rendering -> done, plus error/cancelled/timeout and the delay", () => {
+    const base: LoadingInputs = { now: 1000, mountedAt: 1000, inputAt: null, cancelled: false, busy: false, hasOutput: false };
+    const at = (ms: number, over: Partial<LoadingInputs> = {}) => ({ ...base, now: 1000 + ms, ...over });
+    // No flash for fast loads: nothing is shown before the delay.
+    assert.deepEqual(loadingView(at(0)), { phase: "waiting", showBar: false, message: null });
+    assert.equal(loadingView(at(SHOW_DELAY_MS - 1)).showBar, false);
+    assert.deepEqual(loadingView(at(SHOW_DELAY_MS)), { phase: "waiting", showBar: true, message: "Waiting for the assistant…" });
+    // Input received: loading the engine, then rendering, then done.
+    assert.equal(loadingView(at(500, { inputAt: 1300 })).message, "Loading OpenSCAD engine…");
+    assert.equal(loadingView(at(500, { inputAt: 1300, busy: true })).message, "Rendering…");
+    assert.deepEqual(loadingView(at(900, { inputAt: 1300, hasOutput: true })), { phase: "done", showBar: false, message: null });
+    // Input that was already there at mount (delivered before the view mounted) skips "waiting".
+    assert.equal(loadingPhase(at(10, { inputAt: 1000 })), "loading");
+    // Errors win over progress and hide the bar immediately (no delay), cancellation too.
+    const err = loadingView(at(10, { inputAt: 1000, busy: true, error: "syntax error" }));
+    assert.deepEqual([err.phase, err.showBar, err.message], ["error", false, "Could not render: syntax error"]);
+    assert.deepEqual(loadingView(at(10, { cancelled: true })), { phase: "cancelled", showBar: false, message: "The tool call was cancelled" });
+    // Never spins forever: after the timeout without input, say so.
+    assert.equal(loadingPhase(at(NO_INPUT_TIMEOUT_MS - 1)), "waiting");
+    const t = loadingView(at(NO_INPUT_TIMEOUT_MS));
+    assert.deepEqual([t.phase, t.showBar, t.message], ["timeout", false, "No input received"]);
+    assert.ok(t.hint && /call the tool again/.test(t.hint));
+    // Input arriving after the timeout recovers.
+    assert.equal(loadingPhase(at(NO_INPUT_TIMEOUT_MS + 5, { inputAt: 1000 + NO_INPUT_TIMEOUT_MS + 1 })), "loading");
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };
