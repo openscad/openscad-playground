@@ -30,9 +30,14 @@ import type { Diagnostic, ViewerHost, ViewerSnapshot } from '../state/mcp-tools.
 import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } from '../state/mcp-download.ts';
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from '../state/mcp-file.ts';
+import {
+  HostViewStateWriter, ViewStateSaver, chooseRestore, fingerprint, loadLocal, readHostViewState, saveLocal,
+  type ViewState, type ViewStateHostApp,
+} from '../state/mcp-viewstate.ts';
 import { ContextScheduler } from '../state/mcp-context.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
+import { z } from 'zod';
 import { ProgressBar } from 'primereact/progressbar';
 
 /**
@@ -155,6 +160,81 @@ export function McpApp({
     }
   }, []);
 
+  // ── View-state persistence (see state/mcp-viewstate.ts for the rules) ──
+  // Saved state is restored only when this mount carries the same tool invocation it was saved for (a reload/replay);
+  // a different create({source}) or a file entrypoint always wins over it.
+  const storageKey = useMemo(() => {
+    const base = document.querySelector('meta[name="openscad-base-url"]')?.getAttribute('content') ?? '';
+    const id = (app.getHostContext() as { toolInfo?: { id?: string | number } } | undefined)?.toolInfo?.id;
+    return `openscad-mcp-view:${base}:${id ?? ''}`;
+  }, [app]);
+  const savedCandidates = useMemo(() => [readHostViewState(app as unknown as ViewStateHostApp), loadLocal(storageKey)], [app, storageKey]);
+  const invocationRef = useRef<string | null>(null);
+  const restoredRef = useRef<ViewState | null>(null);
+  const hostViewWriter = useMemo(() => new HostViewStateWriter(app as unknown as ViewStateHostApp, z.looseObject({})), [app]);
+
+  const applyRestored = useCallback((vs: ViewState) => {
+    const m = modelRef.current;
+    m.mutate(s => {
+      if (vs.files?.length) {
+        s.params.sources = vs.files.map(f => ({ path: f.path, content: f.content }));
+        s.params.activePath = vs.active ?? vs.files[0].path;
+        s.lastCheckerRun = undefined;
+        s.error = undefined;
+      }
+      if (vs.vars) s.params.vars = vs.vars;
+      if (vs.embed != null) s.view.embed = vs.embed;
+      if (vs.overlay != null) s.view.customizerOverlay = vs.overlay;
+      if (vs.axes != null) s.view.showAxes = vs.axes;
+    });
+    if (vs.files?.length) m.processSource();
+    const cam = vs.camera;
+    if (cam) void (async () => {
+      for (let i = 0; i < 100 && !viewerRef.current; i++) await new Promise(r => setTimeout(r, 100));
+      await viewerRef.current?.waitForModel(20_000);
+      await viewerRef.current?.setCamera({ theta: cam.theta, phi: cam.phi, distance: cam.radius, target: cam.target, fov: cam.fov });
+    })();
+  }, []);
+
+  /** First sight of an invocation: restore the saved state if it is the same invocation, else apply the tool's own input. */
+  const decideInvocation = useCallback((input: unknown, isFile: boolean): ViewState | null => {
+    if (invocationRef.current == null) {
+      invocationRef.current = fingerprint(input);
+      const restored = isFile ? null : chooseRestore(invocationRef.current, savedCandidates);
+      restoredRef.current = restored;
+      if (restored) applyRestored(restored);
+    }
+    return restoredRef.current;
+  }, [savedCandidates, applyRestored]);
+
+  const collectViewState = useCallback(async (): Promise<ViewState | null> => {
+    const m = modelRef.current;
+    if (invocationRef.current == null) return null; // nothing decided yet: do not overwrite the saved state with defaults
+    const cam = await viewerRef.current?.getCamera().catch(() => null);
+    return {
+      v: 1,
+      inv: invocationRef.current,
+      files: m.state.params.sources.flatMap(src => src.content == null ? [] : [{ path: src.path, content: src.content }]),
+      active: m.state.params.activePath,
+      vars: m.state.params.vars,
+      ...(cam ? { camera: { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target, fov: cam.fov } } : {}),
+      embed: !!m.state.view.embed,
+      overlay: !!m.state.view.customizerOverlay,
+      axes: m.state.view.showAxes,
+    };
+  }, []);
+  const viewSaver = useMemo(() => new ViewStateSaver(collectViewState, [
+    json => saveLocal(storageKey, json),
+    async json => { if (!(await hostViewWriter.write(json)) && hostViewWriter.lastError) console.debug('[view-state] host write failed:', hostViewWriter.lastError); },
+  ]), [collectViewState, storageKey, hostViewWriter]);
+  useEffect(() => {
+    const flush = () => void viewSaver.flush();
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis); viewSaver.dispose(); };
+  }, [viewSaver]);
+
   // ChatGPT file entrypoint: the opened .scad file is read through the host and saved back on edits.
   const fileWriterRef = useRef<HostFileWriter | null>(null);
   const [fileNote, setFileNote] = useState<string | null>(null);
@@ -167,7 +247,7 @@ export function McpApp({
       const content = await readHostFile(app as unknown as FileHostApp, file);
       fileWriterRef.current?.dispose();
       applySource(content.text);
-      fileWriterRef.current = new HostFileWriter(app as unknown as FileHostApp, file, content, setFileNote);
+      fileWriterRef.current = new HostFileWriter(app as unknown as FileHostApp, file, content, z.looseObject({ outcome: z.string() }), setFileNote);
       setFileNote(content.writable ? null : `${file.name} is read-only here.`);
     } catch (e) {
       setFileNote(`Could not open ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
@@ -180,7 +260,9 @@ export function McpApp({
     setInputAt(t => t ?? Date.now());
     const args = params.arguments ?? {};
     const hostFile = parseFileInput(args);
+    const restored = decideInvocation(args, !!hostFile);
     if (hostFile) void openHostFile(hostFile);
+    if (restored) return; // a replay of the invocation this state was saved for: the user's later edits win
     if (args.source && typeof args.source === 'string') {
       applySource(args.source);
     }
@@ -189,7 +271,7 @@ export function McpApp({
         modelRef.current.setVar(name, value);
       }
     }
-  }, [applySource, openHostFile]);
+  }, [applySource, openHostFile, decideInvocation]);
 
   // Apply the create tool's result — authoritative: carries the server-side
   // defaults (e.g. the demo source and camera preset when the model passed
@@ -199,6 +281,7 @@ export function McpApp({
     setInitialApplied(true); // from now on tool calls see the created model (see the gate below)
     const sc = params.structuredContent as Record<string, unknown> | undefined;
     if (!sc || typeof sc !== 'object') return;
+    if (decideInvocation(sc, !!parseFileInput(sc))) return; // see applyToolInput
     if (typeof sc.source === 'string' && sc.source !== modelRef.current.source) {
       applySource(sc.source);
     }
@@ -215,7 +298,7 @@ export function McpApp({
     if (typeof sc.camera === 'string') {
       applyCameraPreset(sc.camera);
     }
-  }, [applySource, applyCameraPreset]);
+  }, [applySource, applyCameraPreset, decideInvocation]);
 
   // Replay events buffered before mount, then take over the handlers.
   useEffect(() => {
@@ -315,7 +398,8 @@ export function McpApp({
   useEffect(() => {
     if (sourceContent != null) fileWriterRef.current?.schedule(sourceContent);
     scheduleContextUpdate();
-  }, [sourceContent, varsJson, isIdle, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
+    viewSaver.request();
+  }, [sourceContent, varsJson, isIdle, viewSaver, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
 
   // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
   const lastReportedHeight = useRef<number | null>(null);
@@ -457,7 +541,7 @@ export function McpApp({
                 isDark={isDark}
                 disableZoom={!isFullscreen}
                 showHint={!isFullscreen}
-                onCameraChange={scheduleContextUpdate}
+                onCameraChange={() => { scheduleContextUpdate(); viewSaver.request(); }}
                 fullscreen={fullscreen}
                 toolbar={toolbar}
                 onDownload={onDownload}

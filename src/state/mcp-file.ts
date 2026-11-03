@@ -20,7 +20,8 @@ export interface HostFileContent {
 /** The slice of App this module needs (kept structural so tests can mock it). */
 export interface FileHostApp {
   readServerResource(params: { uri: string; _meta?: Record<string, unknown> }): Promise<{ contents: Array<{ uri: string; text?: string; blob?: string; _meta?: Record<string, unknown> }> }>;
-  request(req: { method: string; params: unknown }, options?: unknown): Promise<unknown>;
+  /** Non-spec methods need a result schema (SDK 2.x): `request(req, resultSchema, options)`. */
+  request(req: { method: string; params: unknown }, resultSchema: unknown, options?: unknown): Promise<unknown>;
 }
 
 export function parseFileInput(args: unknown): HostFile | null {
@@ -68,6 +69,7 @@ export class HostFileWriter {
     private app: FileHostApp,
     private file: HostFile,
     initial: HostFileContent,
+    private resultSchema: unknown,
     private onStatus: (msg: string) => void = () => {},
     private debounceMs = 1000,
   ) {
@@ -96,7 +98,7 @@ export class HostFileWriter {
         this.pending = null;
         let result: WriteOutcome;
         try {
-          result = await this.app.request({ method: 'openai/resources/write', params: { uri: this.file.resourceUri, text, ...(this.etag ? { ifMatch: this.etag } : {}) } }) as WriteOutcome;
+          result = await this.app.request({ method: 'openai/resources/write', params: { uri: this.file.resourceUri, text, ...(this.etag ? { ifMatch: this.etag } : {}) } }, this.resultSchema) as WriteOutcome;
         } catch (e) {
           this.stopped = true;
           this.onStatus(`Saving ${this.file.name} failed: ${e instanceof Error ? e.message : String(e)}`);
