@@ -474,7 +474,8 @@ describe('e2e', () => {
 
   // Only the production build has a Service Worker.
   (isProd ? test : test.skip)('works offline after a first visit', async () => {
-    await loadSrc('cube([10, 10, 10]);');
+    // A first visit that uses BOSL2 and fonts (fetched by the render worker, before the Service Worker is in control).
+    await loadSrc('include <BOSL2/std.scad>\nlinear_extrude(1) text("Online");\nprismoid([40,40], [0,0], h=20);');
     await waitForViewer();
 
     // Wait for the Service Worker to be in control and for the (deferred)

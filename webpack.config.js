@@ -87,35 +87,36 @@ const config = [
       }),
       ...(process.env.NODE_ENV === 'production' ? [
         new WorkboxPlugin.GenerateSW({
-          exclude: [
-            /(^|\/)\./,
-            /\.map$/,
-            /^manifest.*\.js$/,
-            // Large wasm2js fallback: only fetched when WebAssembly is unavailable.
-            /openscad\.fallback\.js$/,
-            // Big and not needed on every visit, and fetching them again at
-            // install time competes with the page's own requests: they are
-            // cached on first use by the runtime caching rule below.
-            /^libraries\//,
-            /^openscad\.wasm$/,
-          ],
-          // these options encourage the ServiceWorkers to get in there fast
-          // and not allow any straggling 'old' SWs to hang around
+          // Nothing is precached: precaching downloads (with cache: reload) again, at install
+          // time, everything the page has just loaded. The Service Worker only has runtime
+          // caching rules, and the page copies what it loaded into the caches once the
+          // Service Worker controls it (see src/background-loading.ts).
+          exclude: [/.*/],
+          cleanupOutdatedCaches: true,
           swDest: path.join(__dirname, 'dist', 'sw.js'),
-          maximumFileSizeToCacheInBytes: 200 * 1024 * 1024,
           clientsClaim: true,
           skipWaiting: true,
-          runtimeCaching: [{
-            urlPattern: ({ request, url }) => true,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'all',
-              expiration: {
-                maxEntries: 1000,
-                purgeOnQuotaError: true,
-              },
+          runtimeCaching: [
+            {
+              // Big, versioned by their name or rarely changing: stale-while-revalidate.
+              urlPattern: ({ url }) => url.origin === self.location.origin
+                && (/\/libraries\/[^/]+\.(zip|json)$/.test(url.pathname) || /\/openscad\.wasm$/.test(url.pathname)),
+              handler: 'StaleWhileRevalidate',
+              options: { cacheName: 'big', expiration: { maxEntries: 100, purgeOnQuotaError: true } },
             },
-          }],
+            {
+              // Cross-origin (Monaco from a CDN).
+              urlPattern: ({ url }) => url.origin !== self.location.origin,
+              handler: 'StaleWhileRevalidate',
+              options: { cacheName: 'cdn', expiration: { maxEntries: 100, purgeOnQuotaError: true } },
+            },
+            {
+              // The app itself (unhashed file names): always the latest when online.
+              urlPattern: ({ request }) => request.method === 'GET',
+              handler: 'NetworkFirst',
+              options: { cacheName: 'shell', networkTimeoutSeconds: 5 },
+            },
+          ],
         }),
       ] : []),
       new CopyPlugin({

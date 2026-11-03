@@ -1,7 +1,6 @@
 // Work that is not needed for the first render and would only compete with it
-// for bandwidth: installing the Service Worker (which precaches the app shell),
-// then fetching the library archives and the engine through it so that they
-// land in its runtime cache (offline use).
+// for bandwidth: installing the Service Worker, then copying what the page has
+// loaded into its caches (offline use) and fetching the library archives through it.
 
 import { whenLibrariesMounted } from './fs/filesystem.ts';
 import { isMcpMode } from './state/mcp-app.ts';
@@ -46,6 +45,35 @@ async function registerServiceWorker() {
   }
 }
 
+/** Archives the render workers used before the Service Worker took control (see runner). */
+const usedArchives = new Set<string>();
+export function noteUsedArchives(names: string[]) {
+  names.forEach(n => usedArchives.add(n));
+}
+
+/**
+ * The Service Worker has no precache: what the page loaded before it took control
+ * (the shell, the engine, what the workers fetched) wasn't seen by its runtime caching
+ * rules. Fetch it all again through the Service Worker: the HTTP cache serves it (at
+ * worst with a revalidation), and the runtime caches store it.
+ */
+async function warmServiceWorkerCaches() {
+  const urls = new Set<string>([
+    location.href.split('#')[0],
+    './openscad.wasm',
+    './browserfs.min.js',
+    './libraries/index.json',
+    ...[...usedArchives].map(n => `./libraries/${n}.zip`),
+  ]);
+  for (const entry of performance.getEntriesByType('resource')) {
+    if (/^https?:/.test(entry.name)) urls.add(entry.name);
+  }
+  await Promise.all([...urls].map(url => {
+    const sameOrigin = new URL(url, location.href).origin === location.origin;
+    return fetch(url, sameOrigin ? {} : {mode: 'no-cors'}).then(r => r.body?.cancel(), () => {});
+  }));
+}
+
 let started: Promise<void> | undefined;
 
 /** Idempotent. Call once the first render is out of the way. */
@@ -54,11 +82,9 @@ export function startBackgroundLoading(): Promise<void> {
     // Let the first render's model load and paint before anything else uses the network.
     await new Promise(resolve => setTimeout(resolve, 1000));
     await registerServiceWorker();
-    await whenLibrariesMounted();
     if (navigator.serviceWorker?.controller) {
-      // Served by the HTTP cache, ends up in the Service Worker's runtime cache.
-      fetch('./openscad.wasm').catch(() => {});
-      fetch('./libraries/index.json').catch(() => {});
+      await warmServiceWorkerCaches();
     }
+    await whenLibrariesMounted();
   })();
 }

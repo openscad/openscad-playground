@@ -5,6 +5,7 @@ import { AbortablePromise } from "../utils.ts";
 import { Source } from "../state/app-state.ts";
 import { getForcedEngine, type RenderEngine } from "./wasm-support.ts";
 import { resolveUrl } from "../resource-loader.ts";
+import { noteUsedArchives } from "../background-loading.ts";
 
 export type OpenSCADInvocation = {
   mountArchives: boolean,
@@ -123,6 +124,7 @@ export function spawnOpenSCAD(
           const {result} = e.data;
           // (Logged here rather than in the worker, whose early console output can be missed by observers.)
           console.debug(`Mounting archives: ${result.archives?.join(', ') || '(none)'}`);
+          noteUsedArchives(result.archives ?? []);
           terminate();
           if (result.missingArchives?.length && retriesLeft > 0) {
             // The sources only seemed to need some of the archives: add what was missing and retry.
