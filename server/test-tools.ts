@@ -13,6 +13,7 @@
  */
 
 import assert from "node:assert/strict";
+import { decideNotification, notify } from "../src/state/notify.ts";
 import { NO_INPUT_TIMEOUT_MS, SHOW_DELAY_MS, loadingPhase, loadingView, type LoadingInputs } from "../src/state/loading-state.ts";
 import {
   createTools,
@@ -432,6 +433,27 @@ async function main() {
     assert.ok(t.hint && /call the tool again/.test(t.hint));
     // Input arriving after the timeout recovers.
     assert.equal(loadingPhase(at(NO_INPUT_TIMEOUT_MS + 5, { inputAt: 1000 + NO_INPUT_TIMEOUT_MS + 1 })), "loading");
+  });
+  await test("notification policy: full UI unchanged, embed only shows what needs attention", () => {
+    // Full UI: everything is a visible toast.
+    for (const level of ["info", "success", "warn", "error"] as const) {
+      assert.deepEqual(decideNotification(false, level), { visible: true, announceOnly: false });
+    }
+    // Embed: camera/view notices and other non-essential info/success are announced only.
+    assert.deepEqual(decideNotification(true, "info"), { visible: false, announceOnly: true });
+    assert.deepEqual(decideNotification(true, "success"), { visible: false, announceOnly: true });
+    // ...errors and warnings stay visible, and so does the sole feedback of an explicit click.
+    assert.equal(decideNotification(true, "error").visible, true);
+    assert.equal(decideNotification(true, "warn").visible, true);
+    assert.equal(decideNotification(true, "success", { essential: true }).visible, true);
+    // Routing: a hidden notice reaches the live region and never the toast.
+    const toasts: string[] = [], said: string[] = [];
+    const sinks = { toast: (_l: string, t: string) => toasts.push(t), announce: (t: string) => said.push(t) };
+    notify(true, sinks, "info", "Front view");
+    notify(false, sinks, "info", "Top view");
+    notify(true, sinks, "error", "Render failed");
+    assert.deepEqual(toasts, ["Top view", "Render failed"]);
+    assert.deepEqual(said, ["Front view"]);
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };

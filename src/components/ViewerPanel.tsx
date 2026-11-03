@@ -3,6 +3,7 @@
 import { CSSProperties, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ModelContext } from './contexts.ts';
 import { Toast } from 'primereact/toast';
+import { notify, visuallyHidden, type NotifyLevel, type NotifyOptions } from '../state/notify.ts';
 import { blurHashToImage, imageToBlurhash, imageToThumbhash, thumbHashToImage } from '../io/image_hashes.ts';
 import { resolveUrl } from '../resource-loader.ts';
 import type { CameraState, CapturedImage, CaptureOptions } from '../state/mcp-tools.ts';
@@ -131,6 +132,13 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
   const modelViewerRef = useRef<any>(null);
   const axesViewerRef = useRef<any>(null);
   const toastRef = useRef<Toast>(null);
+  // Central notification policy (state/notify.ts): in embed mode non-essential notices are only announced.
+  const [announcement, setAnnouncement] = useState('');
+  const notifyUser = (level: NotifyLevel, text: string, opts?: NotifyOptions) =>
+    notify(!!state.view.embed, {
+      toast: (lvl, t, life) => toastRef.current?.show({severity: lvl === 'warn' ? 'warn' : lvl, detail: t, life: life ?? 1000}),
+      announce: t => setAnnouncement(prev => prev === t ? t + '\u200b' : t), // (re-announce the same text)
+    }, level, text, opts);
 
   const [loadedUri, setLoadedUri] = useState<string | undefined>();
 
@@ -254,7 +262,7 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
         modelViewerRef.current.cameraOrbit = modelOrbit.toString();
         // Sync axes viewer angles only — keep axes radius as 'auto' to prevent clipping
         axesViewerRef.current.cameraOrbit = `${modelOrbit.theta}rad ${modelOrbit.phi}rad auto`;
-        toastRef.current?.show({severity: 'info', detail: `${name} view`, life: 1000,});
+        notifyUser('info', `${name} view`);
         setInteractionPrompt('none');
       }
     }
@@ -422,6 +430,7 @@ function ViewerPanelInner({className, style, viewerRef, disableZoom, onCameraCha
               ...(style ?? {})
           }}>
       <Toast ref={toastRef} position='top-right'  />
+      <div data-announcer aria-live="polite" aria-atomic="true" style={visuallyHidden}>{announcement}</div>
       <style>
         {`
           @keyframes pulse {
