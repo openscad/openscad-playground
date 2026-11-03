@@ -6,6 +6,7 @@ import { Source } from "../state/app-state.ts";
 import { getForcedEngine, type RenderEngine } from "./wasm-support.ts";
 import { resolveUrl } from "../resource-loader.ts";
 import { noteUsedArchives } from "../background-loading.ts";
+import { getSharedWasmModule } from "./wasm-module.ts";
 
 export type OpenSCADInvocation = {
   mountArchives: boolean,
@@ -16,6 +17,8 @@ export type OpenSCADInvocation = {
   outputPaths?: string[],
   // Testing override (see getForcedEngine); the worker can't read the page URL.
   forceEngine?: RenderEngine,
+  // The engine, downloaded and compiled once by the main thread (see wasm-module.ts).
+  wasmModule?: WebAssembly.Module,
 }
 
 export type OpenSCADInvocationResults = {
@@ -137,11 +140,15 @@ export function spawnOpenSCAD(
           streamsCallback(e.data);
         }
       }
-      worker.postMessage({...invocation, forceEngine})
+      worker.postMessage({...invocation, forceEngine})  // (with wasmModule, if any)
     };
-    run({...invocation, archives: invocation.archives ?? getForcedArchives()}, 2);
+    let aborted = false;
+    getSharedWasmModule().then(wasmModule => {
+      if (!aborted) run({...invocation, archives: invocation.archives ?? getForcedArchives(), wasmModule}, 2);
+    });
 
     return () => {
+      aborted = true;
       terminate();
     };
   });

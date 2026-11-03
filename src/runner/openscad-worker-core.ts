@@ -116,7 +116,7 @@ async function selectArchives({inputs, args}: OpenSCADInvocation): Promise<strin
 
 async function runInvocation(
     loadEngine: (moduleArg: any, forceEngine?: RenderEngine) => Promise<LoadedOpenSCAD>,
-    {inputs, args, outputPaths, forceEngine}: OpenSCADInvocation,
+    {inputs, args, outputPaths, forceEngine, wasmModule}: OpenSCADInvocation,
     archives: string[]): Promise<OpenSCADInvocationResults> {
   const mergedOutputs: MergedOutputs = [];
   let engine: RenderEngine | undefined;
@@ -125,6 +125,13 @@ async function runInvocation(
   try {
     const loaded = await loadEngine({
       noInitialRun: true,
+      // Instantiate the engine compiled by the main thread instead of fetching it.
+      ...(wasmModule ? {
+        instantiateWasm: (imports: WebAssembly.Imports, receiveInstance: (instance: WebAssembly.Instance, module: WebAssembly.Module) => void) => {
+          WebAssembly.instantiate(wasmModule, imports).then(instance => receiveInstance(instance, wasmModule));
+          return {};
+        },
+      } : {}),
       'print': (text: string) => {
         console.debug('stdout: ' + text);
         callback({stdout: text})

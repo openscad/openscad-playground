@@ -17,6 +17,8 @@ const longTimeout = 120000;
 
 // Every library is fetched on demand: when a script refers to it, or something from it is opened.
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css',
   '.wasm': 'application/wasm', '.zip': 'application/zip', '.png': 'image/png', '.jpg': 'image/jpeg',
@@ -28,7 +30,9 @@ const COMPRESSIBLE = new Set(['.html', '.js', '.json', '.css', '.wasm', '.glb'])
 function startServer() {
   /** @type {{path: string, status: number, bytes: number, time: number}[]} */
   const log = [];
-  const server = http.createServer((req, res) => {
+  /** path -> ms to stall in the middle of the body (to simulate a slow link for one file). */
+  const delays = new Map();
+  const server = http.createServer(async (req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.endsWith('/')) p += 'index.html';
     const file = path.join(dist, p);
@@ -51,12 +55,21 @@ function startServer() {
       headers['content-encoding'] = 'gzip';
     }
     headers['content-length'] = body.length;
-    res.writeHead(200, headers).end(body);
+    res.writeHead(200, headers);
+    if (delays.has(p)) {
+      // Headers and the beginning of the body now, the rest later.
+      res.write(body.subarray(0, 65536));
+      await sleep(delays.get(p));
+      res.end(body.subarray(65536));
+    } else {
+      res.end(body);
+    }
     record(200, body.length);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({
     url: `http://127.0.0.1:${server.address().port}/`,
     log,
+    delays,
     close: () => server.close(),
   })));
 }
@@ -72,7 +85,6 @@ const zipDownloads = (log) => {
   return counts;
 };
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 /** Waits until `ready()` and then until nothing has been requested for `quietMs`. */
 async function waitForQuiet(log, ready, {quietMs = 3000, timeoutMs = 90000} = {}) {
   const start = Date.now();
@@ -213,10 +225,23 @@ function clickTreePath(page, path) {
     expect(server.log.some(r => r.path === '/sw.js')).toBe(false); // no Service Worker either
   }, longTimeout);
 
-  test('the engine is downloaded once', async () => {
+  test('the engine is downloaded once, even when its download outlasts the start of the workers', async () => {
+    server.delays.set('/openscad.wasm', 3000); // a slow link: the workers are ready long before the engine is
+    try {
+      await openAndRender('cube([10, 10, 10]);');
+    } finally {
+      server.delays.delete('/openscad.wasm');
+    }
+    await settle();
+    // Once, and by the page only: the workers get the compiled engine from it (when they fetched it
+    // themselves, a worker started before the download ended downloaded it again).
+    expect(server.log.filter(r => r.path === '/openscad.wasm')).toHaveLength(1);
+  }, longTimeout);
+
+  test('the engine is requested once (the workers get it from the page)', async () => {
     await openAndRender('cube([10, 10, 10]);');
     await settle();
-    const wasm = server.log.filter(r => r.path === '/openscad.wasm' && r.status === 200);
-    expect(wasm).toHaveLength(1);
+    const wasm = server.log.filter(r => r.path === '/openscad.wasm');
+    expect(wasm.map(r => r.status)).toEqual([200]);
   }, longTimeout);
 });

@@ -11,6 +11,7 @@ import debug from 'debug';
 import { isInStandaloneMode, registerCustomAppHeightCSSProperty } from './utils.ts';
 import { State, StatePersister } from './state/app-state.ts';
 import { isMcpMode } from './state/mcp-mode.ts';
+import { getSharedWasmModule } from './runner/wasm-module.ts';
 import type { ToolEventBuffer } from './state/mcp-app.ts';
 import type { App as McpApp_App } from '@modelcontextprotocol/ext-apps';
 
@@ -30,6 +31,10 @@ if (process.env.NODE_ENV !== 'production') {
 
 declare var BrowserFS: BrowserFSInterface
 
+
+// Start downloading and compiling the engine right away (not on `load`): it is on the critical path
+// to the first render.
+getSharedWasmModule();
 
 window.addEventListener('load', async () => {
   const mcpMode = isMcpMode();
