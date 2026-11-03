@@ -98,8 +98,7 @@ function formatValue(any: any): string {
     return `${any}`;
   }
 }
-export const render =
- turnIntoDelayableExecution(renderDelay, (renderArgs: RenderArgs) => {
+const renderJob = (renderArgs: RenderArgs) => {
     const {
       scadPath,
       sources,
@@ -184,5 +183,12 @@ export const render =
 
       return () => job.kill()
     });
-  });
+};
 
+/** The render the app shows: a newer call supersedes (cancels) an older one. */
+export const render = turnIntoDelayableExecution(renderDelay, renderJob);
+/**
+ * Same job with its own supersede slot, for exports: an export must neither
+ * cancel the displayed render nor be cancelled by it.
+ */
+export const renderIsolated = turnIntoDelayableExecution(renderDelay, renderJob);

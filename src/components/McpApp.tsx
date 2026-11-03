@@ -67,6 +67,9 @@ const lazyFullLayout = (fs: FS) => React.lazy(async () => {
   return layout;
 });
 
+/** How long tool calls wait for the create tool's result before assuming there is none. */
+const INITIAL_STATE_GRACE_MS = 4000;
+
 export function McpApp({
   initialState,
   statePersister,
@@ -89,6 +92,14 @@ export function McpApp({
   // always tracks the latest state (setState assigns it synchronously).
   const [model] = useState(() => new Model(fs, state, setState, statePersister));
   const modelRef = useRef(model);
+  // The app tools are registered with the host before React mounts, so a fast caller can invoke one before the
+  // create tool's result (the initial source) has been applied: it would then render an empty model. Tool calls
+  // therefore wait for the initial state, or for a short grace period when no create result ever arrives.
+  const [initialApplied, setInitialApplied] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setInitialApplied(true), INITIAL_STATE_GRACE_MS);
+    return () => clearTimeout(t);
+  }, []);
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
   const [displayMode, setDisplayMode] = useState<string | undefined>(() => app.getHostContext()?.displayMode);
   useEmbedClass(state.view.embed);
@@ -158,6 +169,7 @@ export function McpApp({
   // defaults (e.g. the demo source and camera preset when the model passed
   // no arguments).
   const applyToolResult = useCallback((params: ToolResultParams) => {
+    setInitialApplied(true); // from now on tool calls see the created model (see the gate below)
     const sc = params.structuredContent as Record<string, unknown> | undefined;
     if (!sc || typeof sc !== 'object') return;
     if (typeof sc.source === 'string' && sc.source !== modelRef.current.source) {
@@ -184,10 +196,12 @@ export function McpApp({
     for (const params of toolEvents.results.splice(0)) applyToolResult(params);
     app.ontoolinput = applyToolInput;
     app.ontoolresult = applyToolResult;
+    app.ontoolcancelled = () => setInitialApplied(true);
   }, [app, toolEvents, applyToolInput, applyToolResult]);
 
   // Install the host that the view-registered app tools delegate to
   useEffect(() => {
+    if (!initialApplied) return;
     const snapshot = (timedOut?: boolean): ViewerSnapshot => buildSnapshot(modelRef.current, timedOut);
     const host: ViewerHost = {
       snapshot: () => snapshot(),
@@ -265,7 +279,7 @@ export function McpApp({
       setActiveHost(null);
       updateContextRef.current = null;
     };
-  }, [app]);
+  }, [app, initialApplied]);
 
   // Auto-update model context when source, vars, or rendering status change
   const sourceContent = state.params.sources.find(s => s.path === state.params.activePath)?.content;

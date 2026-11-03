@@ -25,6 +25,15 @@ export function AbortablePromise<T>(f: (resolve: (result: T) => void, reject: (e
   return Object.assign(promise, {kill: kill!});
 }
 
+/**
+ * A delayable job call that was replaced by a newer call (its timer was
+ * cleared, or its running job was killed). Always settles the replaced call so
+ * nothing awaits forever; the newer call owns the outcome.
+ */
+export class SupersededError extends Error {
+  constructor() { super('superseded by a newer call'); this.name = 'SupersededError'; }
+}
+
 // <T extends any[]>(...args: T)
 export function turnIntoDelayableExecution<T extends any[], R>(
     delay: number,
@@ -66,6 +75,8 @@ export function turnIntoDelayableExecution<T extends any[], R>(
   //   return () => job.kill();
   // });
   //return (...args: T) => async ({now, callback}: {now: boolean, callback: (result?: R, error?: any) => void}) => {
+  let pendingReject: ((e: any) => void) | null = null;
+  let runningReject: ((e: any) => void) | null = null;
   return (...args: T) => ({now}: {now: boolean}) => AbortablePromise<R>((resolve, reject) => {
     let abortablePromise: AbortablePromise<R> | undefined = undefined;
     (async () => {
@@ -73,25 +84,34 @@ export function turnIntoDelayableExecution<T extends any[], R>(
         if (runningJobKillSignal) {
           runningJobKillSignal();
           runningJobKillSignal = null;
+          runningReject?.(new SupersededError()); // a killed job never settles on its own
+          runningReject = null;
         }
         abortablePromise = job(...args);
         runningJobKillSignal = abortablePromise.kill;
+        runningReject = reject;
         try {
           resolve(await abortablePromise);
         } catch (e) {
           reject(e);
         } finally {
-          runningJobKillSignal = null;
+          if (runningReject === reject) {
+            runningJobKillSignal = null;
+            runningReject = null;
+          }
         }
       }
       if (pendingId) {
         clearTimeout(pendingId);
         pendingId = null;
+        pendingReject?.(new SupersededError()); // the debounced call that will now never run
+        pendingReject = null;
       }
       if (now) {
         doExecute();
       } else {
-        pendingId = window.setTimeout(doExecute, delay);
+        pendingReject = reject;
+        pendingId = window.setTimeout(() => { pendingReject = null; pendingId = null; doExecute(); }, delay);
       }
     })();
     return () => abortablePromise?.kill();
