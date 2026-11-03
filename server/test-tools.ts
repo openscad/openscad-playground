@@ -21,6 +21,7 @@ import {
   type ViewerHost,
   type ViewerSnapshot,
 } from "../src/state/mcp-tools.ts";
+import { EditorValueSync } from "../src/state/editor-value-sync.ts";
 import { AbortablePromise, SupersededError, turnIntoDelayableExecution } from "../src/utils.ts";
 import { FORMAT_INFO, LINK_CAP, SIZE_CAPS, buildFilename, bytesToBase64, dataUri, deliveryPlan, parseFormat, ExportError } from "../src/state/export-logic.ts";
 import { FULL_LAYOUT_HEIGHT, INLINE_HEIGHT, MAX_HEIGHT, heightCap, shouldReport, targetHeight } from "../src/state/mcp-sizing.ts";
@@ -380,6 +381,31 @@ async function main() {
     const g1 = outcome(delayable("g")({ now: true }));
     assert.deepEqual(await Promise.all([f1, g1]), ["superseded", "done g"]);
     assert.ok(events.includes("kill f"));
+  });
+  await test("EditorValueSync: typing is never fed back, external changes still apply", () => {
+    const sync = new EditorValueSync("start");
+    // The user types a, b, c; renders (and the library's effects) lag behind the editor.
+    sync.emitted("starta");
+    sync.emitted("startab");
+    assert.equal(sync.valueProp("starta"), "start", "stale echo: the prop does not follow typing");
+    sync.emitted("startabc");
+    assert.equal(sync.valueProp("startab"), "start");
+    assert.equal(sync.valueProp("startabc"), "start", "caught up: still the same prop (the editor already has the text)");
+    // Echo of the same text again (re-render without change).
+    assert.equal(sync.valueProp("startabc"), "start");
+    // A restore to an older text whose echo was already seen is an external change (undo, tool edit).
+    assert.equal(sync.valueProp("starta"), "starta");
+    // File switch / tool edit with nothing typed.
+    assert.equal(sync.valueProp("cube(1);"), "cube(1);");
+    // After an external change typing resumes and is still not fed back.
+    sync.emitted("cube(1);x");
+    assert.equal(sync.valueProp("cube(1);x"), "cube(1);");
+    // Backspace to the prop text: still fine.
+    sync.emitted("cube(1);");
+    assert.equal(sync.valueProp("cube(1);"), "cube(1);");
+    // Unrelated external text while typing in flight is passed through.
+    sync.emitted("cube(1);y");
+    assert.equal(sync.valueProp("from a tool"), "from a tool");
   });
   await test("isFramed: top-level false, framed true, cross-origin access throwing means framed", () => {
     const w = {} as { self: unknown; top: unknown };

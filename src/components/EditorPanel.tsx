@@ -2,6 +2,7 @@
 
 import React, { CSSProperties, useContext, useRef, useState } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
+import { EditorValueSync } from '../state/editor-value-sync.ts';
 import openscadEditorOptions from '../language/openscad-editor-options.ts';
 import * as monaco from 'monaco-editor/editor/editor.api';
 import { InputTextarea } from 'primereact/inputtextarea';
@@ -36,6 +37,9 @@ export default function EditorPanel({className, style}: {className?: string, sty
   const state = model.state;
 
   const [editor, setEditor] = useState(null as monaco.editor.IStandaloneCodeEditor | null)
+  // Typed text must never be overwritten by a stale render of the controlled value (see EditorValueSync).
+  const valueSync = useRef<EditorValueSync | null>(null);
+  valueSync.current ??= new EditorValueSync(model.source);
 
   if (editor) {
     const checkerRun = state.lastCheckerRun;
@@ -169,8 +173,8 @@ export default function EditorPanel({className, style}: {className?: string, sty
             className="openscad-editor absolute-fill"
             defaultLanguage="openscad"
             path={state.params.activePath}
-            value={model.source}
-            onChange={s => model.source = s ?? ''}
+            value={valueSync.current!.valueProp(model.source)}
+            onChange={s => { const text = s ?? ''; valueSync.current!.emitted(text); model.source = text; }}
             onMount={onMount} // TODO: This looks a bit silly, does it trigger a re-render??
             options={{
               ...openscadEditorOptions,

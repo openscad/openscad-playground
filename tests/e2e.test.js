@@ -270,15 +270,21 @@ describe('e2e', () => {
     page.on('request', onRequest);
     return { zips, stop: () => page.off('request', onRequest) };
   }
-  // Expands a node of the open file picker tree.
-  function expandTreeNode(label) {
-    return page.waitForFunction((label) => {
-      const li = [...document.querySelectorAll('li.p-treenode')]
-        .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
-      if (!li) return false;
-      if (li.getAttribute('aria-expanded') !== 'true') li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
-      return li.getAttribute('aria-expanded') === 'true';
-    }, {timeout: 30000}, label);
+  // Expands the given chain of nodes of the open file picker tree (each is a child of the previous one).
+  // The tree can re-render and collapse while libraries get mounted/indexed: re-expand from the top until the whole chain is open.
+  function expandTreePath(path) {
+    return page.waitForFunction((path) => {
+      for (const label of path) {
+        const li = [...document.querySelectorAll('li.p-treenode')]
+          .find(li => li.querySelector(':scope > .p-treenode-content .p-treenode-label')?.textContent === label);
+        if (!li) return false;
+        if (li.getAttribute('aria-expanded') !== 'true') {
+          li.querySelector(':scope > .p-treenode-content .p-tree-toggler')?.click();
+          return false;
+        }
+      }
+      return true;
+    }, {timeout: 30000, polling: 200}, path);
   }
   // Expands the given nodes of the open file picker tree, then clicks the last one.
   // (The tree may re-render and collapse while libraries get mounted/indexed: retry from the top.)
@@ -315,9 +321,8 @@ describe('e2e', () => {
       return names.every(n => labels.has(n));
     }, {timeout: 30000, polling: 200}, ['BOSL2', 'NopSCADlib', 'MCAD', 'openscad', ...lazyLibraries]);
     // Lazy libraries can be browsed...
-    await expandTreeNode('boltsparts');
-    await expandTreeNode('vacuum');
-    await page.waitForFunction(() => [...document.querySelectorAll('.p-treenode-label')].some(l => l.textContent === 'CF-Flange.scad'), {timeout: 30000});
+    await expandTreePath(['libraries', 'boltsparts', 'vacuum']);
+    await page.waitForFunction(() => [...document.querySelectorAll('.p-treenode-label')].some(l => l.textContent === 'CF-Flange.scad'), {timeout: 30000, polling: 200});
     // ...without having been fetched; the removed library is gone.
     await new Promise(r => setTimeout(r, 1500));
     requests.stop();
@@ -343,6 +348,30 @@ describe('e2e', () => {
     expectMountedArchives(['boltsparts']);
     // (Switching away from the unsaved default file logs 'Error while reading file', which is not about libraries.)
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].text.startsWith('Error while reading file')) messages.splice(i, 1);
+  }, longTimeout);
+
+  test('typing a long burst under CPU throttling keeps every keystroke', async () => {
+    // The controlled editor value used to lag behind typing: a stale render overwrote newer keystrokes
+    // ("boltsparts/" became "boltsarts/") and closed the completion widget, which made the completion tests
+    // flaky under CI load. (Throttling only makes the race likelier; the deterministic check is the
+    // EditorValueSync unit test.)
+    await loadSrc('// ');
+    await page.waitForSelector('.monaco-editor .view-lines');
+    await page.click('.monaco-editor .view-lines');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('End');
+    await page.keyboard.up('Control');
+    const client = await page.createCDPSession();
+    await client.send('Emulation.setCPUThrottlingRate', {rate: 4});
+    const typed = '// ' + 'abcdefghijklmnopqrstuvwxyz0123456789 '.repeat(12) + 'boltsparts/vacuum';
+    try {
+      await page.keyboard.type(typed);
+      await new Promise(r => setTimeout(r, 4000)); // let the throttled renders drain
+    } finally {
+      await client.send('Emulation.setCPUThrottlingRate', {rate: 1});
+    }
+    expect(await page.evaluate(() => window.monaco.editor.getModels().map(m => m.getValue()).join('\n'))).toBe('// ' + typed);
+    messages.length = 0; // the intermediate sources are not valid scripts
   }, longTimeout);
 
   test('completes include/use library names and paths, lazy libraries included, without fetching them', async () => {
