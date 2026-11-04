@@ -280,11 +280,7 @@ Customizer: top-level variables annotated like \`width = 60; // [10:100]\` becom
               "openai/ui": OPENAI_UI_RESOURCE_META,
               ui: {
                 permissions: { clipboardWrite: {} },
-                csp: {
-                  // cdn.jsdelivr.net: the code editor (Monaco), only loaded when the model switches to the full layout.
-                  resourceDomains: [new URL(baseUrl).origin, "https://cdn.jsdelivr.net"],
-                  connectDomains: [new URL(baseUrl).origin, "https://cdn.jsdelivr.net", "blob:", "data:"],
-                },
+                csp: appCsp(baseUrl),
               },
             },
           },
@@ -297,9 +293,26 @@ Customizer: top-level variables annotated like \`width = 60; // [10:100]\` becom
 }
 
 /**
+ * CSP the host must apply to the view (https://github.com/modelcontextprotocol/ext-apps spec, McpUiResourceCsp).
+ * The view's document lives on the HOST's sandbox origin; everything it loads comes from the asset origin
+ * (the base URL), so that origin is declared once and hosts add it to script-src, style-src, img-src,
+ * font-src, media-src and worker-src (resourceDomains) and connect-src (connectDomains).
+ * frameDomains / baseUriDomains stay unset: the view embeds no frames and has no <base> element.
+ */
+export function appCsp(baseUrl: string): { resourceDomains: string[]; connectDomains: string[] } {
+  const origin = new URL(baseUrl).origin;
+  return {
+    // cdn.jsdelivr.net: the code editor (Monaco), only loaded when the model switches to the full layout.
+    resourceDomains: [origin, "https://cdn.jsdelivr.net"],
+    // blob: (render workers, model-viewer fetching generated models) and data: (model-viewer loading data URLs).
+    connectDomains: [origin, "https://cdn.jsdelivr.net", "blob:", "data:"],
+  };
+}
+
+/**
  * Build the MCP App HTML that loads the OpenSCAD playground.
  */
-function buildAppHtml(baseUrl: string): string {
+export function buildAppHtml(baseUrl: string): string {
   const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
   const cacheBust = `?v=${Date.now()}`;
   return `<!DOCTYPE html>
