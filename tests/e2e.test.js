@@ -644,7 +644,8 @@ describe('embed layout', () => {
     await waitForViewer();
     await page.waitForSelector('[role=toolbar] button[aria-label="Customize"]', { timeout: 45000 });
     const withParams = await toolbarLabels();
-    expect(withParams).toEqual(expect.arrayContaining(['Customize', 'Download .scad']));
+    expect(withParams).toEqual(expect.arrayContaining(['Customize', 'Download']));
+    expect(withParams).not.toContain('Download .scad');
     expect(withParams).not.toContain('Copy source');
     expect(withParams.some(l => l.startsWith('Exit embed mode'))).toBe(true);
     const box = await page.$eval('[role=toolbar][aria-label="Viewer actions"]', el => {
@@ -657,10 +658,11 @@ describe('embed layout', () => {
     await page.goto('about:blank'); // a hash-only change would not reload
     await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent('cube(5);')}`);
     await waitForViewer();
-    await page.waitForSelector('[role=toolbar] button[aria-label="Download .scad"]', { timeout: 45000 });
+    await page.waitForSelector('[role=toolbar] button[aria-label="Download"]', { timeout: 45000 });
     const without = await toolbarLabels();
     expect(without).not.toContain('Customize');
-    expect(without).toContain('Download .scad');
+    expect(without).toContain('Download');
+    expect(without).not.toContain('Download .scad');
     expect(without).not.toContain('Copy source');
   }, longTimeout);
 
@@ -685,16 +687,20 @@ describe('embed layout', () => {
     await page.setViewport({ width: 800, height: 600 });
   }, longTimeout);
 
-  test('Download .scad downloads the active file as UTF-8 text and confirms; there is no Copy source button', async () => {
+  test('the first Download menu item, SCAD (source), downloads the active file as UTF-8 text and confirms; there is no Copy source button', async () => {
     await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(src)}`);
     await waitForViewer();
-    await page.waitForSelector('button[aria-label="Download .scad"]', { timeout: 45000 });
+    await page.waitForFunction(() => !document.querySelector('button[aria-label="Download"]')?.disabled, { timeout: 45000 });
     expect(await page.$('button[aria-label="Copy source"]')).toBeNull();
+    expect(await page.$('button[aria-label="Download .scad"]')).toBeNull();
     await page.evaluate(() => {
       window.__downloads = [];
       HTMLAnchorElement.prototype.click = function () { window.__downloads.push({ href: this.href, name: this.download }); };
     });
-    await page.click('button[aria-label="Download .scad"]');
+    await page.click('button[aria-label="Download"]');
+    await page.waitForSelector('[role=menu][aria-label="Download format"]');
+    expect(await page.$eval('[role=menuitem]', e => e.textContent)).toBe('SCAD (source)');
+    await page.click('[role=menuitem]');
     await page.waitForFunction(() => window.__downloads.length === 1, { timeout: 30000 });
     const dl = await page.evaluate(async () => {
       const d = window.__downloads[0];
@@ -717,7 +723,7 @@ describe('embed render and download', () => {
     await page.goto(`${baseUrl}?embed=1#src=${encodeURIComponent(cube)}`);
     await waitForViewer();
     await page.waitForSelector('button[aria-label="Render"]', { timeout: 45000 });
-    expect(await labels()).toEqual(expect.arrayContaining(['Render', 'Download', 'Download .scad']));
+    expect(await labels()).toEqual(expect.arrayContaining(['Render', 'Download']));
     await page.click('button[aria-label="Render"]');
     await page.waitForFunction(() => /^Rendered/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''), { timeout: 60000 });
   }, longTimeout);
@@ -733,8 +739,8 @@ describe('embed render and download', () => {
     await page.click('button[aria-label="Download"]');
     await page.waitForSelector('[role=menu][aria-label="Download format"]');
     const items = await page.evaluate(() => Array.from(document.querySelectorAll('[role=menuitem]')).map(e => e.textContent));
-    expect(items.map(t => t.split(' ')[0])).toEqual(['STL', '3MF', 'GLB', 'OFF']);
-    await page.click('[role=menuitem]'); // STL
+    expect(items.map(t => t.split(' ')[0])).toEqual(['SCAD', 'STL', '3MF', 'GLB', 'OFF']);
+    await page.click('[role=menuitem]:nth-child(2)'); // STL
     await page.waitForFunction(() => window.__downloads.length === 1, { timeout: 60000 });
     const dl = await page.evaluate(async () => {
       const d = window.__downloads[0];
@@ -746,6 +752,31 @@ describe('embed render and download', () => {
     expect(buf.readUInt32LE(80)).toBe(12);
     expect(buf.length).toBe(84 + 12 * 50);
     await page.waitForFunction(() => /^Downloaded playground\.stl/.test(document.querySelector('[role=status][aria-live=polite]')?.textContent ?? ''));
+  }, longTimeout);
+});
+
+describe('full app export menu', () => {
+  test('the dropdown starts with SCAD (source), which downloads the active file', async () => {
+    const code = 'cube(5);';
+    await page.setViewport({ width: 1200, height: 800 });
+    await page.goto('about:blank');
+    await page.goto(`${baseUrl}?embed=0#src=${encodeURIComponent(code)}`);
+    await page.waitForSelector('button.p-button-sm', { timeout: 45000 });
+    await new Promise(r => setTimeout(r, 1500)); await page.keyboard.press('F6'); // the export button replaces Render after a full render
+    await page.waitForSelector('.p-splitbutton-menubutton', { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector('.p-splitbutton-menubutton')?.disabled, { timeout: 60000 });
+    await page.evaluate(() => {
+      window.__downloads = [];
+      HTMLAnchorElement.prototype.click = function () { window.__downloads.push({ href: this.href, name: this.download }); };
+    });
+    await page.click('.p-splitbutton-menubutton');
+    await page.waitForSelector('.p-tieredmenu .p-menuitem-link');
+    expect(await page.$eval('.p-tieredmenu .p-menuitem-link', e => e.textContent)).toBe('SCAD (source)');
+    await page.click('.p-tieredmenu .p-menuitem-link');
+    await page.waitForFunction(() => window.__downloads.length === 1, { timeout: 30000 });
+    const dl = await page.evaluate(async () => ({ name: window.__downloads[0].name, text: await (await fetch(window.__downloads[0].href)).text() }));
+    expect(dl).toEqual({ name: 'playground.scad', text: code });
+    await page.setViewport({ width: 800, height: 600 });
   }, longTimeout);
 });
 
@@ -779,7 +810,7 @@ describe('GitHub ribbon', () => {
     // Runtime toggle through the settings menu, both ways.
     await page.click('button[title="Settings menu"]');
     await page.evaluate(() => Array.from(document.querySelectorAll('.p-menuitem-link')).find(a => a.textContent.includes('Embed mode')).click());
-    await page.waitForSelector('button[aria-label="Download .scad"]', { timeout: 20000 });
+    await page.waitForSelector('button[aria-label="Download"]', { timeout: 20000 });
     expect(await ribbonVisible(page)).toBe(false);
     await page.click('button[aria-label^="Exit embed mode"]');
     await page.waitForSelector('button[title="Settings menu"]', { timeout: 20000 });
@@ -787,14 +818,14 @@ describe('GitHub ribbon', () => {
 
     await page.goto('about:blank');
     await page.goto(`${baseUrl}?embed=1${src}`);
-    await page.waitForSelector('button[aria-label="Download .scad"]', { timeout: 45000 });
+    await page.waitForSelector('button[aria-label="Download"]', { timeout: 45000 });
     expect(await ribbonVisible(page)).toBe(false);
 
     // Framed: no ?embed at all.
     await page.goto(`${baseUrl}manifest.json`);
     await page.evaluate((u) => { document.body.innerHTML = `<iframe style="width:1100px;height:800px" src="${u}"></iframe>`; }, `${baseUrl}${src}`);
     const frame = await (await page.waitForSelector('iframe')).contentFrame();
-    await frame.waitForSelector('button[aria-label="Download .scad"]', { timeout: 45000 });
+    await frame.waitForSelector('button[aria-label="Download"]', { timeout: 45000 });
     expect(await ribbonVisible(frame)).toBe(false);
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].location?.url?.endsWith('/favicon.ico')) messages.splice(i, 1);
     await page.setViewport({ width: 800, height: 600 });
