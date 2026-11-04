@@ -19,6 +19,8 @@
  * win. A different invocation never gets stale state.
  */
 
+import { normalizeStoredSettings } from './animation.ts';
+
 export const VIEW_STATE_VERSION = 1;
 /** Hard cap on the serialized state. */
 export const VIEW_STATE_MAX_BYTES = 64 * 1024;
@@ -42,6 +44,8 @@ export interface ViewState {
   embed?: boolean;
   overlay?: boolean;
   axes?: boolean;
+  /** Animation loop settings (when changed from the defaults) and the animation time of a `$t` model. */
+  anim?: { steps?: number; fps?: number; t?: number };
 }
 
 /** Stable short hash of a tool invocation's explicit input. */
@@ -112,6 +116,12 @@ export function parseViewState(raw: unknown): ViewState | null {
     if (typeof r.embed === 'boolean') out.embed = r.embed;
     if (typeof r.overlay === 'boolean') out.overlay = r.overlay;
     if (typeof r.axes === 'boolean') out.axes = r.axes;
+    if (r.anim && typeof r.anim === 'object') {
+      const stored = normalizeStoredSettings(r.anim);
+      const anim: NonNullable<ViewState['anim']> = { ...stored };
+      if (isNum(r.anim.t) && r.anim.t >= 0 && r.anim.t < 1) anim.t = r.anim.t;
+      if (Object.keys(anim).length) out.anim = anim;
+    }
     return out;
   } catch {
     return null;

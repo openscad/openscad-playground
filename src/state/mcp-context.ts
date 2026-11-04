@@ -10,7 +10,7 @@
  * whole current picture and stale state never accumulates.
  */
 
-import { cameraText, formatDiagnostics, hasRenderFailure, type CameraState, type CapturedImage, type ViewerSnapshot } from './mcp-tools.ts';
+import { animationText, cameraText, formatDiagnostics, hasRenderFailure, type CameraState, type CapturedImage, type ViewerSnapshot } from './mcp-tools.ts';
 
 export type ContextBlock =
   | { type: 'text'; text: string; annotations?: { audience: string[] }; _meta?: Record<string, unknown> }
@@ -70,6 +70,7 @@ export function formatContextText(s: ViewerSnapshot, camera: CameraState | null,
   if (changed.length) lines.push(`Customizer values changed from defaults: ${changed.join('; ')}.`);
   const names = formatParameterNames(s);
   if (names) lines.push(names);
+  if (s.animation) lines.push(`Animation: ${animationText(s.animation)}.`);
   lines.push(`Layout: ${s.layout.mode}${s.layout.customizerOverlay ? ', customizer open' : ''}; axes ${s.showAxes ? 'shown' : 'hidden'}.`);
   const excerpt = source.length > CONTEXT_SOURCE_MAX_CHARS ? `${source.slice(0, CONTEXT_SOURCE_MAX_CHARS)}\n// … truncated (${source.length - CONTEXT_SOURCE_MAX_CHARS} more chars; use view_source)` : source;
   lines.push('', '```scad', excerpt, '```');
