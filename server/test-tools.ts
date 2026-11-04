@@ -68,6 +68,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     { name: "size", type: "number", group: "Style", initial: [1, 2, 3], value: [1, 2, 3], min: 0, max: 10, step: 1 },
   ];
   let layout: ViewerSnapshot["layout"] = { mode: "embed", customizerOverlay: false };
+  let animation: ViewerSnapshot["animation"];
 
   const snapshot = (): ViewerSnapshot => ({
     activePath: active,
@@ -82,6 +83,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     parameters: params,
     showAxes: false,
     layout,
+    ...(animation ? { animation } : {}),
   });
   const host: ViewerHost = {
     snapshot,
@@ -128,6 +130,14 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
       log.push(`layout ${JSON.stringify(r)}`);
     },
     setShowAxes: (b) => { log.push(`axes ${b}`); },
+    setAnimation: async (r) => {
+      log.push(`animation ${JSON.stringify(r)}`);
+      if (!animation) return null;
+      const steps = r.steps ?? animation.steps;
+      const frame = r.t != null ? Math.round(r.t * steps) % steps : animation.frame;
+      animation = { ...animation, steps, fps: r.fps ?? animation.fps, frame, t: frame / steps, playing: r.playing ?? (r.t != null ? false : animation.playing) };
+      return animation;
+    },
     getCamera: async () => camera,
     setCamera: async (r) => {
       camera = { ...camera, theta: r.theta, phi: r.phi, radius: r.distance ?? camera.radius };
@@ -148,6 +158,7 @@ function mockHost(initial: Record<string, string> = { "/playground.scad": "cube(
     opts,
     setTimedOut: (t: boolean) => { timedOut = t; },
     camera: () => camera,
+    setAnimation: (a: ViewerSnapshot["animation"]) => { animation = a; },
   };
 }
 
@@ -692,6 +703,27 @@ async function main() {
     assert.ok((await call("set_view_options", {})).isError);
     assert.ok(!(await call("set_view_options", { show_axes: true })).isError);
     assert.ok(h.log.includes("axes true"));
+  });
+  await test("set_view_options animation: controls a $t model, rejects others", async () => {
+    const h = mockHost({ "/playground.scad": "rotate($t*360) cube(10);\n" });
+    const { call } = tools(h);
+    const r0 = await call("set_view_options", { animation: { playing: true } });
+    assert.ok(r0.isError, "not animated: nothing to control");
+    assert.match(textOf(r0), /does not read \$t/);
+    h.setAnimation({ playing: false, frame: 0, t: 0, steps: 30, fps: 15, ready: 0 });
+    const r = await call("set_view_options", { animation: { t: 0.5, fps: 10 } });
+    assert.ok(!r.isError, textOf(r));
+    assert.match(textOf(r), /\$t=0\.5 \(frame 16 of 30, 10 fps, paused\)/);
+    assert.match(textOf(await call("set_view_options", { animation: { playing: true } })), /playing/);
+    assert.ok((await call("set_view_options", { animation: {} })).isError);
+    assert.ok((await call("set_view_options", { animation: { t: 2 } })).isError, "zod range");
+    assert.ok((await call("set_view_options", { animation: { steps: 1 } })).isError);
+    assert.match(textOf(await call("set_view_options", { show_axes: true, animation: { playing: false } })), /Axes shown\. Animation: .*paused/);
+    assert.match(textOf(await call("get_viewer_state")), /Animation: \$t=0\.5 .*set_view_options animation/);
+  });
+  await test("get_viewer_state says nothing about animation for a model without $t", async () => {
+    const { call } = tools();
+    assert.doesNotMatch(textOf(await call("get_viewer_state")), /Animation/);
   });
   await test("screenshot returns one image per view and restores the camera", async () => {
     const h = mockHost();

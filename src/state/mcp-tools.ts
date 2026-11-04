@@ -9,6 +9,7 @@
  * tested against a mock host (server/test-tools.ts).
  */
 
+import type { AnimationInfo, AnimationRequest } from './animation.ts';
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import { z } from 'zod';
 import { ExportError, LINK_CAP, dataUri, SIZE_CAPS, deliveryPlan, formatSize, stepName, formatsFor, parseFormat, type ExportFormat, type HostFileCapabilities, type Step } from './export-logic.ts';
@@ -99,6 +100,8 @@ export interface LayoutRequest {
   focus?: 'editor' | 'viewer' | 'customizer';
 }
 
+export type { AnimationInfo, AnimationRequest } from './animation.ts';
+
 export interface ViewerSnapshot {
   activePath: string;
   files: FileInfo[];
@@ -116,6 +119,8 @@ export interface ViewerSnapshot {
   parameters: ParameterInfo[];
   showAxes: boolean;
   layout: LayoutInfo;
+  /** Only when the model reads `$t`. */
+  animation?: AnimationInfo;
 }
 
 export interface CapturedImage {
@@ -155,6 +160,8 @@ export interface ViewerHost {
   resetParameters(names?: string[]): boolean;
   setLayout(req: LayoutRequest): void;
   setShowAxes(show: boolean): void;
+  /** Control the animation of a `$t` model; resolves once a requested frame is displayed. Returns the resulting state, or null if the model does not animate. */
+  setAnimation(req: AnimationRequest): Promise<AnimationInfo | null>;
   getCamera(): Promise<CameraState | null>;
   setCamera(camera: ResolvedCamera): Promise<CameraState | null>;
   /** Wait until the viewer has loaded the latest rendered model. */
@@ -174,6 +181,10 @@ const fmtNum = (n: number) => String(Math.round(n * 1000) / 1000);
 
 function formatDiagnostic(d: Diagnostic): string {
   return `  ${d.path}:${d.line}:${d.column}: ${d.severity}: ${d.message}`;
+}
+
+export function animationText(a: AnimationInfo): string {
+  return `$t=${fmtNum(a.t)} (frame ${a.frame + 1} of ${a.steps}, ${a.fps} fps, ${a.playing ? 'playing' : 'paused'})`;
 }
 
 export function hasRenderFailure(s: ViewerSnapshot): boolean {
@@ -497,6 +508,7 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
         const cam = await host.getCamera();
         lines.push(`Camera: ${cam ? cameraText(cam) : 'unavailable (viewer not ready)'}`);
         lines.push(`View: axes ${s.showAxes ? 'shown' : 'hidden'}`);
+        if (s.animation) lines.push(`Animation: ${animationText(s.animation)}; the model reads $t, so it can be played, paused and scrubbed (set_view_options animation).`);
         lines.push(`Layout: ${layoutText(s.layout)}`);
         lines.push(`Exportable: ${s.hasOutput && !hasRenderFailure(s) ? 'yes (a model has been rendered)' : 'no'}`);
         return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { ...s } as Record<string, unknown> };
@@ -767,15 +779,35 @@ export function createTools(getHost: () => Promise<ViewerHost>): AppToolDef[] {
       name: 'set_view_options',
       title: 'Set viewer options',
       description:
-        'Toggle viewer display options. Currently: show_axes (the orientation axes gizmo in the corner of the viewer). ' +
+        'Toggle viewer display options: show_axes (the orientation axes gizmo in the corner of the viewer) and, for models that read the animation ' +
+        'time variable $t, `animation`: playing (loop the animation), t (0 <= t < 1: show that moment, pauses), steps (frames per loop), fps. ' +
         'The embedded viewer has no editor/layout panes, shadows or wireframe mode.',
-      inputSchema: z.object({ show_axes: z.boolean().optional().describe('Show or hide the axes gizmo.') }),
+      inputSchema: z.object({
+        show_axes: z.boolean().optional().describe('Show or hide the axes gizmo.'),
+        animation: z.object({
+          playing: z.boolean().optional().describe('Start or stop looping the animation.'),
+          t: z.number().min(0).max(1).optional().describe('Animation time $t to show (0 <= t < 1; 1 wraps to 0). Pauses playback; a screenshot afterwards shows this frame.'),
+          steps: z.number().int().min(2).max(360).optional().describe('Frames per loop (default 30).'),
+          fps: z.number().min(1).max(60).optional().describe('Playback speed in frames per second (default 15).'),
+        }).optional().describe('Only for models that use $t.'),
+      }),
       annotations: { destructiveHint: false, idempotentHint: true },
-      handler: async ({ show_axes }) => {
+      handler: async ({ show_axes, animation }) => {
         const host = await getHost();
-        if (show_axes == null) throw new ToolError('Pass at least one option (show_axes)');
-        host.setShowAxes(show_axes);
-        return text(`Axes ${show_axes ? 'shown' : 'hidden'}.`);
+        if (show_axes == null && animation == null) throw new ToolError('Pass at least one option (show_axes, animation)');
+        const done: string[] = [];
+        if (show_axes != null) {
+          host.setShowAxes(show_axes);
+          done.push(`Axes ${show_axes ? 'shown' : 'hidden'}.`);
+        }
+        if (animation != null) {
+          if (Object.values(animation).every(v => v === undefined)) throw new ToolError('animation: pass at least one of playing, t, steps, fps');
+          await host.settle(RENDER_TIMEOUT_MS); // the model may not have been rendered (and detected as animated) yet
+          const info = await host.setAnimation(animation);
+          if (!info) throw new ToolError('The active file does not read $t, so there is no animation to control.');
+          done.push(`Animation: ${animationText(info)}.`);
+        }
+        return text(done.join(' '));
       },
     }),
 

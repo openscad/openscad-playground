@@ -15,6 +15,7 @@ import ViewerPanel, { ViewerPanelHandle } from './ViewerPanel.tsx';
 import CustomizerPanel from './CustomizerPanel.tsx';
 import { notify, visuallyHidden, type NotifyLevel } from '../state/notify.ts';
 import { FORMAT_INFO, formatsFor, type ExportFormat } from '../state/export-logic.ts';
+import { AnimationBar, AnimationIcons, playLabel } from './AnimationControls.tsx';
 
 export interface EmbedViewProps {
   viewerRef: React.Ref<ViewerPanelHandle>;
@@ -365,6 +366,19 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
               </div>
             )}
 
+      {/* Animation time slider (models that read $t), bottom, clear of the axes gizmo */}
+      {state.animation && (
+        <div className="mcp-toolbar" style={{
+          position: 'absolute', left: 116, right: 8, bottom: 8, zIndex: 60, display: 'flex', justifyContent: 'flex-start',
+          pointerEvents: 'none',
+        }}>
+          <AnimationBar dark style={{
+            pointerEvents: 'auto', flex: 1, maxWidth: 480, padding: '4px 10px', borderRadius: 8, color: '#fff',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+          }} />
+        </div>
+      )}
+
       {/* The one toolbar, top-right: everything the embed UI offers */}
       <div ref={toolbarRef} className="mcp-toolbar" role="toolbar" aria-label="Viewer actions" style={{
         position: 'absolute',
@@ -387,6 +401,14 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             ariaControls={showCustomizer ? panelId : undefined}
             buttonRef={buttonRef}
             onClick={() => setShowCustomizer(!showCustomizer)}
+          />
+        )}
+        {state.animation && (
+          <CornerButton
+            icon={state.animation.playing ? AnimationIcons.pause : AnimationIcons.play}
+            label={playLabel(state.animation.playing)}
+            active={state.animation.playing}
+            onClick={() => model.animation.toggle()}
           />
         )}
         <span className={busyNow ? 'embed-spin' : undefined} style={{ display: 'flex' }}>

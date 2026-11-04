@@ -1,10 +1,14 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
-import { checkSyntax, render, renderIsolated, RenderArgs, RenderOutput } from "../runner/actions.ts";
-import { MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state.ts";
+import { checkSyntax, render, renderIsolated, renderAnimationFrame, RenderArgs, RenderOutput } from "../runner/actions.ts";
+import { FileOutput, MultiLayoutComponentId, SingleLayoutComponentId, State, StatePersister } from "./app-state.ts";
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
 import { bubbleUpDeepMutations } from "./deep-mutate.ts";
-import { downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL, SupersededError } from '../utils.ts'
+import { AbortablePromise, downloadUrl, fetchSource, formatBytes, formatMillis, readFileAsDataURL, SupersededError } from '../utils.ts'
+import { AnimationController, AnimationFrame, AnimationInfo, AnimationRequest, AnimationSettings, clampSettings, DEFAULT_SETTINGS, DEFAULT_SETTINGS_SLOW, FRAME_CACHE_MAX_ENTRIES, frameAt } from "./animation.ts";
+import { projectUsesAnimationTime } from "./animation-detect.ts";
+import { projectKey } from "./animation-cache.ts";
+import { detectWasmSupport, getForcedEngine } from "../runner/wasm-support.ts";
 
 import JSZip from 'jszip';
 import { ProcessStreams } from "../runner/openscad-runner.ts";
@@ -19,6 +23,14 @@ import type { ExportFormat } from "./export-logic.ts";
 
 const githubRx = /^https:\/\/github.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
 
+/** A rendered animation frame, as kept by the Model's frame cache. */
+interface RenderedFrame extends AnimationFrame {
+  output: FileOutput;
+  is2D: boolean;
+}
+
+const isSlowEngine = () => !detectWasmSupport() || getForcedEngine() === 'wasm2js';
+
 export class Model {
   // Call counters: every check/render call supersedes the previous one (the job runner cancels the older job and
   // rejects its promise), so only the newest call may touch the busy flags or publish its output. Otherwise an
@@ -26,8 +38,34 @@ export class Model {
   private renderGen = 0;
   private syntaxGen = 0;
 
+  /** Animation playback and frame cache (only active while the model reads `$t`, see syncAnimation). */
+  readonly animation: AnimationController<RenderedFrame>;
+  /** Blob URLs of the cached animation frames: the normal render must not revoke them. */
+  private frameUrls = new Set<string>();
+  /** Animation time to apply the next time the model turns out to be animated (restored view state). */
+  private pendingAnimationT?: number;
+  private wasBusy = false;
+
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
     private statePersister?: StatePersister) {
+    this.animation = new AnimationController<RenderedFrame>({
+      settings: () => this.animationSettings,
+      renderFrame: t => this.renderFrameJob(t),
+      show: frame => this.showFrame(frame),
+      release: frame => this.releaseFrame(frame),
+      busy: () => !!(this.state.previewing || this.state.rendering),
+      hidden: () => typeof document !== 'undefined' && document.hidden,
+      publish: ({playing, frame, ready}) => {
+        const a = this.state.animation;
+        if (!a || (a.playing === playing && a.frame === frame && a.ready === ready)) return;
+        this.mutate(s => { if (s.animation) { s.animation = {...s.animation, playing, frame, ready}; } });
+      },
+      error: e => {
+        console.error('Error while rendering an animation frame:', e);
+        this.mutate(s => s.error = `Animation: ${e}`);
+      },
+      lookahead: () => isSlowEngine() ? 1 : Math.min(this.animationSettings.steps - 1, FRAME_CACHE_MAX_ENTRIES - 2),
+    });
   }
   
   init() {
@@ -38,6 +76,12 @@ export class Model {
 
   private setState(state: State) {
     this.state = state;
+    // A normal render just ended: background frame rendering may go on. (mutate() edits the old state in place,
+    // so the previous busy flag has to be remembered.)
+    const busy = !!(state.previewing || state.rendering);
+    const wasBusy = this.wasBusy;
+    this.wasBusy = busy;
+    if (wasBusy && !busy) queueMicrotask(() => this.animation.resume());
     this.statePersister && this.statePersister.set(state);
     this.setStateCallback && this.setStateCallback(state);
   }
@@ -414,6 +458,195 @@ export class Model {
     }
   }
 
+  // ── Animation (see docs/ANIMATION.md) ─────────────────────────────────
+
+  /** Loop settings in effect: the user's, else the defaults for the engine in use. */
+  get animationSettings(): AnimationSettings {
+    return clampSettings(this.state.view.animation, isSlowEngine() ? DEFAULT_SETTINGS_SLOW : DEFAULT_SETTINGS);
+  }
+
+  /** Change the loop length / speed; the animation time is kept. */
+  setAnimationSettings(settings: Partial<AnimationSettings>) {
+    const t = this.animation.t;
+    const next = clampSettings({...this.animationSettings, ...settings});
+    const before = this.animationSettings;
+    this.mutate(s => s.view.animation = {steps: next.steps, fps: next.fps});
+    if (next.steps !== before.steps) this.animation.retime(t);
+  }
+
+  /** Animation state as the MCP tools report it; undefined unless the model reads `$t`. */
+  get animationInfo(): AnimationInfo | undefined {
+    const a = this.state.animation;
+    if (!a) return undefined;
+    const {steps, fps} = this.animationSettings;
+    return {playing: a.playing, frame: a.frame, t: a.frame / steps, steps, fps, ready: a.ready};
+  }
+
+  /** MCP tool entry: apply an animation request (settings first, then the time, then play / pause). Null if the model does not animate. */
+  async applyAnimationRequest(req: AnimationRequest): Promise<AnimationInfo | null> {
+    if (!this.state.animation) return null;
+    const {steps, fps} = req;
+    if (steps != null || fps != null) {
+      this.setAnimationSettings({...(steps != null ? {steps} : {}), ...(fps != null ? {fps} : {})});
+    }
+    if (req.t != null) await this.seekAnimation(frameAt(req.t, this.animationSettings.steps));
+    if (req.playing === true) this.animation.play();
+    else if (req.playing === false) this.animation.pause();
+    return this.animationInfo ?? null;
+  }
+
+  /** The animation time `$t` the next normal render uses (0 <= t < 1). */
+  get animationTime(): number {
+    return this.state.animation ? this.animation.t : 0;
+  }
+
+  /** Restore a saved animation time once the model is known to be animated. */
+  setInitialAnimationTime(t: number) {
+    if (this.state.animation) this.animation.retime(t); else this.pendingAnimationT = t;
+  }
+
+  /** Jump to a frame (pauses) and wait until it is displayed (or the timeout). Used by the MCP tools. */
+  async seekAnimation(frame: number, timeoutMs = 20_000): Promise<boolean> {
+    if (!this.state.animation) return false;
+    const steps = this.animationSettings.steps;
+    const index = ((Math.round(frame) % steps) + steps) % steps;
+    this.animation.seek(index);
+    const deadline = Date.now() + timeoutMs;
+    while (this.animation.shown !== index && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 50));
+      if (!this.state.animation) return false;
+    }
+    return this.animation.shown === index;
+  }
+
+  /**
+   * Called at the start of every normal render: detects whether the model animates, and drops the frame cache (and
+   * stops playing) as soon as anything the frames depend on has changed.
+   */
+  private syncAnimation(isPreview: boolean) {
+    const {activePath, sources} = this.state.params;
+    if (!projectUsesAnimationTime(sources, activePath)) {
+      this.animation.invalidate('');
+      if (this.state.animation) this.mutate(s => s.animation = undefined);
+      return;
+    }
+    if (!this.state.animation) {
+      this.mutate(s => s.animation = {playing: false, frame: 0, ready: 0, showing: false});
+    }
+    this.animation.invalidate(projectKey(this.state.params));
+    if (this.pendingAnimationT !== undefined) {
+      this.animation.retime(this.pendingAnimationT);
+      this.pendingAnimationT = undefined;
+    }
+    if (!isPreview) this.animation.pause(); // an explicit Render: the final model of the current frame
+    this.animation.yieldToRender();
+  }
+
+  /** Render one frame: a preview of the active file with `$t` set. Cancellable (killed => SupersededError). */
+  private renderFrameJob(t: number): AbortablePromise<RenderedFrame> {
+    const {activePath, sources, vars, features} = this.state.params;
+    const frameT = Math.round(t * 1e6) / 1e6;
+    const args: RenderArgs = {
+      mountArchives: true,
+      scadPath: activePath,
+      sources,
+      vars: {...vars, $t: frameT},
+      features,
+      isPreview: true,
+      renderFormat: this.state.is2D ? 'svg' : 'off',
+      streamsCallback: () => {},
+    };
+    return AbortablePromise<RenderedFrame>((resolve, reject) => {
+      let killed = false;
+      const job = renderAnimationFrame(args)({now: true});
+      (async () => {
+        try {
+          const output = await job;
+          const {displayFile, is2D} = await this.toDisplayFile(output, features, renderAnimationFrame);
+          const displayFileURL = await readFileAsDataURL(displayFile);
+          if (killed) return;
+          const outFileURL = URL.createObjectURL(output.outFile);
+          this.frameUrls.add(outFileURL);
+          resolve({
+            url: displayFileURL,
+            bytes: output.outFile.size + Math.round(displayFile.size * 1.4),
+            is2D,
+            output: {
+              outFile: output.outFile,
+              outFileURL,
+              displayFile,
+              displayFileURL,
+              elapsedMillis: output.elapsedMillis,
+              formattedElapsedMillis: formatMillis(output.elapsedMillis),
+              formattedOutFileSize: formatBytes(output.outFile.size),
+            },
+          });
+        } catch (e) {
+          if (!killed) reject(e);
+        }
+      })();
+      return () => { killed = true; job.kill(); reject(new SupersededError()); };
+    });
+  }
+
+  private showFrame(frame: RenderedFrame) {
+    this.mutate(s => {
+      this.revokeOutput(s.output);
+      s.output = {isPreview: true, ...frame.output};
+      s.is2D = frame.is2D;
+      s.error = undefined;
+      if (s.animation) s.animation = {...s.animation, showing: true};
+    });
+  }
+
+  private releaseFrame(frame: RenderedFrame) {
+    const url = frame.output.outFileURL;
+    this.frameUrls.delete(url);
+    if (this.state.output?.outFileURL !== url) URL.revokeObjectURL(url); // (a frame still on display is left to the next render)
+  }
+
+  /** Revoke the blob URLs of an output that is being replaced, except those of cached frames. */
+  private revokeOutput(output: State['output']) {
+    for (const url of [output?.outFileURL, output?.displayFileURL]) {
+      if (url?.startsWith('blob:') && !this.frameUrls.has(url)) URL.revokeObjectURL(url);
+    }
+  }
+
+  /** The displayable form of a render: 2D outputs are extruded, OFF is converted to GLB. */
+  private async toDisplayFile(output: RenderOutput, features: string[] | undefined, renderFn: typeof render): Promise<{displayFile: File, is2D: boolean}> {
+    let displayFile = output.outFile;
+    let is2D = false;
+    if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
+      is2D = true;
+      const fn = output.outFile.name;
+      const extrudedOutput = await renderFn({
+        mountArchives: false,
+        scadPath: '/extruded.scad',
+        sources: [
+          {
+            path: '/extruded.scad',
+            content: `linear_extrude(0.1) import("${fn}");`,
+          },
+          {
+            path: `/${fn}`,
+            url: await readFileAsDataURL(output.outFile),
+          },
+        ],
+        vars: {},
+        features,
+        isPreview: false,
+        renderFormat: 'off',
+        streamsCallback: () => {},
+      })({now: true});
+      displayFile = extrudedOutput.outFile;
+    }
+    if (displayFile.name.endsWith('.off')) {
+      const offData = parseOff(await displayFile.text());
+      displayFile = new File([await exportGlb(offData)], displayFile.name.replace('.off', '.glb'));
+    }
+    return {displayFile, is2D};
+  }
+
   async render({isPreview, mountArchives, now, retryInOtherDim}: {isPreview: boolean, mountArchives?: boolean, now: boolean, retryInOtherDim?: boolean}) {
     // console.log(JSON.stringify(this.state, null, 2));
     mountArchives ??= true;
@@ -425,6 +658,7 @@ export class Model {
         s.rendering = value;
       }
     }
+    this.syncAnimation(isPreview);
     // This call supersedes any older one (see renderGen): its busy flag replaces the older call's.
     const gen = ++this.renderGen;
     this.mutate(s => {
@@ -439,6 +673,9 @@ export class Model {
       vars,
       features,
     } = this.state.params;
+
+    // Animated models render at the current animation time (0 until the animation is played or scrubbed).
+    if (this.state.animation) vars = {...vars, $t: Math.round(this.animationTime * 1e6) / 1e6};
 
     let is2D = this.state.is2D;
 
@@ -481,37 +718,9 @@ export class Model {
     try {
       let output = await render(renderArgs)({now});
       if (gen !== this.renderGen) return;
-      let displayFile = output.outFile;
-      if (output.outFile.name.endsWith('.svg') || output.outFile.name.endsWith('.dxf')) {
-        is2D = true;
-        const fn = output.outFile.name;
-        const extrudedOutput = await render({
-          mountArchives: false,
-          scadPath: '/extruded.scad',
-          sources: [
-            {
-              path: '/extruded.scad',
-              content: `linear_extrude(0.1) import("${fn}");`,
-            },
-            {
-              path: `/${fn}`,
-              url: await readFileAsDataURL(output.outFile),
-            },
-          ],
-          vars: {},
-          features,
-          isPreview: false,
-          renderFormat: 'off',
-          streamsCallback: this.rawStreamsCallback.bind(this)
-        })({now});
-        displayFile = extrudedOutput.outFile;
-      } else {
-        is2D = false;
-      }
-      if (displayFile.name.endsWith('.off')) {
-        const offData = parseOff(await displayFile.text());
-        displayFile = new File([await exportGlb(offData)], displayFile.name.replace('.off', '.glb'));
-      }
+      const shown = await this.toDisplayFile(output, features, render);
+      const displayFile = shown.displayFile;
+      is2D = shown.is2D;
       const outFileURL = URL.createObjectURL(output.outFile);
       const displayFileURL = displayFile && await readFileAsDataURL(displayFile);
       if (gen !== this.renderGen) return;
@@ -523,12 +732,8 @@ export class Model {
           logText: output.logText,
           markers: output.markers,
         }
-        if (s.output?.outFileURL?.startsWith('blob:') ?? false) {
-          URL.revokeObjectURL(s.output!.outFileURL);
-        }
-        if (s.output?.displayFileURL?.startsWith('blob:') ?? false) {
-          URL.revokeObjectURL(s.output!.displayFileURL!);
-        }
+        this.revokeOutput(s.output);
+        if (s.animation) s.animation = {...s.animation, showing: false};
 
         s.output = {
           isPreview: isPreview,

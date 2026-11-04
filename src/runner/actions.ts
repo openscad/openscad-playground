@@ -192,3 +192,8 @@ export const render = turnIntoDelayableExecution(renderDelay, renderJob);
  * cancel the displayed render nor be cancelled by it.
  */
 export const renderIsolated = turnIntoDelayableExecution(renderDelay, renderJob);
+/**
+ * Same job again, in its own slot: animation frames are rendered in the background and neither cancel the displayed
+ * render nor are cancelled by it (the animation controller yields explicitly, see state/animation.ts).
+ */
+export const renderAnimationFrame = turnIntoDelayableExecution(renderDelay, renderJob);
