@@ -262,6 +262,8 @@ The app uses WebAssembly by default. When WebAssembly is unavailable (e.g. iOS L
 
 In the MCP App the page lives on the host's sandbox origin while assets live on `OPENSCAD_BASE_URL`. The worker is started through a blob wrapper that resolves relative `importScripts()`/`fetch()` URLs against the asset origin, so the fallback script is fetched from `OPENSCAD_BASE_URL` too. Make sure it is served from there (in `--serve-dist` mode, copy it into `dist/`; it is ~22 MB and only downloaded when needed) and that the origin is allowed by the CSP, which the server derives from `OPENSCAD_BASE_URL`.
 
+Everything else the view loads is pinned to the same origin, because relative URLs resolve against the host's sandbox: the HTML references only absolute URLs; webpack's public path (lazy chunks) is set from the `openscad-base-url` meta tag (`src/public-path.ts`); CSS `url()` references (Inter, PrimeIcons) are rewritten onto it when the stylesheets are injected (`src/style-tag-transform.ts`); fetches, the skybox/axes models, library archives and the worker go through `resolveUrl()`. No `<base>` element is used (it would need `baseUriDomains` and would re-point every relative URL, including in third-party code). `test-asset-origins.ts` (static) and `test-origins-e2e.ts` (headless Chrome, three origins, fails on any request that leaves the asset origin or any CSP violation) guard this.
+
 ## Development
 
 ```bash
