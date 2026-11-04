@@ -32,9 +32,9 @@ import { DeclinedError, deliverPlanViaHost, hostFileCaps, type ExportedFile } fr
 import { bytesToBase64, buildFilename, deliveryPlan, FORMAT_INFO, formatSize, type ExportFormat } from '../state/export-logic.ts';
 import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from '../state/mcp-file.ts';
 import {
-  HostViewStateWriter, ViewStateSaver, chooseRestore, fingerprint, loadLocal, readHostViewState, saveLocal,
-  type ViewState, type ViewStateHostApp,
+  ViewStateSaver, chooseRestore, fingerprint, type ViewState,
 } from '../state/mcp-viewstate.ts';
+import { ViewPersistence, readViewUUID, storageKeyFor, type PersistenceApp } from '../state/mcp-view-persistence.ts';
 import { ContextScheduler } from '../state/mcp-context.ts';
 import { canonicalPreset, lineCount, presetOrbit } from '../state/mcp-tools-logic.ts';
 import { encodeStateParamsAsFragment } from '../state/fragment-state.ts';
@@ -162,17 +162,15 @@ export function McpApp({
   }, []);
 
   // ── View-state persistence (see state/mcp-viewstate.ts for the rules) ──
-  // Saved state is restored only when this mount carries the same tool invocation it was saved for (a reload/replay);
-  // a different create({source}) or a file entrypoint always wins over it.
-  const storageKey = useMemo(() => {
-    const base = document.querySelector('meta[name="openscad-base-url"]')?.getAttribute('content') ?? '';
-    const id = (app.getHostContext() as { toolInfo?: { id?: string | number } } | undefined)?.toolInfo?.id;
-    return `openscad-mcp-view:${base}:${id ?? ''}`;
-  }, [app]);
-  const savedCandidates = useMemo(() => [readHostViewState(app as unknown as ViewStateHostApp), loadLocal(storageKey)], [app, storageKey]);
+  // Decided when the tool RESULT arrives: saved state is restored only for the same view instance (same
+  // `_meta.viewUUID`, i.e. a reload/replay of the original tool call); a new tool call, a new viewUUID, or a
+  // file entrypoint always starts from the tool's own input. Older servers (no viewUUID) fall back to a
+  // fingerprint of the tool input and a tool-id keyed localStorage entry.
+  const persistence = useMemo(() => new ViewPersistence(app as unknown as PersistenceApp), [app]);
+  const storageKeyRef = useRef<string | null>(null);
+  const inputArgsRef = useRef<unknown>(undefined);
   const invocationRef = useRef<string | null>(null);
   const restoredRef = useRef<ViewState | null>(null);
-  const hostViewWriter = useMemo(() => new HostViewStateWriter(app as unknown as ViewStateHostApp, z.looseObject({})), [app]);
 
   const applyRestored = useCallback((vs: ViewState) => {
     const m = modelRef.current;
@@ -197,16 +195,26 @@ export function McpApp({
     })();
   }, []);
 
-  /** First sight of an invocation: restore the saved state if it is the same invocation, else apply the tool's own input. */
-  const decideInvocation = useCallback((input: unknown, isFile: boolean): ViewState | null => {
+  /** First tool result of this mount: restore the saved state if it belongs to the same view instance. */
+  const decideInvocation = useCallback((result: unknown, isFile: boolean): ViewState | null => {
     if (invocationRef.current == null) {
-      invocationRef.current = fingerprint(input);
-      const restored = isFile ? null : chooseRestore(invocationRef.current, savedCandidates);
+      const uuid = readViewUUID(result);
+      const base = document.querySelector('meta[name="openscad-base-url"]')?.getAttribute('content') ?? '';
+      if (uuid) {
+        invocationRef.current = `uuid:${uuid}`;
+        storageKeyRef.current = storageKeyFor(uuid, base);
+      } else {
+        const sc = (result as { structuredContent?: unknown } | undefined)?.structuredContent;
+        invocationRef.current = fingerprint(inputArgsRef.current ?? sc);
+        const id = (app.getHostContext() as { toolInfo?: { id?: string | number } } | undefined)?.toolInfo?.id;
+        storageKeyRef.current = id == null ? null : storageKeyFor(String(id), base);
+      }
+      const restored = isFile ? null : chooseRestore(invocationRef.current, persistence.candidates(storageKeyRef.current));
       restoredRef.current = restored;
       if (restored) applyRestored(restored);
     }
     return restoredRef.current;
-  }, [savedCandidates, applyRestored]);
+  }, [app, persistence, applyRestored]);
 
   const collectViewState = useCallback(async (): Promise<ViewState | null> => {
     const m = modelRef.current;
@@ -225,9 +233,8 @@ export function McpApp({
     };
   }, []);
   const viewSaver = useMemo(() => new ViewStateSaver(collectViewState, [
-    json => saveLocal(storageKey, json),
-    async json => { if (!(await hostViewWriter.write(json)) && hostViewWriter.lastError) console.debug('[view-state] host write failed:', hostViewWriter.lastError); },
-  ]), [collectViewState, storageKey, hostViewWriter]);
+    (_json, state) => persistence.save(state, storageKeyRef.current),
+  ]), [collectViewState, persistence]);
   useEffect(() => {
     const flush = () => void viewSaver.flush();
     const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
@@ -261,19 +268,21 @@ export function McpApp({
     setInputAt(t => t ?? Date.now());
     const args = params.arguments ?? {};
     const hostFile = parseFileInput(args);
-    const restored = decideInvocation(args, !!hostFile);
+    inputArgsRef.current = args;
     if (hostFile) void openHostFile(hostFile);
-    // A replay of the invocation this state was saved for: the user's later edits win (for whatever the saved
-    // state kept; sources dropped by the size cap fall back to the tool's own).
-    if (args.source && typeof args.source === 'string' && !restored?.files?.length) {
+    // The saved state can only be matched to this view once the result brings its viewUUID. When the host
+    // already handed one over, leave source/vars to the result (which always carries them) instead of
+    // rendering the tool's input just to replace it.
+    const restoring = !hostFile && !!persistence.readHost();
+    if (args.source && typeof args.source === 'string' && !restoring) {
       applySource(args.source);
     }
-    if (args.vars && typeof args.vars === 'object' && !restored?.vars) {
+    if (args.vars && typeof args.vars === 'object' && !restoring) {
       for (const [name, value] of Object.entries(args.vars as Record<string, unknown>)) {
         modelRef.current.setVar(name, value);
       }
     }
-  }, [applySource, openHostFile, decideInvocation]);
+  }, [applySource, openHostFile, persistence]);
 
   // Apply the create tool's result — authoritative: carries the server-side
   // defaults (e.g. the demo source and camera preset when the model passed
@@ -283,7 +292,7 @@ export function McpApp({
     setInitialApplied(true); // from now on tool calls see the created model (see the gate below)
     const sc = params.structuredContent as Record<string, unknown> | undefined;
     if (!sc || typeof sc !== 'object') return;
-    const restored = decideInvocation(sc, !!parseFileInput(sc)); // see applyToolInput
+    const restored = decideInvocation(params, !!parseFileInput(sc)); // see applyToolInput
     if (typeof sc.source === 'string' && !restored?.files?.length && sc.source !== modelRef.current.source) {
       applySource(sc.source);
     }

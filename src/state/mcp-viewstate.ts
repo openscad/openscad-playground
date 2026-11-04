@@ -1,22 +1,16 @@
 /**
  * Best-effort persistence of the viewer's state across reloads/remounts, in
- * two places: the host (a `ui/set-view-state` request plus an initial
- * `viewState` handed to the view) and localStorage. DOM-free for tests.
+ * the host and in localStorage (see mcp-view-persistence.ts for where and how;
+ * this file is DOM-free logic for tests). Nothing here may throw into the app.
  *
- * The host API is NOT standardised yet (modelcontextprotocol/ext-apps#417, no
- * names in SDK 2.1.0 or the draft spec), so the names below are assumptions,
- * used defensively: reads look at `hostContext.viewState` then
- * `hostInfo.viewState`; writes use the request `ui/set-view-state`
- * `{viewState}` and stop for good after the first "method not found" (or
- * repeated timeouts). Nothing here may throw into the app.
- *
- * Restore precedence on mount: this invocation's explicit tool input (a
- * deliberate create({source}) or file entrypoint) > host viewState >
- * localStorage > defaults. "Explicit input wins" is decided by fingerprint:
- * the saved state records the fingerprint of the invocation that produced it;
- * it is restored only when the mount carries the SAME invocation (a reload or
- * replay of the original tool call), where the user's later edits should
- * win. A different invocation never gets stale state.
+ * Restore rule (decided when the tool RESULT arrives): the saved state names
+ * the view instance it belongs to (`inv`): `uuid:<viewUUID>` when the server
+ * sent `_meta.viewUUID`, else a fingerprint of the tool input (older servers).
+ * It is restored only for the SAME view instance (a reload or replay of the
+ * original tool call), where the user's later edits win over the tool's own
+ * source/vars/camera. A new tool call has a new viewUUID, so it starts fresh
+ * and never sees stale state. Among same-instance states: host > localStorage.
+ * File entrypoints (open_scad_file) never restore: the host file wins.
  */
 
 export const VIEW_STATE_VERSION = 1;
@@ -154,50 +148,6 @@ export function saveLocal(key: string, json: string, storage: KeyValueStorage | 
   try { storage?.setItem(key, json); return !!storage; } catch { return false; }
 }
 
-/** The slice of App used for host persistence. */
-export interface ViewStateHostApp {
-  getHostContext(): unknown;
-  getHostVersion(): unknown;
-  /** Non-spec methods need a result schema (SDK 2.x): `request(req, resultSchema, options)`. */
-  request(req: { method: string; params: unknown }, resultSchema: unknown, options?: unknown): Promise<unknown>;
-}
-
-/** Initial state the host handed over, if any (assumed names; see file header). */
-export function readHostViewState(app: ViewStateHostApp): unknown {
-  try {
-    return (app.getHostContext() as { viewState?: unknown } | undefined)?.viewState
-      ?? (app.getHostVersion() as { viewState?: unknown } | undefined)?.viewState;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Writes to the host; feature-detects once and gives up after a method-not-found. */
-export class HostViewStateWriter {
-  private disabled = false;
-  private failures = 0;
-  /** Last failure, for diagnostics. */
-  lastError: string | undefined;
-  constructor(private app: ViewStateHostApp, private resultSchema: unknown, private timeoutMs = 3000) {}
-
-  get enabled(): boolean { return !this.disabled; }
-
-  async write(json: string): Promise<boolean> {
-    if (this.disabled) return false;
-    try {
-      await this.app.request({ method: 'ui/set-view-state', params: { viewState: JSON.parse(json) } }, this.resultSchema, { timeout: this.timeoutMs });
-      this.failures = 0;
-      return true;
-    } catch (e) {
-      const err = e as { code?: number; message?: string };
-      this.lastError = err?.message ?? String(e);
-      if (err?.code === -32601 || /method not found|not supported|unknown method|no handler|no schema/i.test(err?.message ?? '')) this.disabled = true;
-      else if (++this.failures >= 3) this.disabled = true;
-      return false;
-    }
-  }
-}
-
 /**
  * Debounced saver: `request()` after every state change; `flush()` on
  * pagehide/visibilitychange. `collect` gathers the current state.
@@ -208,7 +158,7 @@ export class ViewStateSaver {
 
   constructor(
     private collect: () => Promise<ViewState | null> | ViewState | null,
-    private sinks: Array<(json: string) => unknown>,
+    private sinks: Array<(json: string, state: ViewState) => unknown>,
     private debounceMs = 700,
   ) {}
 
@@ -226,7 +176,7 @@ export class ViewStateSaver {
       if (!json || json === this.last) return;
       this.last = json;
       for (const sink of this.sinks) {
-        try { await sink(json); } catch { /* best effort */ }
+        try { await sink(json, state); } catch { /* best effort */ }
       }
     } catch { /* best effort */ }
   }

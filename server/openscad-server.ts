@@ -25,6 +25,7 @@ import {
   type CallToolResult,
   type ReadResourceResult,
 } from "@modelcontextprotocol/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { envBaseUrl } from "./base-url.js";
@@ -120,6 +121,17 @@ Workflow:
 Units are millimetres, Z is up.`;
 
 /**
+ * Result `_meta` identifying this view instance. The viewer keys its saved
+ * state (localStorage when the host cannot persist it) by `viewUUID`: a
+ * reload of the same tool call replays the same result, so it sees the same
+ * UUID; a new tool call gets a new one. `_meta` is not shown to the model.
+ * See the ext-apps Patterns guide ("Persisting view state").
+ */
+function viewMeta(): { viewUUID: string } {
+  return { viewUUID: randomUUID() };
+}
+
+/**
  * @param baseUrl Where the app's assets are served from (see base-url.ts).
  *   The server is stateless and created per request, so callers pass the
  *   base derived from that request. Defaults to the environment-derived one.
@@ -202,6 +214,7 @@ Customizer: top-level variables annotated like \`width = 60; // [10:100]\` becom
           camera,
           ...(vars ? { vars } : {}),
         },
+        _meta: viewMeta(),
       };
     },
   );
@@ -228,6 +241,7 @@ Customizer: top-level variables annotated like \`width = 60; // [10:100]\` becom
     async (): Promise<CallToolResult> => ({
       content: [{ type: "text", text: `OpenSCAD viewer opened with the default model.` }],
       structuredContent: { source: DEFAULT_SOURCE, camera: "diagonal" },
+      _meta: viewMeta(),
     }),
   );
 
@@ -254,6 +268,7 @@ Customizer: top-level variables annotated like \`width = 60; // [10:100]\` becom
     async ({ file }): Promise<CallToolResult> => ({
       content: [{ type: "text", text: `OpenSCAD viewer opened ${file.name}.` }],
       structuredContent: { file },
+      _meta: viewMeta(),
     }),
   );
 

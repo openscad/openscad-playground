@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { formatParameterNames, ContextScheduler, buildContextBlocks, captureForContext, changedParameters, formatContextText, readContextCaps, readyToPublish, CONTEXT_IMAGE_MAX_BASE64 } from "../src/state/mcp-context.ts";
 import { HostFileWriter, hasOpenAIResources, parseFileInput, readHostFile, type FileHostApp } from "../src/state/mcp-file.ts";
-import { HostViewStateWriter, ViewStateSaver, chooseRestore, fingerprint, loadLocal, parseViewState, readHostViewState, saveLocal, serializeViewState, type ViewState } from "../src/state/mcp-viewstate.ts";
+import { ViewStateSaver, chooseRestore, fingerprint, loadLocal, parseViewState, saveLocal, serializeViewState, type ViewState } from "../src/state/mcp-viewstate.ts";
 import type { CameraState, ViewerSnapshot } from "../src/state/mcp-tools.ts";
 
 const snap = (over: Partial<ViewerSnapshot> = {}): ViewerSnapshot => ({
@@ -167,28 +167,10 @@ async function main() {
     const ok = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
     assert.ok(saveLocal("k", "v", ok)); assert.equal(loadLocal("k", ok), "v");
   });
-  await test("host view state: reads assumed locations; writer stops after method-not-found", async () => {
-    assert.equal(readHostViewState({ getHostContext: () => ({ viewState: 1 }), getHostVersion: () => ({}), request: async () => ({}) }), 1);
-    assert.equal(readHostViewState({ getHostContext: () => ({}), getHostVersion: () => ({ viewState: 2 }), request: async () => ({}) }), 2);
-    assert.equal(readHostViewState({ getHostContext: () => { throw new Error("x"); }, getHostVersion: () => ({}), request: async () => ({}) }), undefined);
-    let calls = 0;
-    const w = new HostViewStateWriter({ getHostContext: () => ({}), getHostVersion: () => ({}), request: async () => { calls++; throw Object.assign(new Error("Method not found"), { code: -32601 }); } }, null);
-    assert.equal(await w.write("{\"v\":1}"), false);
-    assert.equal(await w.write("{\"v\":1}"), false);
-    assert.equal(calls, 1, "no retry after method-not-found");
-    let sent: any;
-    const ok = new HostViewStateWriter({ getHostContext: () => ({}), getHostVersion: () => ({}), request: async (r) => { sent = r; return {}; } }, null);
-    assert.ok(await ok.write("{\"v\":1}"));
-    assert.deepEqual(sent, { method: "ui/set-view-state", params: { viewState: { v: 1 } } });
-    let n = 0;
-    const flaky = new HostViewStateWriter({ getHostContext: () => ({}), getHostVersion: () => ({}), request: async () => { n++; throw new Error("timeout"); } }, null);
-    for (let i = 0; i < 5; i++) await flaky.write("{}");
-    assert.equal(n, 3, "gives up after repeated failures");
-  });
   await test("saver: debounces, skips unchanged, sinks may throw", async () => {
     const seen: string[] = [];
     let state = vs();
-    const saver = new ViewStateSaver(() => state, [(j) => { seen.push(j); }, () => { throw new Error("sink down"); }], 5);
+    const saver = new ViewStateSaver(() => state, [(j, st) => { assert.equal(st, state); seen.push(j); }, () => { throw new Error("sink down"); }], 5);
     saver.request(); saver.request(); saver.request();
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(seen.length, 1);

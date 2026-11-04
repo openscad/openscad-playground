@@ -98,6 +98,20 @@ async function main() {
     assert.ok((await client.callTool({ name: "open_scad_file", arguments: {} })).isError, "file is required");
   });
 
+  await test("every viewer-opening result carries a fresh viewUUID in _meta (not in structuredContent)", async () => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    const file = { name: "box.scad", resourceUri: "host-resource://box" };
+    const ids: string[] = [];
+    for (const [name, args] of [["create", {}], ["create", {}], ["open_openscad", {}], ["open_scad_file", { file }]] as const) {
+      const r = await client.callTool({ name, arguments: args });
+      const id = (r._meta as { viewUUID?: string } | undefined)?.viewUUID;
+      assert.match(id ?? "", uuid, name);
+      assert.equal("viewUUID" in (r.structuredContent as object), false, "kept out of the model-visible content");
+      ids.push(id!);
+    }
+    assert.equal(new Set(ids).size, ids.length, "new tool call => new viewUUID");
+  });
+
   await test("create description and server instructions carry the customizer reminder", async () => {
     const { tools } = await client.listTools();
     const reminder = /width = 60; \/\/ \[10:100\].*set_parameters.*does not modify the file.*get_parameters.*reset_parameters/s;
