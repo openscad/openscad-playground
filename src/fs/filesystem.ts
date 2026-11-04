@@ -67,7 +67,17 @@ export async function symlinkLibraries(archiveNames: string[], fs: FS, prefix='/
 
 function configureAndInstallFS(windowOrSelf: Window, options: any) {
   return new Promise(async (resolve, reject) => {
+    // BrowserFS.install() also defines a global `process` (a Node polyfill). Monaco, loaded afterwards, takes a
+    // global `process` for a Node environment and reads its platform ('browser') instead of the user agent: it
+    // then no longer sees macOS, and binds Ctrl+A rather than Cmd+A to Select All (and every other Cmd shortcut).
+    // Nothing in the page needs the global (BrowserFS has its own copy), so put back what was there.
+    const hadProcess = 'process' in windowOrSelf;
+    const previousProcess = (windowOrSelf as any).process;
     BrowserFS.install(windowOrSelf);
+    if (typeof window === 'object' && windowOrSelf === window) {
+      if (hadProcess) (windowOrSelf as any).process = previousProcess;
+      else delete (windowOrSelf as any).process;
+    }
     try {
       BrowserFS.configure(options, function (e: any) {
         if (e) reject(e);
