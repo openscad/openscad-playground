@@ -1,5 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+import { exportSource, type SourceFileInput } from "./state/export-source.ts";
 import { Source } from "./state/app-state.ts";
 import { getResourceLoader, ResourceLoader } from "./resource-loader.ts";
 
@@ -204,4 +205,14 @@ export function readFileAsDataURL(file: File) {
     reader.readAsDataURL(file);
   });
   // return URL.createObjectURL(file);
+}
+
+
+/** Browser download of the source of `path` (default: the active file). Returns the downloaded file name. */
+export function downloadSource(files: SourceFileInput[], activePath: string, path?: string): string {
+  const src = exportSource(files, activePath, path);
+  const url = URL.createObjectURL(new Blob([src.bytes as BlobPart], { type: src.mimeType }));
+  downloadUrl(url, src.filename);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return src.filename;
 }

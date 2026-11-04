@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { ModelContext } from './contexts.ts';
 
+import { downloadSource } from '../utils.ts';
 import { SplitButton } from 'primereact/splitbutton';
 import { MenuItem } from 'primereact/menuitem';
 
@@ -11,8 +12,15 @@ export default function ExportButton({className, style}: {className?: string, st
     if (!model) throw new Error('No model');
     const state = model.state;
 
+    const SCAD_ITEM: ExtendedMenuItem = {
+      label: 'SCAD (source)',
+      icon: 'pi pi-file-edit',
+      command: () => { downloadSource(state.params.sources, state.params.activePath); },
+    };
+
     const dropdownModel: ExtendedMenuItem[] = 
       state.is2D ? [
+        SCAD_ITEM,
         {
           data: 'svg',
           buttonLabel: 'SVG',
@@ -28,6 +36,7 @@ export default function ExportButton({className, style}: {className?: string, st
           command: () => model!.setFormats('dxf', undefined),
         },
       ] : [
+        SCAD_ITEM,
         {
           data: 'glb',
           buttonLabel: 'Download GLB',
@@ -67,7 +76,7 @@ export default function ExportButton({className, style}: {className?: string, st
       ];
 
     const exportFormat = state.is2D ? state.params.exportFormat2D : state.params.exportFormat3D;
-    const selectedItem = dropdownModel.filter(item => item.data === exportFormat)[0] || dropdownModel[0]!;
+    const selectedItem = dropdownModel.filter(item => item.data === exportFormat)[0] || dropdownModel.find(item => item.data)!;
 
   return (
     <div className={className} style={style}>

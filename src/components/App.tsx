@@ -11,9 +11,8 @@ import { useFullscreenApi } from './use-fullscreen';
 import { useEmbedClass } from './use-embed-class';
 import { EmbedIcons } from './EmbedView';
 import { startBackgroundLoading } from '../background-loading';
-import { exportSource } from '../state/export-source';
+import { downloadSource, downloadUrl } from '../utils';
 import { buildFilename, type ExportFormat } from '../state/export-logic';
-import { downloadUrl } from '../utils';
 
 
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
@@ -67,13 +66,8 @@ export function App({initialState, statePersister, fs}: {initialState: State, st
     return {message: `Downloaded ${name}`};
   };
 
-  const onDownloadSource = async () => {
-    const src = exportSource(model.state.params.sources, model.state.params.activePath);
-    const url = URL.createObjectURL(new Blob([src.bytes as BlobPart], {type: src.mimeType}));
-    downloadUrl(url, src.filename);
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    return {message: `Downloaded ${src.filename}`};
-  };
+  const onDownloadSource = async () =>
+    ({message: `Downloaded ${downloadSource(model.state.params.sources, model.state.params.activePath)}`});
 
   const isDark = false; // the web app has a light theme
 
