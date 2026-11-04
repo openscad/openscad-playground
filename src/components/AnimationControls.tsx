@@ -72,7 +72,7 @@ export function AnimationBar({ dark, style }: { dark?: boolean; style?: CSSPrope
         title={`Frame ${animation.frame + 1} of ${settings.steps}${rendering ? ` (${rendering})` : ''}`}
         onChange={e => model.animation.seek(Number(e.target.value))}
         onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); model.animation.toggle(); } }}
-        style={{ flex: 1, minWidth: 60, maxWidth: 360, accentColor: dark ? '#a5b4fc' : undefined, cursor: 'pointer' }} />
+        style={{ flex: 1, minWidth: 36, maxWidth: 520, accentColor: dark ? '#a5b4fc' : undefined, cursor: 'pointer' }} />
       <span data-testid="animation-time" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, monospace' }}>
         $t={t.toFixed(2)}
       </span>

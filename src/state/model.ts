@@ -44,6 +44,7 @@ export class Model {
   private frameUrls = new Set<string>();
   /** Animation time to apply the next time the model turns out to be animated (restored view state). */
   private pendingAnimationT?: number;
+  private wasBusy = false;
 
   constructor(private fs: FS, public state: State, private setStateCallback?: (state: State) => void, 
     private statePersister?: StatePersister) {
@@ -74,10 +75,13 @@ export class Model {
   }
 
   private setState(state: State) {
-    const wasBusy = !!(this.state.previewing || this.state.rendering);
     this.state = state;
-    // A normal render just ended: background frame rendering may go on.
-    if (wasBusy && !(state.previewing || state.rendering)) queueMicrotask(() => this.animation.resume());
+    // A normal render just ended: background frame rendering may go on. (mutate() edits the old state in place,
+    // so the previous busy flag has to be remembered.)
+    const busy = !!(state.previewing || state.rendering);
+    const wasBusy = this.wasBusy;
+    this.wasBusy = busy;
+    if (wasBusy && !busy) queueMicrotask(() => this.animation.resume());
     this.statePersister && this.statePersister.set(state);
     this.setStateCallback && this.setStateCallback(state);
   }

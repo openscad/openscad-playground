@@ -121,7 +121,10 @@ export function spawnOpenSCAD(
     const forceEngine = invocation.forceEngine ?? getForcedEngine();
     // Each attempt runs in a fresh worker: an Emscripten module can't be run twice.
     const run = (invocation: OpenSCADInvocation, retriesLeft: number) => {
-      worker = createWorker(resolveUrl('./openscad-worker.js'));
+      const thisWorker = worker = createWorker(resolveUrl('./openscad-worker.js'));
+      // Killing a job whose worker is still loading its scripts makes those loads fail with an uncaught error event
+      // (routine now that animation frames are cancelled whenever the user edits): ignore errors of dead workers.
+      thisWorker.onerror = (e) => { if (worker !== thisWorker) e.preventDefault(); };
       worker.onmessage = (e: MessageEvent<OpenSCADInvocationCallback>) => {
         if ('result' in e.data) {
           const {result} = e.data;

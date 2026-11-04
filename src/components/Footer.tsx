@@ -40,6 +40,19 @@ export default function Footer({style}: {style?: CSSProperties}) {
   const maxMarkerSeverity = markers.length == 0 ? undefined : markers.map(m => m.severity).reduce((a, b) => Math.max(a, b));
   
   return <>
+    {state.animation && (
+      // Animated model ($t): play/pause and the time slider on a row of their own, above the footer buttons.
+      <div className="flex flex-row gap-1" style={{alignItems: 'center', margin: '5px 5px 0'}}>
+        <Button type="button"
+            icon={state.animation.playing ? 'pi pi-pause' : 'pi pi-play'}
+            aria-label={playLabel(state.animation.playing)}
+            title={playLabel(state.animation.playing)}
+            text
+            className="p-button-sm"
+            onClick={() => model.animation.toggle()} />
+        <AnimationBar style={{flex: 1, maxWidth: 640}} />
+      </div>
+    )}
     <ProgressBar mode="indeterminate"
                 style={{
                   marginLeft: '5px',
@@ -74,16 +87,6 @@ export default function Footer({style}: {style?: CSSProperties}) {
         ) : undefined
       }
       <MultimaterialColorsDialog />
-      {state.animation && <>
-        <Button type="button"
-            icon={state.animation.playing ? 'pi pi-pause' : 'pi pi-play'}
-            aria-label={playLabel(state.animation.playing)}
-            title={playLabel(state.animation.playing)}
-            text
-            className="p-button-sm"
-            onClick={() => model.animation.toggle()} />
-        <AnimationBar style={{flex: '1 1 auto', maxWidth: 440}} />
-      </>}
       {/* <Button
         icon="pi pi-bolt"
         onClick={() => model.render({isPreview: false, now: true})}

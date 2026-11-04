@@ -19,7 +19,9 @@ import { downloadUrl } from '../utils';
 export function App({initialState, statePersister, fs}: {initialState: State, statePersister: StatePersister, fs: FS}) {
   const [state, setState] = useState(initialState);
   
-  const model = new Model(fs, state, setState, statePersister);
+  // One Model for the component's lifetime (as in the MCP app): it owns in-flight renders and the animation playback,
+  // which a Model per React render would lose; model.state always tracks the latest state.
+  const [model] = useState(() => new Model(fs, state, setState, statePersister));
   useEffect(() => model.init());
 
   // Only needed by the file picker, completions, offline use...: once the first render

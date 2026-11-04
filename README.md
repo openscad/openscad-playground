@@ -18,6 +18,7 @@ Licenses: see [LICENSES](./LICENSE).
 
 - Automatic preview on edit (F5), and full rendering on Ctrl+Enter (or F6). Using a trick to force $preview=true.
 - [Customizer](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Customizer) support
+- Animation: models that use `$t` get a play button and a time slider ([details](docs/ANIMATION.md))
 - Syntax highlighting
 - Ships with many standard SCAD libraries (can browse through them in the UI)
 - Autocomplete of imports
