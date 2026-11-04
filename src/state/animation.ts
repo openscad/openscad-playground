@@ -82,6 +82,26 @@ export function nearestCached(index: number, steps: number, isCached: (i: number
   return undefined;
 }
 
+/** Animation state, present only for models that read `$t`. */
+export interface AnimationInfo {
+  playing: boolean;
+  /** Current frame (0..steps-1) and the animation time $t it stands for. */
+  frame: number;
+  t: number;
+  steps: number;
+  fps: number;
+  /** Frames rendered so far. */
+  ready: number;
+}
+
+export interface AnimationRequest {
+  playing?: boolean;
+  /** Animation time 0 <= t < 1 (pauses and shows the nearest frame). */
+  t?: number;
+  steps?: number;
+  fps?: number;
+}
+
 export const loopSeconds = (s: AnimationSettings) => s.steps / s.fps;
 
 /** What the controller stores per frame; hosts add their own fields. */

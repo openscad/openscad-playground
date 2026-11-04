@@ -11,6 +11,7 @@ import HelpMenu from './HelpMenu.tsx';
 import ExportButton from './ExportButton.tsx';
 import SettingsMenu from './SettingsMenu.tsx';
 import MultimaterialColorsDialog from './MultimaterialColorsDialog.tsx';
+import { AnimationBar, playLabel } from './AnimationControls.tsx';
 
 
 export default function Footer({style}: {style?: CSSProperties}) {
@@ -73,6 +74,16 @@ export default function Footer({style}: {style?: CSSProperties}) {
         ) : undefined
       }
       <MultimaterialColorsDialog />
+      {state.animation && <>
+        <Button type="button"
+            icon={state.animation.playing ? 'pi pi-pause' : 'pi pi-play'}
+            aria-label={playLabel(state.animation.playing)}
+            title={playLabel(state.animation.playing)}
+            text
+            className="p-button-sm"
+            onClick={() => model.animation.toggle()} />
+        <AnimationBar style={{flex: '1 1 auto', maxWidth: 440}} />
+      </>}
       {/* <Button
         icon="pi pi-bolt"
         onClick={() => model.render({isPreview: false, now: true})}
