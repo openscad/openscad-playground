@@ -76,7 +76,7 @@
     "serve": "^14.2.4",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.1",
-    "typescript": "^5.9.2",
+    "typescript": "^7.0.2",
     "webpack": "^5.108.4",
     "webpack-cli": "^7.2.1",
     "webpack-dev-server": "^6.0.0",
