@@ -37,6 +37,18 @@ async function main() {
     assert.match(t, /```scad\ncube\(1\);\n```/);
     assert.deepEqual(changedParameters(snap()), ["width = 42 (default 30)"]);
   });
+  await test("animation: one line, only for animated models", () => {
+    assert.doesNotMatch(formatContextText(snap(), cam, "cube(1);"), /Animation/);
+    const t = formatContextText(snap({ animation: { playing: true, frame: 11, t: 11 / 30, steps: 30, fps: 15, ready: 30 } }), cam, "rotate($t*360) cube(1);");
+    assert.match(t, /Animation: \$t=0\.367 \(frame 12 of 30, 15 fps, playing\)\./);
+  });
+  await test("view state keeps the animation settings and time; drops invalid ones", () => {
+    const json = serializeViewState({ v: 1, anim: { steps: 20, fps: 12, t: 0.25 } })!;
+    assert.deepEqual(parseViewState(json)?.anim, { steps: 20, fps: 12, t: 0.25 });
+    assert.deepEqual(parseViewState({ v: 1, anim: { steps: 9999, fps: "x", t: 1.5 } })?.anim, { steps: 360 });
+    assert.equal(parseViewState({ v: 1, anim: {} })?.anim, undefined);
+    assert.equal(parseViewState({ v: 1 })?.anim, undefined);
+  });
   await test("failures include diagnostics; long sources are truncated", () => {
     const t = formatContextText(snap({ diagnostics: [{ path: "/playground.scad", line: 2, column: 1, severity: "error", message: "syntax error" }] }), null, "x".repeat(9000));
     assert.match(t, /Render: FAILED/);

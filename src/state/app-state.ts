@@ -62,7 +62,23 @@ export interface State {
     fullReady?: boolean,
     layoutError?: string,
     lineNumbers?: boolean,
+    /** Animation loop settings the user changed (unset fields: the defaults, see state/animation.ts). Shared in links. */
+    animation?: { steps?: number, fps?: number },
   }
+
+  /**
+   * Present iff the model reads `$t` (see state/animation-detect.ts). Runtime-only: playback state and
+   * progress, mirrored from the Model's AnimationController.
+   */
+  animation?: {
+    playing: boolean,
+    /** Current frame (0..steps-1) of the loop: the slider position. */
+    frame: number,
+    /** Frames rendered so far (of `steps`). */
+    ready: number,
+    /** The displayed model is a cached animation frame (rather than the result of a normal render). */
+    showing: boolean,
+  },
 
   currentRunLogs?: ['stderr'|'stdout', string][],
 

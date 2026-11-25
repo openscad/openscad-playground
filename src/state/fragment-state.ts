@@ -4,6 +4,7 @@ import { State } from "./app-state.ts";
 import { VALID_EXPORT_FORMATS_2D, VALID_EXPORT_FORMATS_3D } from './formats.ts';
 import { validateArray, validateBoolean, validateString, validateStringEnum } from "../utils.ts";
 import { stripEmbedFromFragment } from "./embed.ts";
+import { normalizeStoredSettings } from "./animation.ts";
 import { createInitialState, defaultModelColor, defaultSourcePath } from "./initial-state.ts";
 
 export function buildUrlForStateParams(state: State) {//partialState: {params: State['params'], view: State['view']}) {
@@ -104,7 +105,8 @@ export async function readStateFromFragment(): Promise<State | null> {
           collapsedCustomizerTabs: validateArray(view?.collapsedCustomizerTabs, validateString),
           color: validateString(view?.color, () => defaultModelColor),
           showAxes: validateBoolean(view?.layout?.showAxis, () => true),
-          lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false)
+          lineNumbers: validateBoolean(view?.layout?.lineNumbers, () => false),
+          animation: normalizeStoredSettings(view?.animation),
         }
       };
     } catch (e) {

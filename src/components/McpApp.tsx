@@ -187,7 +187,9 @@ export function McpApp({
       if (vs.embed != null) s.view.embed = vs.embed;
       if (vs.overlay != null) s.view.customizerOverlay = vs.overlay;
       if (vs.axes != null) s.view.showAxes = vs.axes;
+      if (vs.anim && (vs.anim.steps != null || vs.anim.fps != null)) s.view.animation = { steps: vs.anim.steps, fps: vs.anim.fps };
     });
+    if (vs.anim?.t != null) m.setInitialAnimationTime(vs.anim.t);
     if (vs.files?.length) m.processSource();
     const cam = vs.camera;
     if (cam) void (async () => {
@@ -222,6 +224,7 @@ export function McpApp({
       embed: !!m.state.view.embed,
       overlay: !!m.state.view.customizerOverlay,
       axes: m.state.view.showAxes,
+      ...(m.state.animation ? { anim: { ...m.state.view.animation, t: m.animationTime } } : {}),
     };
   }, []);
   const viewSaver = useMemo(() => new ViewStateSaver(collectViewState, [
@@ -379,6 +382,7 @@ export function McpApp({
       setShowAxes(show) {
         modelRef.current.mutate(s => s.view.showAxes = show);
       },
+      setAnimation: req => modelRef.current.applyAnimationRequest(req),
       getCamera: async () => (await viewerRef.current?.getCamera()) ?? null,
       setCamera: async camera => (await viewerRef.current?.setCamera(camera)) ?? null,
       waitForModel: async timeoutMs => (await viewerRef.current?.waitForModel(timeoutMs)) ?? false,
@@ -397,11 +401,15 @@ export function McpApp({
   const sourceContent = state.params.sources.find(s => s.path === state.params.activePath)?.content;
   const varsJson = JSON.stringify(state.params.vars ?? {});
   const isIdle = !state.rendering && !state.previewing && !state.checkingSyntax;
+  // Animation: report the settled frame / play state, not every frame of a running loop.
+  const animPlaying = !!state.animation?.playing;
+  const animFrame = state.animation && !state.animation.playing ? state.animation.frame : -1;
+  const animSettingsJson = JSON.stringify(state.view.animation ?? null);
   useEffect(() => {
     if (sourceContent != null) fileWriterRef.current?.schedule(sourceContent);
     scheduleContextUpdate();
     viewSaver.request();
-  }, [sourceContent, varsJson, isIdle, viewSaver, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate]);
+  }, [sourceContent, varsJson, isIdle, viewSaver, state.view.embed, state.view.customizerOverlay, state.view.showAxes, scheduleContextUpdate, animPlaying, animFrame, animSettingsJson]);
 
   // Report the inline height to the host (see state/mcp-sizing.ts for the rules).
   const lastReportedHeight = useRef<number | null>(null);
@@ -646,6 +654,7 @@ function buildSnapshot(model: Model, timedOut?: boolean): ViewerSnapshot {
       ...('options' in p && p.options ? { options: p.options } : {}),
     })),
     showAxes: !!s.view.showAxes,
+    ...(model.animationInfo ? { animation: model.animationInfo } : {}),
     layout: {
       mode: s.view.embed ? 'embed' : 'full',
       ...(s.view.embed ? {} : { ready: !!s.view.fullReady }),
