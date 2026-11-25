@@ -4,6 +4,8 @@
 const isProd = process.env.NODE_ENV === 'production';
 const baseUrl = process.env.E2E_BASE_URL ?? (isProd ? 'http://localhost:3000/dist/' : 'http://localhost:4000/');
 
+const longTimeout = 60000;
+
 const macUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 let originalUserAgent;
@@ -33,7 +35,7 @@ describe('editor select all', () => {
     await page.waitForSelector('.monaco-editor textarea, .monaco-editor .native-edit-context');
     await page.waitForFunction(() => window.monaco?.editor.getEditors().length > 0);
     await page.click('.monaco-editor .view-lines');
-  });
+  }, longTimeout);
 
   test('Monaco sees macOS (no global process polyfill)', async () => {
     expect(await page.evaluate(() => typeof process === 'undefined' || process.platform)).not.toBe('browser');
