@@ -1,5 +1,6 @@
 // Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
 
+import './public-path.ts';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { createEditorFS } from './fs/filesystem.ts';

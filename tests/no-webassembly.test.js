@@ -22,6 +22,7 @@ describe('browser without the WebAssembly global', () => {
     expect(report.webAssemblyType).toBe('undefined');
     expect(report.pageErrors).toEqual([]);
     expect(report.rendered).toBe(true);
+    expect(report.bannerShown).toBe(false);
     expect(report.renderTimeLogged).toBe(true);
   }, longTimeout);
 });

@@ -430,14 +430,6 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
             onClick={() => setMenuOpen(o => !o)}
           />
         )}
-        {onDownloadSource && (
-          <CornerButton
-            icon={EmbedIcons.scad}
-            label="Download .scad"
-            disabled={downloading}
-            onClick={() => runDelivery(onDownloadSource)}
-          />
-        )}
         {toolbar}
         {fullscreen && (
           <CornerButton
@@ -473,11 +465,14 @@ export default function EmbedView({ viewerRef, isDark, disableZoom, showHint, on
           background: isDark ? '#252525' : '#fff', color: isDark ? '#eee' : '#222',
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontFamily: 'var(--font-sans, system-ui, sans-serif)', fontSize: 13,
         }}>
-          {formatsFor(!!state.is2D).map(f => (
-            <button key={f} role="menuitem" type="button" onClick={() => runDownload(f)} style={{
+          {[
+            ...(onDownloadSource ? [{ key: 'scad', label: 'SCAD (source)', run: () => runDelivery(onDownloadSource) }] : []),
+            ...formatsFor(!!state.is2D).map(f => ({ key: f, label: FORMAT_INFO[f].label, run: () => runDownload(f) })),
+          ].map(item => (
+            <button key={item.key} role="menuitem" type="button" onClick={item.run} style={{
               display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'none',
               border: 'none', color: 'inherit', cursor: 'pointer', borderRadius: 6, font: 'inherit',
-            }}>{FORMAT_INFO[f].label}</button>
+            }}>{item.label}</button>
           ))}
         </div>
       )}
@@ -512,7 +507,6 @@ export const EmbedIcons = {
   sliders: <SVG><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></SVG>,
   maximize: <SVG><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
   minimize: <SVG><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></SVG>,
-  scad: <SVG><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><polyline points="10 13 8 15 10 17" /><polyline points="14 13 16 15 14 17" /></SVG>,
   check: <SVG><polyline points="20 6 9 17 4 12" /></SVG>,
   render: <SVG><polygon points="6 4 20 12 6 20 6 4" /></SVG>,
   spinner: <SVG><path d="M21 12a9 9 0 1 1-6.2-8.55" /></SVG>,

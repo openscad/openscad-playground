@@ -200,9 +200,9 @@ The view registers these with the host during the `ui/initialize` handshake (def
 
 The embed toolbar also has **Render** (full render, spinner while running, result announced) and **Download** (format menu; uses the host's `ui/download-file`, else attaches the file to the chat, else shows a manual save link, since the sandboxed iframe cannot save files itself).
 
-The toolbar's **Download .scad** button and `download_model format:"scad"` use the same delivery chain as model downloads (host `ui/download-file`, resource link, chat attachment, tool result, manual-save dialog). Multi-file projects: the active file (or `path`) is exported; there is no "all files (.zip)" option.
+The Download menu's first item, **SCAD (source)**, and `download_model format:"scad"` use the same delivery chain as model downloads (host `ui/download-file`, resource link, chat attachment, tool result, manual-save dialog). Multi-file projects: the active file (or `path`) is exported; there is no "all files (.zip)" option.
 
-The viewer opens in **embed mode** (see the main README): only the 3D view and a top-right toolbar (customizer toggle, render, download model, **Download .scad** for the active file's source, fullscreen when the host offers it, exit to the full editor). The customizer is a translucent side sheet docked on the right that overlays, and never resizes, the viewer; it closes with the toggle, Escape, or a tap outside on small screens. `set_layout` and the toolbar share the same state, so `get_viewer_state` always reports what the user sees.
+The viewer opens in **embed mode** (see the main README): only the 3D view and a top-right toolbar (customizer toggle, render, download menu (first item: **SCAD (source)**, the active file's source), fullscreen when the host offers it, exit to the full editor). The customizer is a translucent side sheet docked on the right that overlays, and never resizes, the viewer; it closes with the toggle, Escape, or a tap outside on small screens. `set_layout` and the toolbar share the same state, so `get_viewer_state` always reports what the user sees.
 
 Parameter presets are not exposed: the app has no preset concept (only the values the customizer holds), so there are no `list_presets`/`apply_preset` tools.
 
@@ -261,6 +261,8 @@ The app tools live in the view. `npm test` also runs `test-tools.ts`, which unit
 The app uses WebAssembly by default. When WebAssembly is unavailable (e.g. iOS Lockdown Mode, or a strict CSP without `wasm-unsafe-eval`), the worker loads the optional wasm2js build `openscad.fallback.js` instead, if it is deployed next to the app (see [docs/WASM_FALLBACK.md](../docs/WASM_FALLBACK.md) for how to build it).
 
 In the MCP App the page lives on the host's sandbox origin while assets live on `OPENSCAD_BASE_URL`. The worker is started through a blob wrapper that resolves relative `importScripts()`/`fetch()` URLs against the asset origin, so the fallback script is fetched from `OPENSCAD_BASE_URL` too. Make sure it is served from there (in `--serve-dist` mode, copy it into `dist/`; it is ~22 MB and only downloaded when needed) and that the origin is allowed by the CSP, which the server derives from `OPENSCAD_BASE_URL`.
+
+Everything else the view loads is pinned to the same origin, because relative URLs resolve against the host's sandbox: the HTML references only absolute URLs; webpack's public path (lazy chunks) is set from the `openscad-base-url` meta tag (`src/public-path.ts`); CSS `url()` references (Inter, PrimeIcons) are rewritten onto it when the stylesheets are injected (`src/style-tag-transform.ts`); fetches, the skybox/axes models, library archives and the worker go through `resolveUrl()`. No `<base>` element is used (it would need `baseUriDomains` and would re-point every relative URL, including in third-party code). `test-asset-origins.ts` (static) and `test-origins-e2e.ts` (headless Chrome, three origins, fails on any request that leaves the asset origin or any CSP violation) guard this.
 
 ## Development
 

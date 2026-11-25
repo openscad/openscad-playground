@@ -46,7 +46,11 @@ const config = [
         {
           test: /\.css$/i,
           use: [
-            'style-loader',
+            {
+              loader: 'style-loader',
+              // Makes url() references in the CSS (fonts) resolve against the MCP app's base URL.
+              options: { styleTagTransform: path.resolve(__dirname, 'src/style-tag-transform.ts') },
+            },
             {
               loader: 'css-loader',
               options: { url: false },

@@ -15,6 +15,9 @@ function loadForcedFallback(src) {
   return page.goto(`${baseUrl}?wasmEngine=wasm2js#src=${encodeURIComponent(src)}`);
 }
 
+const expectEngine = (engine) => page.waitForFunction(
+  (e) => document.documentElement.dataset.engine === e, {timeout: longTimeout}, engine);
+
 const messages = [];
 beforeAll(() => {
   page.on('console', msg => messages.push({type: msg.type(), text: msg.text()}));
@@ -28,8 +31,7 @@ describe('wasm2js fallback', () => {
       const viewer = document.querySelector('model-viewer.main-viewer');
       return viewer && viewer.src !== '';
     }, {timeout: longTimeout});
-    await page.waitForFunction(
-      () => document.body.innerText.includes('JavaScript compatibility mode'));
+    await expectEngine('wasm2js');
   }, longTimeout);
 
   // The same library models as in e2e.test.js, on the JavaScript engine.
@@ -39,14 +41,25 @@ describe('wasm2js fallback', () => {
       const viewer = document.querySelector('model-viewer.main-viewer');
       return viewer && viewer.src !== '';
     }, {timeout: longTimeout});
-    await page.waitForFunction(
-      () => document.body.innerText.includes('JavaScript compatibility mode'));
+    await expectEngine('wasm2js');
     expect(messages.filter(m => /Can't open (include|library)|ERROR|Ignoring unknown/.test(m.text))).toHaveLength(0);
   }, longTimeout);
 
-  (hasFallback ? test.skip : test)('shows a banner when the fallback is not deployed', async () => {
+  (hasFallback ? test : test.skip)('shows no banner in JavaScript compatibility mode', async () => {
     await loadForcedFallback('cube([10, 10, 10]);');
+    await expectEngine('wasm2js');
+    expect(await page.$('.wasm-banner')).toBeNull();
+    expect(await page.evaluate(() => document.body.innerText)).not.toMatch(/compatibility mode/);
+  }, longTimeout);
+
+  (hasFallback ? test.skip : test)('shows a dismissible error banner when the fallback is not deployed', async () => {
+    await loadForcedFallback('cube([10, 10, 10]);');
+    await expectEngine('none');
     await page.waitForFunction(
       () => document.body.innerText.includes('no JavaScript fallback build is available'));
+    await page.click('.wasm-banner button[aria-label="Dismiss"]');
+    await page.waitForFunction(() => !document.querySelector('.wasm-banner'));
+    // Remembered for the session.
+    expect(await page.evaluate(() => sessionStorage.getItem('openscad-wasm-banner-dismissed'))).toBe('1');
   }, longTimeout);
 });
