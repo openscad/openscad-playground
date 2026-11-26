@@ -12,7 +12,7 @@ It defaults to the [Manifold backend](https://github.com/openscad/openscad/pull/
 
 Enjoy!
 
-Licenses: see [LICENSES](./LICENSE).
+Licenses: see [LICENSES](./LICENSE.md).
 
 ## Features
 
